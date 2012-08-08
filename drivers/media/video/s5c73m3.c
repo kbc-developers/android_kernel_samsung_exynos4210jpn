@@ -37,7 +37,6 @@
 #endif
 
 #include <linux/regulator/machine.h>
-#include <linux/leds-aat1290a.h>
 
 #include <media/s5c73m3_platform.h>
 #include "s5c73m3.h"
@@ -95,24 +94,6 @@ static const struct s5c73m3_frmsizeenum capture_frmsizes[] = {
 	{ S5C73M3_CAPTURE_8MP,	3264,	2448,	0xF0 },
 };
 
-static const struct s5c73m3_effectenum s5c73m3_effects[] = {
-	{IMAGE_EFFECT_NONE, S5C73M3_IMAGE_EFFECT_NONE},
-	{IMAGE_EFFECT_NEGATIVE, S5C73M3_IMAGE_EFFECT_NEGATIVE},
-	{IMAGE_EFFECT_AQUA, S5C73M3_IMAGE_EFFECT_AQUA},
-	{IMAGE_EFFECT_SEPIA, S5C73M3_IMAGE_EFFECT_SEPIA},
-	{IMAGE_EFFECT_BNW, S5C73M3_IMAGE_EFFECT_MONO},
-	{IMAGE_EFFECT_SKETCH, S5C73M3_IMAGE_EFFECT_SKETCH},
-	{IMAGE_EFFECT_WASHED, S5C73M3_IMAGE_EFFECT_WASHED},
-	{IMAGE_EFFECT_VINTAGE_WARM, S5C73M3_IMAGE_EFFECT_VINTAGE_WARM},
-	{IMAGE_EFFECT_VINTAGE_COLD, S5C73M3_IMAGE_EFFECT_VINTAGE_COLD},
-	{IMAGE_EFFECT_SOLARIZE, S5C73M3_IMAGE_EFFECT_SOLARIZE},
-	{IMAGE_EFFECT_POSTERIZE, S5C73M3_IMAGE_EFFECT_POSTERIZE},
-	{IMAGE_EFFECT_POINT_BLUE, S5C73M3_IMAGE_EFFECT_POINT_BLUE},
-	{IMAGE_EFFECT_POINT_RED_YELLOW, S5C73M3_IMAGE_EFFECT_POINT_RED_YELLOW},
-	{IMAGE_EFFECT_POINT_COLOR_3, S5C73M3_IMAGE_EFFECT_POINT_COLOR_3},
-	{IMAGE_EFFECT_POINT_GREEN, S5C73M3_IMAGE_EFFECT_POINT_GREEN},
-};
-
 static struct s5c73m3_control s5c73m3_ctrls[] = {
 	{
 		.id = V4L2_CID_CAMERA_ISO,
@@ -164,10 +145,6 @@ static u8 sysfs_phone_fw[10] = {0,};
 static u8 sysfs_sensor_type[15] = {0,};
 static u8 sysfs_isp_core[10] = {0,};
 static u8 data_memory[500000] = {0,};
-
-static u16 isp_chip_info1;
-static u16 isp_chip_info2;
-static u16 isp_chip_info3;
 
 static int s5c73m3_s_stream_sensor(struct v4l2_subdev *sd, int onoff);
 static int s5c73m3_set_touch_auto_focus(struct v4l2_subdev *sd);
@@ -319,10 +296,9 @@ static int s5c73m3_i2c_check_status(struct v4l2_subdev *sd)
 	int index = 0;
 	u16 status = 0;
 	u16 i2c_status = 0;
-	u16 i2c_seq_status = 0;
 
 	do {
-		err = s5c73m3_read(sd, 0x0009, S5C73M3_STATUS, &status);
+		err = s5c73m3_read(sd, 0x0009, 0x5080, &status);
 		if (status == 0xffff)
 			break;
 
@@ -331,16 +307,9 @@ static int s5c73m3_i2c_check_status(struct v4l2_subdev *sd)
 	} while (index < 2000);	/* 1 sec */
 
 	if (index >= 2000) {
-		err = s5c73m3_read(sd, 0x0009,
-			S5C73M3_I2C_ERR_STATUS, &i2c_status);
-		err = s5c73m3_read(sd, 0x0009,
-			S5C73M3_I2C_SEQ_STATUS, &i2c_seq_status);
-		cam_dbg("TimeOut!! index:%d,status:%#x,i2c_stauts:%#x,i2c_seq_status:%#x\n",
-			index,
-			status,
-			i2c_status,
-			i2c_seq_status);
-
+		err = s5c73m3_read(sd, 0x0009, 0x599E, &i2c_status);
+		cam_dbg("index : %d, status : %#x, i2c_stauts : %#x\n",
+			index, status, i2c_status);
 		err = -1;
 	}
 
@@ -558,18 +527,9 @@ static int s5c73m3_get_sensor_fw_binary(struct v4l2_subdev *sd)
 	old_fs = get_fs();
 	set_fs(KERNEL_DS);
 
-	if (state->sensor_fw[0] == 'O') {
-		sprintf(fw_path, "/data/cfw/SlimISP_G%c.bin",
-			state->sensor_fw[1]);
-	} else if (state->sensor_fw[0] == 'S') {
-		sprintf(fw_path, "/data/cfw/SlimISP_Z%c.bin",
-			state->sensor_fw[1]);
-	} else {
 	sprintf(fw_path, "/data/cfw/SlimISP_%c%c.bin",
 		state->sensor_fw[0],
 		state->sensor_fw[1]);
-	}
-
 	fp = filp_open(fw_path, O_WRONLY|O_CREAT, 0644);
 	if (IS_ERR(fp) || fp == NULL) {
 		cam_err("failed to open %s, err %ld\n",
@@ -803,7 +763,6 @@ static int s5c73m3_get_phone_fw_version(struct v4l2_subdev *sd)
 	int err = 0;
 	int retVal = 0;
 	int fw_requested = 1;
-	int copied_fw_binary = 0;
 
 	if (state->sensor_fw[0] == 'O') {
 		sprintf(fw_path, "SlimISP_G%c.bin",
@@ -897,25 +856,19 @@ request_fw:
 			CHECK_ERR(retVal);
 			retVal = s5c73m3_get_sensor_fw_binary(sd);
 			CHECK_ERR(retVal);
-			copied_fw_binary = 1;
 			goto request_fw;
 		}
-	}
 
-	if (copied_fw_binary) {
 		memcpy(state->phone_fw,
-			state->sensor_fw,
+			camfw_info[state->fw_index].ver,
 			S5C73M3_FW_VER_LEN);
-		state->phone_fw[S5C73M3_FW_VER_LEN+1] = ' ';
-	} else {
+	}
 	memcpy(state->phone_fw,
 		camfw_info[state->fw_index].ver,
 		S5C73M3_FW_VER_LEN);
 	state->phone_fw[S5C73M3_FW_VER_LEN+1] = ' ';
-	}
-	memcpy(sysfs_phone_fw,
-		state->phone_fw,
-		sizeof(state->phone_fw));
+
+	memcpy(sysfs_phone_fw, state->phone_fw, sizeof(state->phone_fw));
 	cam_dbg("Phone_version = %s(index=%d)\n",
 		state->phone_fw, state->fw_index);
 
@@ -1091,17 +1044,6 @@ static int s5c73m3_check_fw(struct v4l2_subdev *sd, int download)
 #else
 		err = s5c73m3_get_sensor_fw_binary(sd);
 		CHECK_ERR(err);
-
-		memcpy(state->phone_fw,
-			state->sensor_fw,
-			S5C73M3_FW_VER_LEN);
-		state->phone_fw[S5C73M3_FW_VER_LEN+1] = ' ';
-
-		memcpy(sysfs_phone_fw,
-			state->phone_fw,
-			sizeof(state->phone_fw));
-		cam_dbg("Changed to Phone_version = %s\n",
-			state->phone_fw);
 #endif
 	}
 
@@ -1498,22 +1440,45 @@ static int s5c73m3_capture_nightshot(struct v4l2_subdev *sd)
 
 static int s5c73m3_set_effect(struct v4l2_subdev *sd, int val)
 {
-	int err = 0;
-	int num_entries = 0;
-	int i = 0;
+	int err;
 	cam_dbg("E, value %d\n", val);
 
-	if (val < IMAGE_EFFECT_BASE || val > IMAGE_EFFECT_MAX)
-		val = IMAGE_EFFECT_NONE;
+retry:
+	switch (val) {
+	case IMAGE_EFFECT_NONE:
+		err = s5c73m3_writeb(sd, S5C73M3_IMAGE_EFFECT,
+			S5C73M3_IMAGE_EFFECT_NONE);
+		CHECK_ERR(err);
+		break;
 
-	num_entries = ARRAY_SIZE(s5c73m3_effects);
-	for (i = 0; i < num_entries; i++) {
-		if (val == s5c73m3_effects[i].index) {
-			err = s5c73m3_writeb(sd, S5C73M3_IMAGE_EFFECT,
-				s5c73m3_effects[i].reg_val);
-			CHECK_ERR(err);
-			break;
-		}
+	case IMAGE_EFFECT_SEPIA:
+		err = s5c73m3_writeb(sd, S5C73M3_IMAGE_EFFECT,
+			S5C73M3_IMAGE_EFFECT_SEPIA);
+		CHECK_ERR(err);
+		break;
+
+	case IMAGE_EFFECT_BNW:
+		err = s5c73m3_writeb(sd, S5C73M3_IMAGE_EFFECT,
+			S5C73M3_IMAGE_EFFECT_MONO);
+		CHECK_ERR(err);
+		break;
+
+	case IMAGE_EFFECT_NEGATIVE:
+		err = s5c73m3_writeb(sd, S5C73M3_IMAGE_EFFECT,
+			S5C73M3_IMAGE_EFFECT_NEGATIVE);
+		CHECK_ERR(err);
+		break;
+
+	case IMAGE_EFFECT_AQUA:
+		err = s5c73m3_writeb(sd, S5C73M3_IMAGE_EFFECT,
+			S5C73M3_IMAGE_EFFECT_AQUA);
+		CHECK_ERR(err);
+		break;
+
+	default:
+		cam_warn("invalid value, %d\n", val);
+		val = IMAGE_EFFECT_NONE;
+		goto retry;
 	}
 
 	cam_trace("X\n");
@@ -2001,14 +1966,6 @@ static int s5c73m3_set_frame_rate(struct v4l2_subdev *sd, int fps)
 	case 15:
 		err = s5c73m3_writeb(sd, S5C73M3_AE_MODE,
 			S5C73M3_FIXED_15FPS); /* 15fps */
-		break;
-	case 10:
-		err = s5c73m3_writeb(sd, S5C73M3_AE_MODE,
-			S5C73M3_FIXED_10FPS); /* 10fps */
-		break;
-	case 7:
-		err = s5c73m3_writeb(sd, S5C73M3_AE_MODE,
-			S5C73M3_FIXED_7FPS); /* 7fps */
 		break;
 	default:
 		err = s5c73m3_writeb(sd, S5C73M3_AE_MODE,
@@ -2689,9 +2646,7 @@ static int s5c73m3_s_stream_sensor(struct v4l2_subdev *sd, int onoff)
 {
 	int err = 0;
 	int index = 0;
-	u16 status = 0;
-	u16 i2c_status = 0;
-	u16 i2c_seq_status = 0;
+	u16 stream_status = 0;
 
 	cam_info("onoff=%d\n", onoff);
 	err = s5c73m3_writeb(sd, S5C73M3_SENSOR_STREAMING,
@@ -2700,8 +2655,8 @@ static int s5c73m3_s_stream_sensor(struct v4l2_subdev *sd, int onoff)
 	CHECK_ERR(err);
 
 	do {
-		err = s5c73m3_read(sd, 0x0009, S5C73M3_STATUS, &status);
-		if (status == 0xffff)
+		err = s5c73m3_read(sd, 0x0009, 0x5080, &stream_status);
+		if (stream_status == 0xffff)
 			break;
 
 		index++;
@@ -2709,16 +2664,8 @@ static int s5c73m3_s_stream_sensor(struct v4l2_subdev *sd, int onoff)
 	} while (index < 30);
 
 	if (index >= 30) {
-		err = s5c73m3_read(sd, 0x0009,
-			S5C73M3_I2C_ERR_STATUS, &i2c_status);
-		err = s5c73m3_read(sd, 0x0009,
-			S5C73M3_I2C_SEQ_STATUS, &i2c_seq_status);
-		cam_dbg("TimeOut!! index:%d,status:%#x,i2c_stauts:%#x,i2c_seq_status:%#x\n",
-			index,
-			status,
-			i2c_status,
-			i2c_seq_status);
-
+		cam_info("TimeOut!! index = %d, status = 0x%x",
+			index, stream_status);
 		err = -1;
 	}
 
@@ -3077,13 +3024,6 @@ static int s5c73m3_read_vdd_core(struct v4l2_subdev *sd)
 
 	cam_dbg("read_val %#x\n", read_val);
 
-	err = s5c73m3_read(sd, 0x3800, 0xA040, &isp_chip_info1);
-	CHECK_ERR(err);
-	err = s5c73m3_read(sd, 0x3800, 0xA044, &isp_chip_info2);
-	CHECK_ERR(err);
-	err = s5c73m3_read(sd, 0x3800, 0xA048, &isp_chip_info3);
-	CHECK_ERR(err);
-
 	/*Read Data End*/
 	err = s5c73m3_write(sd, 0x3800, 0xA000, 0x0000);
 	CHECK_ERR(err);
@@ -3159,12 +3099,12 @@ static int s5c73m3_set_timing_register_for_vdd(struct v4l2_subdev *sd)
 static int s5c73m3_init(struct v4l2_subdev *sd, u32 val)
 {
 	struct s5c73m3_state *state = to_state(sd);
-	int err = 0;
-	int retVal = 0;
+	int err;
+
 	sd_internal = sd;
 
 	/* Default state values */
-	state->isp.bad_fw = 1;
+	state->isp.bad_fw = 0;
 
 	state->preview = NULL;
 	state->capture = NULL;
@@ -3185,8 +3125,6 @@ static int s5c73m3_init(struct v4l2_subdev *sd, u32 val)
 		s5c73m3_read_vdd_core(sd);
 
 	cam_dbg("vdd core value from OTP : %s", sysfs_isp_core);
-	cam_dbg("chip info from OTP : %#x, %#x, %#x\n",
-		isp_chip_info1, isp_chip_info2, isp_chip_info3);
 
 #ifdef S5C73M3_FROM_BOOTING
 	err = s5c73m3_FROM_booting(sd);
@@ -3201,34 +3139,6 @@ static int s5c73m3_init(struct v4l2_subdev *sd, u32 val)
 	}
 #endif
 	CHECK_ERR(err);
-
-	err = s5c73m3_i2c_check_status(sd);
-	if (err < 0) {
-		cam_err("ISP is not ready. retry loading fw!!\n");
-		/* retry */
-		retVal = s5c73m3_check_fw_date(sd);
-
-		err = state->pdata->is_isp_reset();
-		CHECK_ERR(err);
-		err = s5c73m3_set_timing_register_for_vdd(sd);
-		CHECK_ERR(err);
-
-		/* retVal = 0 : Same Version
-		retVal < 0 : Phone Version is latest Version than sensorFW.
-		retVal > 0 : Sensor Version is latest version than phoenFW. */
-		if (retVal <= 0) {
-			cam_dbg("Loading From PhoneFW......\n");
-			err = s5c73m3_SPI_booting(sd);
-			CHECK_ERR(err);
-		} else {
-			cam_dbg("Loading From SensorFW......\n");
-			err = s5c73m3_get_sensor_fw_binary(sd);
-			CHECK_ERR(err);
-		}
-
-	}
-
-	state->isp.bad_fw = 0;
 
 	s5c73m3_init_param(sd);
 
@@ -3276,7 +3186,18 @@ static ssize_t s5c73m3_camera_rear_flash(struct device *dev,
 	struct device_attribute *attr, const char *buf,
 	size_t count)
 {
-	return aat1290a_power(dev, attr, buf, count);
+	int err;
+
+	if (buf[0] == '0')
+		err = s5c73m3_writeb(sd_internal, S5C73M3_FLASH_TORCH,
+			S5C73M3_FLASH_TORCH_OFF);
+	else
+		err = s5c73m3_writeb(sd_internal, S5C73M3_FLASH_TORCH,
+			S5C73M3_FLASH_TORCH_ON);
+
+	CHECK_ERR(err);
+
+	return count;
 }
 
 static ssize_t s5c73m3_camera_isp_core_show(struct device *dev,

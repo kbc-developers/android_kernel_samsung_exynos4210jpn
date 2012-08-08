@@ -29,6 +29,7 @@
 #include <linux/videodev2.h>
 #include <linux/videodev2_exynos_camera.h>
 #include <linux/gpio.h>
+#include <linux/gpio_event.h>
 #include <plat/gpio-cfg.h>
 #include <media/exynos_fimc_is.h>
 
@@ -576,7 +577,7 @@ int fimc_is_fw_clear_insr1(struct fimc_is_dev *dev)
  Group 2. Common
 */
 int fimc_is_hw_get_sensor_type(enum exynos5_sensor_id sensor_id,
-				enum exynos5_flite_id flite_id)
+										enum exynos5_flite_id flite_id)
 {
 	int id = sensor_id;
 
@@ -712,8 +713,9 @@ int fimc_is_hw_a5_power_on(struct fimc_is_dev *isp)
 
 	mutex_lock(&isp->lock);
 
-	if (isp->low_power_mode)
+	if (isp->low_power_mode) {
 		fimc_is_hw_set_low_poweroff(isp, false);
+	}
 
 	dbg("%s\n", __func__);
 
@@ -721,9 +723,9 @@ int fimc_is_hw_a5_power_on(struct fimc_is_dev *isp)
 	timeout = 1000;
 	while ((__raw_readl(PMUREG_ISP_STATUS) & 0x7) != 0x7) {
 		if (timeout == 0)
-			err("A5 power on failed1\n");
+			printk(KERN_ERR "A5 power on failed1\n");
 		timeout--;
-		udelay(1);
+		msleep(1);
 	}
 
 	enable_mipi();
@@ -764,13 +766,12 @@ int fimc_is_hw_a5_power_on(struct fimc_is_dev *isp)
 	timeout = 1000;
 	while ((__raw_readl(PMUREG_ISP_ARM_STATUS) & 0x1) != 0x1) {
 		if (timeout == 0)
-			err("A5 power on failed2\n");
+			printk(KERN_ERR "A5 power on failed2\n");
 		timeout--;
-		udelay(1);
+		msleep(1);
 	}
 
-	/* HACK : fimc_is_irq_handler() cannot
-	 * set 1 on FIMC_IS_PWR_ST_POWER_ON_OFF */
+	/* HACK : fimc_is_irq_handler() cannot set 1 on FIMC_IS_PWR_ST_POWER_ON_OFF */
 	set_bit(FIMC_IS_PWR_ST_POWER_ON_OFF, &isp->power);
 
 done:
@@ -807,12 +808,13 @@ int fimc_is_hw_a5_power_off(struct fimc_is_dev *isp)
 	timeout = 1000;
 	while (__raw_readl(PMUREG_ISP_ARM_STATUS) & 0x1) {
 		if (timeout == 0)
-			err("A5 power off failed\n");
+			printk(KERN_ERR "A5 power off failed\n");
 		timeout--;
-		udelay(1);
+		msleep(1);
 	}
 
 	/* 4. ISP Power down mode (LOWPWR) */
+
 	writel(0x0, PMUREG_CMU_RESET_ISP_SYS_PWR_REG);
 
 	writel(0x0, PMUREG_ISP_CONFIGURATION);
@@ -820,19 +822,20 @@ int fimc_is_hw_a5_power_off(struct fimc_is_dev *isp)
 	timeout = 1000;
 	while ((__raw_readl(PMUREG_ISP_STATUS) & 0x7)) {
 		if (timeout == 0) {
-			err("ISP power off failed --> Retry\n");
+			printk(KERN_ERR "ISP power off failed --> Retry\n");
 			/* Retry */
 			__raw_writel(0x1CF82000, PMUREG_ISP_LOW_POWER_OFF);
 			timeout = 1000;
 			while ((__raw_readl(PMUREG_ISP_STATUS) & 0x7)) {
-				if (timeout == 0)
-					err("ISP power off failed\n");
+				if (timeout == 0) {
+					printk(KERN_ERR "ISP power off failed\n");
+				}
 				timeout--;
-				udelay(1);
+				msleep(1);
 			}
 		}
 		timeout--;
-		udelay(1);
+		msleep(1);
 	}
 
 done:
@@ -856,7 +859,7 @@ void fimc_is_hw_a5_power(struct fimc_is_dev *isp, int on)
 #else
 	if (on)
 		fimc_is_hw_a5_power_on(isp);
-	else
+	else 
 		fimc_is_hw_a5_power_off(isp);
 #endif
 }
@@ -902,9 +905,7 @@ int fimc_is_hw_get_sensor_num(struct fimc_is_dev *dev)
 }
 
 void fimc_is_hw_set_debug_level(struct fimc_is_dev *dev,
-				int target,
-				int module,
-				int level)
+								int target, int module, int level)
 {
 	fimc_is_hw_wait_intmsr0_intmsd0(dev);
 	writel(HIC_MSG_CONFIG, dev->regs + ISSR0);
@@ -948,14 +949,14 @@ int fimc_is_hw_update_bufmask(struct fimc_is_dev *dev, unsigned int dev_num)
 	buf_mask = dev->video[dev_num].buf_mask;
 
 	for (i = 0; i < 16; i++) {
-		if (((buf_mask & (1 << i)) >> i) == 1)
+		if (((buf_mask & (1 << i)) >> i) == 1) {
 			cnt++;
+		}
 	}
 	dbg("dev_num: %u, buf_mask: %#x, cnt: %d\n", dev_num, buf_mask, cnt);
 
 	if (cnt == 1) {
-		err("ERR: Not enough buffers[dev_num: %u, buf_mask: %#x]\n",
-							dev_num, buf_mask);
+		err("ERR: Not enough buffers[dev_num: %u, buf_mask: %#x]\n", dev_num, buf_mask);
 		goto done;
 	}
 
@@ -1964,7 +1965,7 @@ int fimc_is_hw_change_size(struct fimc_is_dev *dev)
 	IS_INC_PARAM_NUM(dev);
 
 	/* ScalerC */
-	front_width = dev->video[FIMC_IS_VIDEO_NUM_SCALERC].frame.width;
+	front_width =dev->video[FIMC_IS_VIDEO_NUM_SCALERC].frame.width;
 	front_height = dev->video[FIMC_IS_VIDEO_NUM_SCALERC].frame.height;
 
 	back_width = dev->video[FIMC_IS_VIDEO_NUM_SCALERP].frame.width;
@@ -1991,25 +1992,32 @@ int fimc_is_hw_change_size(struct fimc_is_dev *dev)
 
 	} else if (front_crop_ratio < back_crop_ratio) {
 		crop_width = front_width;
-		crop_height = (front_width
-				* (1000 * 100 / back_crop_ratio)) / 100;
+		crop_height = (front_width * (1000 * 100 / back_crop_ratio)) / 100;
 		crop_width = ALIGN(crop_width, 8);
 		crop_height = ALIGN(crop_height, 8);
 
 	} else if (front_crop_ratio > back_crop_ratio) {
 		crop_height = front_height;
-		crop_width = (front_height
-				* (back_crop_ratio * 100 / 1000)) / 100 ;
+		crop_width = (front_height * (back_crop_ratio * 100 / 1000)) / 100 ;
 		crop_width = ALIGN(crop_width, 8);
 		crop_height = ALIGN(crop_height, 8);
 	}
 
 	if (dev->back.dis_on) {
-		dis_width = back_width * 125 / 100;
-		dis_height = back_height * 125 / 100;
+		if (crop_width <= DEFAULT_CAPTURE_STILL_CROP_WIDTH
+			&& crop_height <=  DEFAULT_CAPTURE_STILL_CROP_HEIGHT) {
+			dis_width = (crop_width * 100) / 125;
+			dis_height = (crop_height * 100) / 125;
+
+		} else {
+			crop_width = back_width * 125 / 100;
+			crop_height = back_height * 125 / 100;
+			dis_width = back_width;
+			dis_height = back_height;
+		}
 	} else {
-		dis_width = back_width;
-		dis_height = back_height;
+			dis_width = crop_width;
+			dis_height = crop_height;
 	}
 
 	IS_SCALERC_SET_PARAM_INPUT_CROP_OUT_WIDTH(dev,
@@ -2055,16 +2063,16 @@ int fimc_is_hw_change_size(struct fimc_is_dev *dev)
 	IS_INC_PARAM_NUM(dev);
 
 	IS_SCALERC_SET_PARAM_OUTPUT_CROP_CROP_WIDTH(dev,
-		dis_width);
+		front_width);
 	IS_SCALERC_SET_PARAM_OUTPUT_CROP_CROP_HEIGHT(dev,
-		dis_height);
+		front_height);
 	IS_SET_PARAM_BIT(dev, PARAM_SCALERC_OUTPUT_CROP);
 	IS_INC_PARAM_NUM(dev);
 
 	IS_SCALERC_SET_PARAM_OTF_OUTPUT_WIDTH(dev,
-		dis_width);
+		crop_width);
 	IS_SCALERC_SET_PARAM_OTF_OUTPUT_HEIGHT(dev,
-		dis_height);
+		crop_height);
 	IS_SET_PARAM_BIT(dev, PARAM_SCALERC_OTF_OUTPUT);
 	IS_INC_PARAM_NUM(dev);
 
@@ -2072,7 +2080,7 @@ int fimc_is_hw_change_size(struct fimc_is_dev *dev)
 		front_width);
 	IS_SCALERC_SET_PARAM_DMA_OUTPUT_HEIGHT(dev,
 		front_height);
-	if((front_width != dis_width) || (front_height != dis_height))
+	if((front_width != crop_width) || (front_height != crop_height))
 		IS_SCALERC_SET_PARAM_DMA_OUTPUT_OUTPATH(dev,
 			2);  /* unscaled image */
 	else
@@ -2083,72 +2091,72 @@ int fimc_is_hw_change_size(struct fimc_is_dev *dev)
 
 	/* ODC */
 	IS_ODC_SET_PARAM_OTF_INPUT_WIDTH(dev,
-		dis_width);
+		crop_width);
 	IS_ODC_SET_PARAM_OTF_INPUT_HEIGHT(dev,
-		dis_height);
+		crop_height);
 	IS_SET_PARAM_BIT(dev, PARAM_ODC_OTF_INPUT);
 	IS_INC_PARAM_NUM(dev);
 
 	IS_ODC_SET_PARAM_OTF_OUTPUT_WIDTH(dev,
-		dis_width);
+		crop_width);
 	IS_ODC_SET_PARAM_OTF_OUTPUT_HEIGHT(dev,
-		dis_height);
+		crop_height);
 	IS_SET_PARAM_BIT(dev, PARAM_ODC_OTF_OUTPUT);
 	IS_INC_PARAM_NUM(dev);
 
 	/* DIS */
 	IS_DIS_SET_PARAM_OTF_INPUT_WIDTH(dev,
-		dis_width);
+		crop_width);
 	IS_DIS_SET_PARAM_OTF_INPUT_HEIGHT(dev,
-		dis_height);
+		crop_height);
 	IS_SET_PARAM_BIT(dev, PARAM_DIS_OTF_INPUT);
 	IS_INC_PARAM_NUM(dev);
 
 	IS_DIS_SET_PARAM_OTF_OUTPUT_WIDTH(dev,
-		back_width);
+		dis_width);
 	IS_DIS_SET_PARAM_OTF_OUTPUT_HEIGHT(dev,
-		back_height);
+		dis_height);
 	IS_SET_PARAM_BIT(dev, PARAM_DIS_OTF_OUTPUT);
 	IS_INC_PARAM_NUM(dev);
 
 	/* 3DNR */
 	IS_TDNR_SET_PARAM_OTF_INPUT_WIDTH(dev,
-		back_width);
+		dis_width);
 	IS_TDNR_SET_PARAM_OTF_INPUT_HEIGHT(dev,
-		back_height);
+		dis_height);
 	IS_SET_PARAM_BIT(dev, PARAM_TDNR_OTF_INPUT);
 	IS_INC_PARAM_NUM(dev);
 
 	IS_TDNR_SET_PARAM_OTF_OUTPUT_WIDTH(dev,
-		back_width);
+		dis_width);
 	IS_TDNR_SET_PARAM_OTF_OUTPUT_HEIGHT(dev,
-		back_height);
+		dis_height);
 	IS_SET_PARAM_BIT(dev, PARAM_TDNR_OTF_OUTPUT);
 	IS_INC_PARAM_NUM(dev);
 
 	IS_TDNR_SET_PARAM_DMA_OUTPUT_WIDTH(dev,
-		back_width);
+		dis_width);
 	IS_TDNR_SET_PARAM_DMA_OUTPUT_HEIGHT(dev,
-		back_height);
+		dis_height);
 	IS_SET_PARAM_BIT(dev, PARAM_TDNR_DMA_OUTPUT);
 	IS_INC_PARAM_NUM(dev);
 
 	/* ScalerP */
 	IS_SCALERP_SET_PARAM_OTF_INPUT_WIDTH(dev,
-		back_width);
+		dis_width);
 	IS_SCALERP_SET_PARAM_OTF_INPUT_HEIGHT(dev,
-		back_height);
+		dis_height);
 	IS_SET_PARAM_BIT(dev, PARAM_SCALERP_OTF_INPUT);
 	IS_INC_PARAM_NUM(dev);
 
 	IS_SCALERP_SET_PARAM_INPUT_CROP_IN_WIDTH(dev,
-		back_width);
+		dis_width);
 	IS_SCALERP_SET_PARAM_INPUT_CROP_IN_HEIGHT(dev,
-		back_height);
+		dis_height);
 	IS_SCALERP_SET_PARAM_INPUT_CROP_WIDTH(dev,
-		back_width);
+		dis_width);
 	IS_SCALERP_SET_PARAM_INPUT_CROP_HEIGHT(dev,
-		back_height);
+		dis_height);
 	IS_SCALERP_SET_PARAM_INPUT_CROP_OUT_WIDTH(dev,
 		dev->video[FIMC_IS_VIDEO_NUM_SCALERP].frame.width);
 	IS_SCALERP_SET_PARAM_INPUT_CROP_OUT_HEIGHT(dev,
@@ -2174,6 +2182,7 @@ int fimc_is_hw_change_size(struct fimc_is_dev *dev)
 		dev->video[FIMC_IS_VIDEO_NUM_SCALERP].frame.width);
 	IS_SCALERP_SET_PARAM_DMA_OUTPUT_HEIGHT(dev,
 		dev->video[FIMC_IS_VIDEO_NUM_SCALERP].frame.height);
+
 	IS_SET_PARAM_BIT(dev, PARAM_SCALERP_DMA_OUTPUT);
 	IS_INC_PARAM_NUM(dev);
 
@@ -2190,48 +2199,34 @@ int fimc_is_hw_change_size(struct fimc_is_dev *dev)
 
 void fimc_is_hw_set_default_size(struct fimc_is_dev *dev, int  sensor_id)
 {
-	switch (sensor_id) {
-	case SENSOR_NAME_S5K6A3:
-		dev->video[FIMC_IS_VIDEO_NUM_SCALERC].frame.width =
-			DEFAULT_6A3_STILLSHOT_WIDTH;
-		dev->video[FIMC_IS_VIDEO_NUM_SCALERC].frame.height =
-			DEFAULT_6A3_STILLSHOT_HEIGHT;
-		dev->video[FIMC_IS_VIDEO_NUM_SCALERP].frame.width =
-			DEFAULT_6A3_PREVIEW_WIDTH;
-		dev->video[FIMC_IS_VIDEO_NUM_SCALERP].frame.height =
-			DEFAULT_6A3_PREVIEW_HEIGHT;
-		dev->video[FIMC_IS_VIDEO_NUM_3DNR].frame.width =
-			DEFAULT_6A3_VIDEO_WIDTH;
-		dev->video[FIMC_IS_VIDEO_NUM_3DNR].frame.height =
-			DEFAULT_6A3_VIDEO_HEIGHT;
-		break;
-	case SENSOR_NAME_S5K4E5:
-		dev->video[FIMC_IS_VIDEO_NUM_SCALERC].frame.width =
-			DEFAULT_4E5_STILLSHOT_WIDTH;
-		dev->video[FIMC_IS_VIDEO_NUM_SCALERC].frame.height =
-			DEFAULT_4E5_STILLSHOT_HEIGHT;
-		dev->video[FIMC_IS_VIDEO_NUM_SCALERP].frame.width =
-			DEFAULT_4E5_PREVIEW_WIDTH;
-		dev->video[FIMC_IS_VIDEO_NUM_SCALERP].frame.height =
-			DEFAULT_4E5_PREVIEW_HEIGHT;
-		dev->video[FIMC_IS_VIDEO_NUM_3DNR].frame.width =
-			DEFAULT_4E5_VIDEO_WIDTH;
-		dev->video[FIMC_IS_VIDEO_NUM_3DNR].frame.height =
-			DEFAULT_4E5_VIDEO_HEIGHT;
-		break;
-	default:
-		dev->video[FIMC_IS_VIDEO_NUM_SCALERC].frame.width =
-			DEFAULT_CAPTURE_STILL_WIDTH;
-		dev->video[FIMC_IS_VIDEO_NUM_SCALERC].frame.height =
-			DEFAULT_CAPTURE_STILL_HEIGHT;
-		dev->video[FIMC_IS_VIDEO_NUM_SCALERP].frame.width =
-			DEFAULT_PREVIEW_STILL_WIDTH;
-		dev->video[FIMC_IS_VIDEO_NUM_SCALERP].frame.height =
-			DEFAULT_PREVIEW_STILL_HEIGHT;
-		dev->video[FIMC_IS_VIDEO_NUM_3DNR].frame.width =
-			DEFAULT_CAPTURE_VIDEO_WIDTH;
-		dev->video[FIMC_IS_VIDEO_NUM_3DNR].frame.height =
-			DEFAULT_CAPTURE_VIDEO_HEIGHT;
-		break;
+	switch(sensor_id) {
+		case SENSOR_NAME_S5K6A3 :
+			dev->video[FIMC_IS_VIDEO_NUM_SCALERC].frame.width =
+				DEFAULT_6A3_STILLSHOT_WIDTH;
+			dev->video[FIMC_IS_VIDEO_NUM_SCALERC].frame.height =
+				DEFAULT_6A3_STILLSHOT_HEIGHT;
+			dev->video[FIMC_IS_VIDEO_NUM_SCALERP].frame.width =
+				DEFAULT_6A3_PREVIEW_WIDTH;
+			dev->video[FIMC_IS_VIDEO_NUM_SCALERP].frame.height =
+				DEFAULT_6A3_PREVIEW_HEIGHT;
+			dev->video[FIMC_IS_VIDEO_NUM_3DNR].frame.width =
+				DEFAULT_6A3_VIDEO_WIDTH;
+			dev->video[FIMC_IS_VIDEO_NUM_3DNR].frame.height =
+				DEFAULT_6A3_VIDEO_HEIGHT;
+			break;
+		case SENSOR_NAME_S5K4E5 :
+			dev->video[FIMC_IS_VIDEO_NUM_SCALERC].frame.width =
+				DEFAULT_4E5_STILLSHOT_WIDTH;
+			dev->video[FIMC_IS_VIDEO_NUM_SCALERC].frame.height =
+				DEFAULT_4E5_STILLSHOT_HEIGHT;
+			dev->video[FIMC_IS_VIDEO_NUM_SCALERP].frame.width =
+				DEFAULT_4E5_PREVIEW_WIDTH;
+			dev->video[FIMC_IS_VIDEO_NUM_SCALERP].frame.height =
+				DEFAULT_4E5_PREVIEW_HEIGHT;
+			dev->video[FIMC_IS_VIDEO_NUM_3DNR].frame.width =
+				DEFAULT_4E5_VIDEO_WIDTH;
+			dev->video[FIMC_IS_VIDEO_NUM_3DNR].frame.height =
+				DEFAULT_4E5_VIDEO_HEIGHT;
+			break;
 	}
 }

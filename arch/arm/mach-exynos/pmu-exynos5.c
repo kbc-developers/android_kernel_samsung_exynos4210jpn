@@ -121,7 +121,6 @@ static struct exynos4_pmu_conf exynos52xx_pmu_config[] = {
 	{ EXYNOS5_CMU_RESET_G3D_SYS_PWR_REG,			{ 0x1, 0x0, 0x0} },
 	{ EXYNOS5_CMU_RESET_DISP1_SYS_PWR_REG,			{ 0x1, 0x0, 0x0} },
 	{ EXYNOS5_CMU_RESET_MAU_SYS_PWR_REG,			{ 0x1, 0x1, 0x0} },
-	{ EXYNOS5_XXTI_SYS_PWR_REG,				{ 0x1, 0x1, 0x0} },
 };
 
 static struct exynos4_pmu_conf exynos52xx_pmu_config_gps[] = {

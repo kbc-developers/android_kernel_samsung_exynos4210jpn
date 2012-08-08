@@ -24,7 +24,6 @@
 
 #include <plat/cpu.h>
 #include <plat/pm.h>
-#include <plat/bts.h>
 
 #include <mach/regs-irq.h>
 #include <mach/regs-gpio.h>
@@ -35,6 +34,9 @@
 #include <mach/smc.h>
 
 #include <mach/map-exynos5.h>
+#ifdef CONFIG_EXYNOS5_SETUP_BTS
+#include <mach/bts-exynos5.h>
+#endif
 
 void (*exynos5_sleep_gpio_table_set)(void);
 
@@ -439,15 +441,18 @@ static void exynos5_pm_resume(void)
 	__raw_writel((1 << 28), EXYNOS5_PAD_RETENTION_GPIO_SYSMEM_OPTION);
 
 	/* Disable CPU_nIRQ[0:1] */
-	tmp = ((0x1 << 8) | (0x1 << 0));
+	tmp = __raw_readl(S5P_VA_COMBINER_BASE + 0x54);
+	tmp |= ((0x1 << 8) | (0x1 << 0));
 	__raw_writel(tmp, S5P_VA_COMBINER_BASE + 0x54);
-
-	bts_enable(PD_TOP);
 
 	s3c_pm_do_restore(exynos5_regs_save, ARRAY_SIZE(exynos5_regs_save));
 
 	s3c_pm_do_restore_core(exynos5_core_save, ARRAY_SIZE(exynos5_core_save));
 
+#ifdef CONFIG_EXYNOS5_SETUP_BTS
+	if (soc_is_exynos5250())
+		exynos5250_setup_bts();
+#endif
 early_wakeup:
 	__raw_writel(0x0, REG_INFORM1);
 }

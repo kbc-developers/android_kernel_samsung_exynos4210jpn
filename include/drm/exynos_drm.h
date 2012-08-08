@@ -96,34 +96,6 @@ struct drm_exynos_gem_userptr {
 };
 
 /**
- * A structure to gem information.
- *
- * @handle: a handle to gem object created.
- * @flags: flag value including memory type and cache attribute and
- *	this value would be set by driver.
- * @size: size to memory region allocated by gem and this size would
- *	be set by driver.
- */
-struct drm_exynos_gem_info {
-	unsigned int handle;
-	unsigned int flags;
-	uint64_t size;
-};
-
-/**
- * A structure to userptr limited information.
- *
- * @userptr_limit: maximum size to userptr buffer.
- *	the buffer could be allocated by unprivileged user using malloc()
- *	and the size of the buffer would be limited as userptr_limit value.
- * @pad: just padding to be 64-bit aligned.
- */
-struct drm_exynos_user_limit {
-	unsigned int userptr_limit;
-	unsigned int pad;
-};
-
-/**
  * A structure for user connection request of virtual display.
  *
  * @connection: indicate whether doing connetion or not by user.
@@ -174,29 +146,16 @@ struct drm_exynos_gem_phy_imp {
 
 /* indicate cache units. */
 enum e_drm_exynos_gem_cache_sel {
-	EXYNOS_DRM_L1_CACHE		= 1 << 0,
-	EXYNOS_DRM_L2_CACHE		= 1 << 1,
-	EXYNOS_DRM_ALL_CORES		= 1 << 2,
-	EXYNOS_DRM_ALL_CACHES		= EXYNOS_DRM_L1_CACHE |
-						EXYNOS_DRM_L2_CACHE,
-	EXYNOS_DRM_ALL_CACHES_CORES	= EXYNOS_DRM_L1_CACHE |
-						EXYNOS_DRM_L2_CACHE |
-						EXYNOS_DRM_ALL_CORES,
-	EXYNOS_DRM_CACHE_SEL_MASK	= EXYNOS_DRM_ALL_CACHES_CORES
+	EXYNOS_DRM_L1_CACHE	= 1 << 0,
+	EXYNOS_DRM_L2_CACHE	= 1 << 1,
+	EXYNOS_DRM_ALL_CACHE	= EXYNOS_DRM_L1_CACHE | EXYNOS_DRM_L2_CACHE
 };
 
 /* indicate cache operation types. */
 enum e_drm_exynos_gem_cache_op {
-	EXYNOS_DRM_CACHE_INV_ALL	= 1 << 3,
-	EXYNOS_DRM_CACHE_INV_RANGE	= 1 << 4,
-	EXYNOS_DRM_CACHE_CLN_ALL	= 1 << 5,
-	EXYNOS_DRM_CACHE_CLN_RANGE	= 1 << 6,
-	EXYNOS_DRM_CACHE_FSH_ALL	= EXYNOS_DRM_CACHE_INV_ALL |
-						EXYNOS_DRM_CACHE_CLN_ALL,
-	EXYNOS_DRM_CACHE_FSH_RANGE	= EXYNOS_DRM_CACHE_INV_RANGE |
-						EXYNOS_DRM_CACHE_CLN_RANGE,
-	EXYNOS_DRM_CACHE_OP_MASK	= EXYNOS_DRM_CACHE_FSH_ALL |
-						EXYNOS_DRM_CACHE_FSH_RANGE
+	EXYNOS_DRM_CACHE_INV	= 1 << 2,
+	EXYNOS_DRM_CACHE_CLN	= 1 << 3,
+	EXYNOS_DRM_CACHE_FSH	= EXYNOS_DRM_CACHE_INV | EXYNOS_DRM_CACHE_CLN
 };
 
 /* memory type definitions. */
@@ -205,16 +164,16 @@ enum e_drm_exynos_gem_mem_type {
 	EXYNOS_BO_CONTIG	= 0 << 0,
 	/* Physically Non-Continuous memory. */
 	EXYNOS_BO_NONCONTIG	= 1 << 0,
-	/* non-cachable mapping and used as default. */
-	EXYNOS_BO_NONCACHABLE	= 0 << 1,
-	/* cachable mapping. */
-	EXYNOS_BO_CACHABLE	= 1 << 1,
-	/* write-combine mapping. */
-	EXYNOS_BO_WC		= 1 << 2,
 	/* user space memory allocated by malloc. */
-	EXYNOS_BO_USERPTR	= 1 << 3,
-	EXYNOS_BO_MASK		= EXYNOS_BO_NONCONTIG | EXYNOS_BO_CACHABLE |
-					EXYNOS_BO_WC | EXYNOS_BO_USERPTR
+	EXYNOS_BO_USERPTR	= 1 << 1,
+	/* non-cachable mapping and used as default. */
+	EXYNOS_BO_NONCACHABLE	= 0 << 2,
+	/* cachable mapping. */
+	EXYNOS_BO_CACHABLE	= 1 << 2,
+	/* write-combine mapping. */
+	EXYNOS_BO_WC		= 1 << 3,
+	EXYNOS_BO_MASK		= EXYNOS_BO_NONCONTIG | EXYNOS_BO_USERPTR |
+					EXYNOS_BO_CACHABLE | EXYNOS_BO_WC
 };
 
 /**
@@ -224,14 +183,11 @@ enum e_drm_exynos_gem_mem_type {
  *	P.S. it SHOULD BE user space.
  * @size: buffer size for cache operation.
  * @flags: select cache unit and cache operation.
- * @gem_handle: a handle to a gem object.
- *	this gem handle is needed for cache range operation to L2 cache.
  */
 struct drm_exynos_gem_cache_op {
 	uint64_t usr_addr;
 	unsigned int size;
 	unsigned int flags;
-	unsigned int gem_handle;
 };
 
 struct drm_exynos_plane_set_zpos {
@@ -272,129 +228,11 @@ struct drm_exynos_g2d_exec {
 	__u32					reserved;
 };
 
-/* definition of operations types */
-enum drm_exynos_ops_id {
-	EXYNOS_DRM_OPS_SRC,
-	EXYNOS_DRM_OPS_DST,
-	EXYNOS_DRM_OPS_MAX
-};
-
-/* definition of size */
-struct drm_exynos_sz {
-	__u32	hsize;
-	__u32	vsize;
-};
-
-/* definition of position */
-struct drm_exynos_pos {
-	__u32	x;
-	__u32	y;
-	__u32	w;
-	__u32	h;
-};
-
-/* definition of flip */
-enum drm_exynos_flip {
-	EXYNOS_DRM_FLIP_NONE = (0 << 0),
-	EXYNOS_DRM_FLIP_VERTICAL = (1 << 0),
-	EXYNOS_DRM_FLIP_HORIZONTAL = (1 << 1),
-};
-
-/* definition of rotation degree */
-enum drm_exynos_degree {
-	EXYNOS_DRM_DEGREE_0,
-	EXYNOS_DRM_DEGREE_90,
-	EXYNOS_DRM_DEGREE_180,
-	EXYNOS_DRM_DEGREE_270,
-};
-
-/* definition of planar */
-enum drm_exynos_planer {
-	EXYNOS_DRM_PLANAR_Y,
-	EXYNOS_DRM_PLANAR_CB,
-	EXYNOS_DRM_PLANAR_CR,
-	EXYNOS_DRM_PLANAR_MAX
-};
-
-/**
- * A structure for ipp config.
- *
- * @ops_id: property of operation directions.
- * @flip: property of mirror, flip.
- * @degree: property of rotation degree.
- * @fmt: property of image format.
- * @sz: property of image size.
- * @pos: property of image position(src-cropped,dst-scaler).
- */
-struct drm_exynos_ipp_config {
-	enum drm_exynos_ops_id ops_id;
-	enum drm_exynos_flip	flip;
-	enum drm_exynos_degree	degree;
-	__u32	fmt;
-	struct drm_exynos_sz	sz;
-	struct drm_exynos_pos	pos;
-};
-
-/**
- * A structure for ipp property.
- *
- * @config: source, destination config.
- */
-struct drm_exynos_ipp_property {
-	struct drm_exynos_ipp_config config[EXYNOS_DRM_OPS_MAX];
-};
-
-/* command of ipp operations */
-enum drm_exynos_ipp_cmd {
-	IPP_CMD_NONE,
-	IPP_CMD_M2M,
-	IPP_CMD_WB,
-	IPP_CMD_OUT,
-	IPP_CMD_MAX
-};
-
-/* definition of buffer control */
-enum drm_exynos_ipp_buf_ctrl {
-	IPP_BUF_CTRL_MAP,
-	IPP_BUF_CTRL_UNMAP,
-	IPP_BUF_CTRL_QUEUE,
-	IPP_BUF_CTRL_DEQUEUE
-};
-
-/**
- * A structure for ipp buffer operations.
- *
- * @ops_id: operation directions.
- * @ctrl: buffer control.
- * @id: index of buffer.
- * @handle: Y, Cb, Cr each planar handle.
- * @user_data: user data.
- */
-struct drm_exynos_ipp_buf {
-	enum drm_exynos_ops_id	ops_id;
-	enum drm_exynos_ipp_buf_ctrl	buf_ctrl;
-	__u32	id;
-	__u32	handle[EXYNOS_DRM_PLANAR_MAX];
-	__u64	user_data;
-};
-
-/**
- * A structure for ipp start/stop operations.
- *
- * @cmd: command id.
- * @use: use ipp device.
- */
-struct drm_exynos_ipp_ctrl {
-	enum drm_exynos_ipp_cmd	cmd;
-	__u32	use;
-};
-
 #define DRM_EXYNOS_GEM_CREATE		0x00
 #define DRM_EXYNOS_GEM_MAP_OFFSET	0x01
 #define DRM_EXYNOS_GEM_MMAP		0x02
 #define DRM_EXYNOS_GEM_USERPTR		0x03
-#define DRM_EXYNOS_GEM_GET		0x04
-#define DRM_EXYNOS_USER_LIMIT		0x05
+/* Reserved 0x04 ~ 0x05 for exynos specific gem ioctl */
 #define DRM_EXYNOS_PLANE_SET_ZPOS	0x06
 #define DRM_EXYNOS_VIDI_CONNECTION	0x07
 
@@ -410,11 +248,6 @@ struct drm_exynos_ipp_ctrl {
 #define DRM_EXYNOS_G2D_SET_CMDLIST	0x21
 #define DRM_EXYNOS_G2D_EXEC		0x22
 
-/* IPP - Image Post Processing */
-#define DRM_EXYNOS_IPP_PROPERTY		0x30
-#define DRM_EXYNOS_IPP_BUF			0x31
-#define DRM_EXYNOS_IPP_CTRL			0x32
-
 #define DRM_IOCTL_EXYNOS_GEM_CREATE		DRM_IOWR(DRM_COMMAND_BASE + \
 		DRM_EXYNOS_GEM_CREATE, struct drm_exynos_gem_create)
 
@@ -426,12 +259,6 @@ struct drm_exynos_ipp_ctrl {
 
 #define DRM_IOCTL_EXYNOS_GEM_USERPTR	DRM_IOWR(DRM_COMMAND_BASE + \
 		DRM_EXYNOS_GEM_USERPTR, struct drm_exynos_gem_userptr)
-
-#define DRM_IOCTL_EXYNOS_GEM_GET	DRM_IOWR(DRM_COMMAND_BASE + \
-		DRM_EXYNOS_GEM_GET,	struct drm_exynos_gem_info)
-
-#define DRM_IOCTL_EXYNOS_USER_LIMIT	DRM_IOWR(DRM_COMMAND_BASE + \
-		DRM_EXYNOS_USER_LIMIT,	struct drm_exynos_user_limit)
 
 #define DRM_IOCTL_EXYNOS_GEM_EXPORT_UMP	DRM_IOWR(DRM_COMMAND_BASE + \
 		DRM_EXYNOS_GEM_EXPORT_UMP, struct drm_exynos_gem_ump)
@@ -458,16 +285,8 @@ struct drm_exynos_ipp_ctrl {
 #define DRM_IOCTL_EXYNOS_G2D_EXEC		DRM_IOWR(DRM_COMMAND_BASE + \
 		DRM_EXYNOS_G2D_EXEC, struct drm_exynos_g2d_exec)
 
-#define DRM_IOCTL_EXYNOS_IPP_PROPERTY	DRM_IOWR(DRM_COMMAND_BASE + \
-		DRM_EXYNOS_IPP_PROPERTY, struct drm_exynos_ipp_property)
-#define DRM_IOCTL_EXYNOS_IPP_BUF	DRM_IOWR(DRM_COMMAND_BASE + \
-		DRM_EXYNOS_IPP_BUF, struct drm_exynos_ipp_buf)
-#define DRM_IOCTL_EXYNOS_IPP_CTRL		DRM_IOWR(DRM_COMMAND_BASE + \
-		DRM_EXYNOS_IPP_CTRL, struct drm_exynos_ipp_ctrl)
-
 /* EXYNOS specific events */
 #define DRM_EXYNOS_G2D_EVENT		0x80000000
-#define DRM_EXYNOS_IPP_EVENT		0x80000001
 
 struct drm_exynos_g2d_event {
 	struct drm_event	base;
@@ -475,15 +294,6 @@ struct drm_exynos_g2d_event {
 	__u32			tv_sec;
 	__u32			tv_usec;
 	__u32			cmdlist_no;
-	__u32			reserved;
-};
-
-struct drm_exynos_ipp_event {
-	struct drm_event	base;
-	__u64			user_data;
-	__u32			tv_sec;
-	__u32			tv_usec;
-	__u32			buf_idx;
 	__u32			reserved;
 };
 
@@ -545,39 +355,6 @@ struct exynos_drm_hdmi_pdata {
 	bool is_v13;
 	void (*cfg_hpd)(bool external);
 	int (*get_hpd)(void);
-};
-
-/**
- * Platform Specific Structure for DRM based FIMC.
- *
- * @inv_pclk: if set 1. invert pixel clock
- * @inv_vsync: if set 1. invert vsync signal for wb
- * @inv_href: if set 1. invert href signal
- * @inv_hsync: if set 1. invert hsync signal for wb
- */
-struct exynos_drm_fimc_pol {
-	unsigned int inv_pclk;
-	unsigned int inv_vsync;
-	unsigned int inv_href;
-	unsigned int inv_hsync;
-};
-
-/* definition of chipset version */
-enum exynos_drm_fimc_ver {
-	FIMC_EXYNOS_4210,
-	FIMC_EXYNOS_4212,
-	FIMC_EXYNOS_4412
-};
-
-/**
- * Platform Specific Structure for DRM based FIMC.
- *
- * @pol: current hardware block polarity settings.
- * @ver: current hardware block version.
- */
-struct exynos_drm_fimc_pdata {
-	struct exynos_drm_fimc_pol pol;
-	enum exynos_drm_fimc_ver ver;
 };
 
 #endif

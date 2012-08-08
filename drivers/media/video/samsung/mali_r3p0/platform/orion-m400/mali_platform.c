@@ -19,7 +19,7 @@
 #include "mali_linux_pm.h"
 
 #if USING_MALI_PMM
-#include "mali_pm.h"
+#include "mali_pmm.h"
 #endif
 
 #include <linux/clk.h>
@@ -32,8 +32,8 @@
 #include <plat/pd.h>
 #endif
 
-#if MALI_INTERNAL_TIMELINE_PROFILING_ENABLED
-#include "mali_osk_profiling.h"
+#if MALI_TIMELINE_PROFILING_ENABLED
+#include "mali_kernel_profiling.h"
 #endif
 
 #include <asm/io.h>
@@ -122,6 +122,7 @@ int mali_regulator_get_usecount(void)
 
 void mali_regulator_disable(void)
 {
+	bPoweroff = 1;
 	if( IS_ERR_OR_NULL(g3d_regulator) )
 	{
 		MALI_DEBUG_PRINT(1, ("error on mali_regulator_disable : g3d_regulator is null\n"));
@@ -129,11 +130,11 @@ void mali_regulator_disable(void)
 	}
 	regulator_disable(g3d_regulator);
 	MALI_DEBUG_PRINT(1, ("regulator_disable -> use cnt: %d \n",mali_regulator_get_usecount()));
-	bPoweroff = 1;
 }
 
 void mali_regulator_enable(void)
 {
+	bPoweroff = 0;
 	if( IS_ERR_OR_NULL(g3d_regulator) )
 	{
 		MALI_DEBUG_PRINT(1, ("error on mali_regulator_enable : g3d_regulator is null\n"));
@@ -141,7 +142,6 @@ void mali_regulator_enable(void)
 	}
 	regulator_enable(g3d_regulator);
 	MALI_DEBUG_PRINT(1, ("regulator_enable -> use cnt: %d \n",mali_regulator_get_usecount()));
-	bPoweroff = 0;
 }
 
 void mali_regulator_set_voltage(int min_uV, int max_uV)
@@ -155,11 +155,10 @@ void mali_regulator_set_voltage(int min_uV, int max_uV)
 		MALI_DEBUG_PRINT(1, ("error on mali_regulator_set_voltage : g3d_regulator is null\n"));
 		return;
 	}
-
-    MALI_DEBUG_PRINT(2, ("= regulator_set_voltage: %d, %d \n",min_uV, max_uV));
-
-#if MALI_INTERNAL_TIMELINE_PROFILING_ENABLED
-    _mali_osk_profiling_add_event( MALI_PROFILING_EVENT_TYPE_SINGLE |
+	MALI_DEBUG_PRINT(2, ("= regulator_set_voltage: %d, %d \n",min_uV, max_uV));
+	
+#if MALI_TIMELINE_PROFILING_ENABLED
+    _mali_profiling_add_event( MALI_PROFILING_EVENT_TYPE_SINGLE |
                                MALI_PROFILING_EVENT_CHANNEL_SOFTWARE |
                                MALI_PROFILING_EVENT_REASON_SINGLE_SW_GPU_VOLTS,
                                min_uV, max_uV, 0, 0, 0);
@@ -167,9 +166,9 @@ void mali_regulator_set_voltage(int min_uV, int max_uV)
 
 	regulator_set_voltage(g3d_regulator,min_uV,max_uV);
 	voltage = regulator_get_voltage(g3d_regulator);
-
-#if MALI_INTERNAL_TIMELINE_PROFILING_ENABLED
-    _mali_osk_profiling_add_event( MALI_PROFILING_EVENT_TYPE_SINGLE |
+	
+#if MALI_TIMELINE_PROFILING_ENABLED
+    _mali_profiling_add_event( MALI_PROFILING_EVENT_TYPE_SINGLE |
                                MALI_PROFILING_EVENT_CHANNEL_SOFTWARE |
                                MALI_PROFILING_EVENT_REASON_SINGLE_SW_GPU_VOLTS,
                                voltage, 0, 1, 0, 0);
@@ -355,8 +354,8 @@ mali_bool mali_clk_set_rate(unsigned int clk, unsigned int mhz)
 	if (clk_enable(mali_clock) < 0)
 		return MALI_FALSE;
 
-#if MALI_INTERNAL_TIMELINE_PROFILING_ENABLED
-    _mali_osk_profiling_add_event( MALI_PROFILING_EVENT_TYPE_SINGLE |
+#if MALI_TIMELINE_PROFILING_ENABLED
+    _mali_profiling_add_event( MALI_PROFILING_EVENT_TYPE_SINGLE |
                                MALI_PROFILING_EVENT_CHANNEL_SOFTWARE |
                                MALI_PROFILING_EVENT_REASON_SINGLE_SW_GPU_FREQ,
                                rate, 0, 0, 0, 0);
@@ -365,8 +364,8 @@ mali_bool mali_clk_set_rate(unsigned int clk, unsigned int mhz)
 	clk_set_rate(mali_clock, rate);
 	rate = clk_get_rate(mali_clock);
 
-#if MALI_INTERNAL_TIMELINE_PROFILING_ENABLED
-    _mali_osk_profiling_add_event( MALI_PROFILING_EVENT_TYPE_SINGLE |
+#if MALI_TIMELINE_PROFILING_ENABLED
+    _mali_profiling_add_event( MALI_PROFILING_EVENT_TYPE_SINGLE |
                                MALI_PROFILING_EVENT_CHANNEL_SOFTWARE |
                                MALI_PROFILING_EVENT_REASON_SINGLE_SW_GPU_FREQ,
                                rate, 0, 0, 0, 0);
@@ -490,13 +489,13 @@ static _mali_osk_errcode_t disable_mali_clocks(void)
 	MALI_SUCCESS;
 }
 
-void set_mali_parent_power_domain(void *dev)
+void set_mali_parent_power_domain(struct platform_device* dev)
 {
 #if MALI_PMM_RUNTIME_JOB_CONTROL_ON
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,36)
-	((struct platform_device *)dev)->dev.parent = &s5pv310_device_pd[PD_G3D].dev;
+	dev->dev.parent = &s5pv310_device_pd[PD_G3D].dev;
 #else
-	((struct platform_device *)dev)->dev.parent = &exynos4_device_pd[PD_G3D].dev;
+	dev->dev.parent = &exynos4_device_pd[PD_G3D].dev;
 #endif
 
 #endif
@@ -508,7 +507,7 @@ _mali_osk_errcode_t g3d_power_domain_control(int bpower_on)
 	{
 #if MALI_PMM_RUNTIME_JOB_CONTROL_ON
 		MALI_DEBUG_PRINT(3,("_mali_osk_pmm_dev_activate \n"));
-		_mali_osk_pm_dev_activate();
+		_mali_osk_pmm_dev_activate();
 #else //MALI_PMM_RUNTIME_JOB_CONTROL_ON
 		void __iomem *status;
 		u32 timeout;
@@ -531,8 +530,9 @@ _mali_osk_errcode_t g3d_power_domain_control(int bpower_on)
 	{
 #if MALI_PMM_RUNTIME_JOB_CONTROL_ON
 		MALI_DEBUG_PRINT( 4,("_mali_osk_pmm_dev_idle\n"));
-		_mali_osk_pm_dev_idle();
-#else
+		_mali_osk_pmm_dev_idle();
+
+#else //MALI_PMM_RUNTIME_JOB_CONTROL_ON
 		void __iomem *status;
 		u32 timeout;
 		__raw_writel(0, S5P_PMU_G3D_CONF);
@@ -549,7 +549,7 @@ _mali_osk_errcode_t g3d_power_domain_control(int bpower_on)
 			timeout--;
 			_mali_osk_time_ubusydelay( 100);
 		}
-#endif
+#endif //MALI_PMM_RUNTIME_JOB_CONTROL_ON
 	}
 
     MALI_SUCCESS;

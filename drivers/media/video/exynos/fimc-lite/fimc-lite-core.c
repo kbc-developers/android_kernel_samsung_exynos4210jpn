@@ -248,10 +248,8 @@ static int flite_s_stream(struct v4l2_subdev *sd, int enable)
 
 	spin_lock_irqsave(&flite->slock, flags);
 
-#if defined(CONFIG_MEDIA_CONTROLLER) && defined(CONFIG_ARCH_EXYNOS5)
 	if (test_bit(FLITE_ST_SUSPEND, &flite->state))
 		goto s_stream_unlock;
-#endif
 
 	if (enable) {
 		flite_hw_set_cam_channel(flite);
@@ -329,7 +327,6 @@ static irqreturn_t flite_irq_handler(int irq, void *priv)
 	struct flite_buffer *buf;
 #endif
 	u32 int_src = 0;
-	printk(KERN_INFO "flite interrupt\n");
 
 	flite_hw_get_int_src(flite, &int_src);
 	flite_hw_clear_irq(flite);
@@ -390,15 +387,11 @@ static int flite_s_power(struct v4l2_subdev *sd, int on)
 	int ret = 0;
 
 	if (on) {
-		if (!test_bit(FLITE_ST_POWER, &flite->state)) {
-			pm_runtime_get_sync(&flite->pdev->dev);
-			set_bit(FLITE_ST_POWER, &flite->state);
-		}
+		pm_runtime_get_sync(&flite->pdev->dev);
+		set_bit(FLITE_ST_POWER, &flite->state);
 	} else {
-		if (test_bit(FLITE_ST_POWER, &flite->state)) {
-			pm_runtime_put_sync(&flite->pdev->dev);
-			clear_bit(FLITE_ST_POWER, &flite->state);
-		}
+		pm_runtime_put_sync(&flite->pdev->dev);
+		clear_bit(FLITE_ST_POWER, &flite->state);
 	}
 
 	return ret;
@@ -1881,19 +1874,12 @@ static int flite_suspend(struct device *dev)
 	struct v4l2_subdev *sd = platform_get_drvdata(pdev);
 	struct flite_dev *flite = v4l2_get_subdevdata(sd);
 
-	printk(KERN_INFO "%s\n", __func__);
-
-	if (test_bit(FLITE_ST_STREAM, &flite->state)) {
-		printk(KERN_INFO "%s flite_s_stream\n", __func__);
+	if (test_bit(FLITE_ST_STREAM, &flite->state))
 		flite_s_stream(sd, false);
-	}
-	if (test_bit(FLITE_ST_POWER, &flite->state)) {
-		printk(KERN_INFO "%s flite_s_power\n", __func__);
+	if (test_bit(FLITE_ST_POWER, &flite->state))
 		flite_s_power(sd, false);
-	}
 
 	set_bit(FLITE_ST_SUSPEND, &flite->state);
-	printk(KERN_INFO "%s--\n", __func__);
 
 	return 0;
 }
@@ -1904,20 +1890,12 @@ static int flite_resume(struct device *dev)
 	struct v4l2_subdev *sd = platform_get_drvdata(pdev);
 	struct flite_dev *flite = v4l2_get_subdevdata(sd);
 
-	printk(KERN_INFO "%s\n", __func__);
-	if (test_bit(FLITE_ST_POWER, &flite->state)) {
-		printk(KERN_INFO "%s flite_s_power\n", __func__);
+	if (test_bit(FLITE_ST_POWER, &flite->state))
 		flite_s_power(sd, true);
-	}
+	if (test_bit(FLITE_ST_STREAM, &flite->state))
+		flite_s_stream(sd, true);
 
 	clear_bit(FLITE_ST_SUSPEND, &flite->state);
-
-	if (test_bit(FLITE_ST_STREAM, &flite->state)) {
-		printk(KERN_INFO "%s flite_s_stream\n", __func__);
-		flite_s_stream(sd, true);
-	}
-
-	printk(KERN_INFO "%s--\n", __func__);
 
 	return 0;
 }
@@ -1929,7 +1907,6 @@ static int flite_runtime_suspend(struct device *dev)
 	struct flite_dev *flite = v4l2_get_subdevdata(sd);
 	unsigned long flags;
 
-	printk(KERN_INFO "%s\n", __func__);
 #if defined(CONFIG_MEDIA_CONTROLLER) && defined(CONFIG_ARCH_EXYNOS5)
 	flite->vb2->suspend(flite->alloc_ctx);
 	clk_disable(flite->camif_clk);
@@ -1937,7 +1914,6 @@ static int flite_runtime_suspend(struct device *dev)
 	spin_lock_irqsave(&flite->slock, flags);
 	set_bit(FLITE_ST_SUSPEND, &flite->state);
 	spin_unlock_irqrestore(&flite->slock, flags);
-	printk(KERN_INFO "%s--\n", __func__);
 
 	return 0;
 }
@@ -1949,7 +1925,6 @@ static int flite_runtime_resume(struct device *dev)
 	struct flite_dev *flite = v4l2_get_subdevdata(sd);
 	unsigned long flags;
 
-	printk(KERN_INFO "%s\n", __func__);
 #if defined(CONFIG_MEDIA_CONTROLLER) && defined(CONFIG_ARCH_EXYNOS5)
 	clk_enable(flite->camif_clk);
 	flite->vb2->resume(flite->alloc_ctx);
@@ -1958,7 +1933,6 @@ static int flite_runtime_resume(struct device *dev)
 	clear_bit(FLITE_ST_SUSPEND, &flite->state);
 	spin_unlock_irqrestore(&flite->slock, flags);
 
-	printk(KERN_INFO "%s--\n", __func__);
 	return 0;
 }
 

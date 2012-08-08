@@ -208,9 +208,3 @@ LoadVFP:
 	 */
 	ldmia	sp!, {r4-r6}
 	mov	pc, lr
-
-	.align	4
-	.global GetFPEXC
-GetFPEXC:
-	fmrx	r0, fpexc		@ get existing FPEXC system register
-	mov	pc, lr

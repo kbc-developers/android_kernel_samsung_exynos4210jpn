@@ -251,7 +251,7 @@ static unsigned int clkdiv_ip_bus[LV_END][3] = {
 #ifdef CONFIG_BUSFREQ_QOS
 static void exynos4_set_qos(unsigned int index)
 {
-	/* printk(KERN_INFO "exynos4_set_qos level %d\n", index); */
+	printk(KERN_INFO "exynos4_set_qos level %d\n", index);
 	__raw_writel(exynos4_qos_value[busfreq_qos][index][0], S5P_VA_GDL + 0x400);
 	__raw_writel(exynos4_qos_value[busfreq_qos][index][1], S5P_VA_GDL + 0x404);
 	__raw_writel(exynos4_qos_value[busfreq_qos][index][2], S5P_VA_GDR + 0x400);

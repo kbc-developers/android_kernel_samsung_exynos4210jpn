@@ -1,6 +1,6 @@
 /* exynos_drm_dmabuf.c
  *
- * Copyright (c) 2012 Samsung Electronics Co., Ltd.
+ * Copyright (c) 2011 Samsung Electronics Co., Ltd.
  * Author: Inki Dae <inki.dae@samsung.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -30,87 +30,110 @@
 
 #include <linux/dma-buf.h>
 
-static struct sg_table *exynos_pages_to_sg(struct page **pages, int nr_pages,
-		unsigned int page_size)
+static int exynos_dmabuf_attach(struct dma_buf *dmabuf, struct device *dev,
+			struct dma_buf_attachment *attach)
 {
-	struct sg_table *sgt = NULL;
-	struct scatterlist *sgl;
-	int i, ret;
+	DRM_DEBUG_KMS("%s\n", __FILE__);
+
+	/* TODO */
+
+	return 0;
+}
+
+
+static void exynos_dmabuf_detach(struct dma_buf *dmabuf,
+					struct dma_buf_attachment *attach)
+{
+	DRM_DEBUG_KMS("%s\n", __FILE__);
+
+	/* TODO */
+
+	/*
+	 * when drm_prime_handle_to_fd() is called, file->f_count of this
+	 * dmabuf will be increased by dma_buf_get() so drop the reference
+	 * here.
+	 */
+	dma_buf_put(dmabuf);
+}
+
+static struct sg_table *exynos_map_dmabuf(struct dma_buf_attachment *attach,
+					enum dma_data_direction direction)
+{
+	struct drm_gem_object *obj = attach->dmabuf->priv;
+	struct exynos_drm_gem_obj *exynos_gem_obj;
+	struct exynos_drm_gem_buf *buffer;
+	struct sg_table *sgt;
+	int ret;
+
+	DRM_DEBUG_KMS("%s\n", __FILE__);
+
+	exynos_gem_obj = to_exynos_gem_obj(obj);
+
+	buffer = exynos_gem_obj->buffer;
+
+	/* TODO. consider physically non-continuous memory with IOMMU. */
 
 	sgt = kzalloc(sizeof(*sgt), GFP_KERNEL);
-	if (!sgt)
-		goto out;
-
-	ret = sg_alloc_table(sgt, nr_pages, GFP_KERNEL);
-	if (ret)
-		goto err_free_sgt;
-
-	if (page_size < PAGE_SIZE)
-		page_size = PAGE_SIZE;
-
-	for_each_sg(sgt->sgl, sgl, nr_pages, i)
-		sg_set_page(sgl, pages[i], page_size, 0);
-
-	return sgt;
-
-err_free_sgt:
-	kfree(sgt);
-	sgt = NULL;
-out:
-	return NULL;
-}
-
-static struct sg_table *exynos_gem_map_dma_buf(
-	struct dma_buf_attachment *attach,
-	enum dma_data_direction dir)
-{
-	struct exynos_drm_gem_obj *gem_obj = attach->dmabuf->priv;
-	struct drm_device *dev = gem_obj->base.dev;
-	struct exynos_drm_gem_buf *buf;
-	struct sg_table *sgt = NULL;
-	unsigned int npages;
-	int nents;
-
-	DRM_DEBUG_PRIME("%s\n", __FILE__);
-
-	mutex_lock(&dev->struct_mutex);
-
-	buf = gem_obj->buffer;
-
-	/* there should always be pages allocated. */
-	if (!buf->pages) {
-		DRM_ERROR("pages is null.\n");
-		goto err_unlock;
+	if (!sgt) {
+		DRM_DEBUG_KMS("failed to allocate sg table.\n");
+		return ERR_PTR(-ENOMEM);
 	}
 
-	npages = buf->size / buf->page_size;
+	ret = sg_alloc_table(sgt, 1, GFP_KERNEL);
+	if (ret < 0) {
+		DRM_DEBUG_KMS("failed to allocate scatter list.\n");
+		kfree(sgt);
+		sgt = NULL;
+		return ERR_PTR(-ENOMEM);
+	}
 
-	sgt = exynos_pages_to_sg(buf->pages, npages, buf->page_size);
-	nents = dma_map_sg(attach->dev, sgt->sgl, sgt->nents, dir);
+	sg_init_table(sgt->sgl, 1);
+	sg_dma_len(sgt->sgl) = buffer->size;
+	sg_set_page(sgt->sgl, pfn_to_page(PFN_DOWN(buffer->dma_addr)),
+			buffer->size, 0);
+	sg_dma_address(sgt->sgl) = buffer->dma_addr;
 
-	DRM_DEBUG_PRIME("npages = %d buffer size = 0x%lx page_size = 0x%lx\n",
-			npages, buf->size, buf->page_size);
+	/*
+	 * increase reference count of this buffer.
+	 *
+	 * Note:
+	 * allocated physical memory region is being shared with others
+	 * so this region shouldn't be released until all references of
+	 * this region will be dropped by exynos_unmap_dmabuf().
+	 */
+	atomic_inc(&buffer->shared_refcount);
 
-err_unlock:
-	mutex_unlock(&dev->struct_mutex);
 	return sgt;
 }
 
-static void exynos_gem_unmap_dma_buf(struct dma_buf_attachment *attach,
-						struct sg_table *sgt,
-						enum dma_data_direction dir)
+static void exynos_unmap_dmabuf(struct dma_buf_attachment *attach,
+						struct sg_table *sgt)
 {
-	dma_unmap_sg(attach->dev, sgt->sgl, sgt->nents, dir);
+	struct drm_gem_object *obj = attach->dmabuf->priv;
+	struct exynos_drm_gem_obj *exynos_gem_obj;
+	struct exynos_drm_gem_buf *buffer;
+
+	DRM_DEBUG_KMS("%s\n", __FILE__);
+
+	exynos_gem_obj = to_exynos_gem_obj(obj);
+
+	buffer = exynos_gem_obj->buffer;
+
 	sg_free_table(sgt);
 	kfree(sgt);
 	sgt = NULL;
+
+	if (atomic_read(&buffer->shared_refcount) <= 0)
+		BUG();
+
+	atomic_dec(&buffer->shared_refcount);
 }
 
 static void exynos_dmabuf_release(struct dma_buf *dmabuf)
 {
-	struct exynos_drm_gem_obj *exynos_gem_obj = dmabuf->priv;
+	struct drm_gem_object *obj = dmabuf->priv;
 
-	DRM_DEBUG_PRIME("%s\n", __FILE__);
+	DRM_DEBUG_KMS("%s\n", __FILE__);
 
 	/*
 	 * exynos_dmabuf_release() call means that file object's
@@ -118,169 +141,217 @@ static void exynos_dmabuf_release(struct dma_buf *dmabuf)
 	 * to drop the references that these values had been increased
 	 * at drm_prime_handle_to_fd()
 	 */
-	if (exynos_gem_obj->base.export_dma_buf == dmabuf) {
-		exynos_gem_obj->base.export_dma_buf = NULL;
+	if (obj->export_dma_buf == dmabuf) {
+		obj->prime_fd = -1;
+		obj->export_dma_buf = NULL;
 
 		/*
 		 * drop this gem object refcount to release allocated buffer
 		 * and resources.
 		 */
-		drm_gem_object_unreference_unlocked(&exynos_gem_obj->base);
+		drm_gem_object_unreference_unlocked(obj);
 	}
-}
-
-static void *exynos_gem_dmabuf_kmap_atomic(struct dma_buf *dma_buf,
-						unsigned long page_num)
-{
-	return NULL;
-}
-
-static void exynos_gem_dmabuf_kunmap_atomic(struct dma_buf *dma_buf,
-						unsigned long page_num,
-						void *addr)
-{
-
-}
-
-static void *exynos_gem_dmabuf_kmap(struct dma_buf *dma_buf,
-					unsigned long page_num)
-{
-	return NULL;
-}
-
-static void exynos_gem_dmabuf_kunmap(struct dma_buf *dma_buf,
-					unsigned long page_num, void *addr)
-{
-
 }
 
 static struct dma_buf_ops exynos_dmabuf_ops = {
-	.map_dma_buf		= exynos_gem_map_dma_buf,
-	.unmap_dma_buf		= exynos_gem_unmap_dma_buf,
-	.kmap			= exynos_gem_dmabuf_kmap,
-	.kmap_atomic		= exynos_gem_dmabuf_kmap_atomic,
-	.kunmap			= exynos_gem_dmabuf_kunmap,
-	.kunmap_atomic		= exynos_gem_dmabuf_kunmap_atomic,
+	.attach			= exynos_dmabuf_attach,
+	.detach			= exynos_dmabuf_detach,
+	.map_dma_buf		= exynos_map_dmabuf,
+	.unmap_dma_buf		= exynos_unmap_dmabuf,
 	.release		= exynos_dmabuf_release,
 };
 
-struct dma_buf *exynos_dmabuf_prime_export(struct drm_device *drm_dev,
-				struct drm_gem_object *obj, int flags)
+int exynos_dmabuf_prime_handle_to_fd(struct drm_device *drm_dev,
+					struct drm_file *file,
+					unsigned int handle, int *prime_fd)
 {
-	struct exynos_drm_gem_obj *exynos_gem_obj = to_exynos_gem_obj(obj);
-
-	return dma_buf_export(exynos_gem_obj, &exynos_dmabuf_ops,
-				exynos_gem_obj->base.size, 0600);
-}
-
-struct drm_gem_object *exynos_dmabuf_prime_import(struct drm_device *drm_dev,
-				struct dma_buf *dma_buf)
-{
-	struct dma_buf_attachment *attach;
-	struct sg_table *sgt;
-	struct scatterlist *sgl;
+	struct drm_gem_object *obj;
 	struct exynos_drm_gem_obj *exynos_gem_obj;
-	struct exynos_drm_gem_buf *buffer;
-	struct page *page;
-	int ret;
+	int ret = 0;
 
-	DRM_DEBUG_PRIME("%s\n", __FILE__);
+	DRM_DEBUG_KMS("%s\n", __FILE__);
 
-	/* is this one of own objects? */
-	if (dma_buf->ops == &exynos_dmabuf_ops) {
-		struct drm_gem_object *obj;
+	ret = mutex_lock_interruptible(&drm_dev->struct_mutex);
+	if (ret < 0)
+		return ret;
 
-		exynos_gem_obj = dma_buf->priv;
-		obj = &exynos_gem_obj->base;
-
-		/* is it from our device? */
-		if (obj->dev == drm_dev) {
-			drm_gem_object_reference(obj);
-			return obj;
-		}
+	obj = drm_gem_object_lookup(drm_dev, file, handle);
+	if (!obj) {
+		DRM_DEBUG_KMS("failed to lookup gem object.\n");
+		ret = -EINVAL;
+		goto err1;
 	}
 
-	attach = dma_buf_attach(dma_buf, drm_dev->dev);
-	if (IS_ERR(attach))
-		return ERR_PTR(-EINVAL);
+	exynos_gem_obj = to_exynos_gem_obj(obj);
 
+	if (obj->prime_fd != -1) {
+		/* we have a prime fd already referencing the object. */
+		goto have_fd;
+	}
+
+	/*
+	 * get the dmabuf object for a gem object after registering
+	 * the gem object to allocated dmabuf.
+	 *
+	 * P.S. dma_buf_export function performs the followings:
+	 *	- create a new dmabuf object.
+	 *	- dmabuf->priv = gem object.
+	 *	- file->private_data = dmabuf.
+	 */
+	obj->export_dma_buf = dma_buf_export(obj, &exynos_dmabuf_ops,
+						obj->size, 0600);
+	if (!obj->export_dma_buf) {
+		ret = PTR_ERR(obj->export_dma_buf);
+		goto err2;
+	}
+
+	/* get file descriptor for a given dmabuf object. */
+	obj->prime_fd = dma_buf_fd(obj->export_dma_buf);
+	if (obj->prime_fd < 0) {
+		DRM_DEBUG_KMS("failed to get fd from dmabuf.\n");
+		dma_buf_put(obj->export_dma_buf);
+		ret = obj->prime_fd;
+		goto err2;
+	}
+
+	/*
+	 * this gem object is referenced by the fd so
+	 * the object refcount should be increased.
+	 * after that when dmabuf_ops->release() is called,
+	 * it will be decreased again.
+	 */
+	drm_gem_object_reference(obj);
+
+have_fd:
+	*prime_fd = obj->prime_fd;
+err2:
+	drm_gem_object_unreference(obj);
+err1:
+	mutex_unlock(&drm_dev->struct_mutex);
+	return ret;
+}
+
+int exynos_dmabuf_prime_fd_to_handle(struct drm_device *drm_dev,
+					struct drm_file *file,
+					int prime_fd, unsigned int *handle)
+{
+	struct drm_exynos_file_private *file_priv = file->driver_priv;
+	struct dma_buf_attachment *attach;
+	struct dma_buf *dmabuf;
+	struct sg_table *sgt;
+	struct exynos_drm_gem_obj *exynos_gem_obj;
+	struct exynos_drm_gem_buf *buffer;
+	int ret;
+
+	DRM_DEBUG_KMS("%s\n", __FILE__);
+
+	ret = mutex_lock_interruptible(&drm_dev->struct_mutex);
+	if (ret < 0)
+		return ret;
+
+	dmabuf = dma_buf_get(prime_fd);
+	if (IS_ERR(dmabuf)) {
+		ret = PTR_ERR(dmabuf);
+		goto out;
+	}
+
+	/*
+	 * if there is same dmabuf as the one to prime_fd
+	 * in file_priv->prime list then return the handle.
+	 *
+	 * Note:
+	 * but if the prime_fd from user belongs to another process
+	 * then there couldn't be the dmabuf in file_priv->prime list
+	 * because file_priv is unique to process.
+	 */
+	ret = drm_prime_lookup_fd_handle_mapping(&file_priv->prime,
+							dmabuf, handle);
+	if (!ret) {
+		/* drop reference we got above. */
+		dma_buf_put(dmabuf);
+		goto out;
+	}
+
+	attach = dma_buf_attach(dmabuf, drm_dev->dev);
+	if (IS_ERR(attach)) {
+		ret = PTR_ERR(attach);
+		goto fail_put;
+	}
 
 	sgt = dma_buf_map_attachment(attach, DMA_BIDIRECTIONAL);
 	if (IS_ERR(sgt)) {
 		ret = PTR_ERR(sgt);
-		goto err_buf_detach;
+		goto fail_detach;
 	}
 
 	buffer = kzalloc(sizeof(*buffer), GFP_KERNEL);
 	if (!buffer) {
 		DRM_ERROR("failed to allocate exynos_drm_gem_buf.\n");
 		ret = -ENOMEM;
-		goto err_unmap_attach;
+		goto fail_unmap;
 	}
 
-	buffer->pages = kzalloc(sizeof(*page) * sgt->nents, GFP_KERNEL);
-	if (!buffer->pages) {
-		DRM_ERROR("failed to allocate pages.\n");
-		ret = -ENOMEM;
-		goto err_free_buffer;
-	}
-
-	exynos_gem_obj = exynos_drm_gem_init(drm_dev, dma_buf->size);
+	exynos_gem_obj = exynos_drm_gem_init(drm_dev, dmabuf->size);
 	if (!exynos_gem_obj) {
 		ret = -ENOMEM;
-		goto err_free_pages;
+		goto fail_unmap;
 	}
 
-	sgl = sgt->sgl;
+	ret = drm_gem_handle_create(file, &exynos_gem_obj->base, handle);
+	if (ret < 0)
+		goto fail_handle;
 
-	if (sgt->nents == 1) {
-		buffer->dma_addr = sg_dma_address(sgt->sgl);
-		buffer->size = sg_dma_len(sgt->sgl);
-	} else {
-		unsigned int i = 0;
+	/* consider physically non-continuous memory with IOMMU. */
 
-		buffer->dma_addr = sg_dma_address(sgl);
-		while (i < sgt->nents) {
-			buffer->pages[i] = sg_page(sgl);
-			buffer->size += sg_dma_len(sgl);
-			sgl = sg_next(sgl);
-			i++;
-		}
-	}
-
-	exynos_gem_obj->buffer = buffer;
+	buffer->dma_addr = sg_dma_address(sgt->sgl);
+	buffer->size = sg_dma_len(sgt->sgl);
 	buffer->sgt = sgt;
+
+	/*
+	 * import(fd to handle) means that the physical memory region
+	 * from the sgt is being shared with others so shared_refcount
+	 * should be 1.
+	 */
+	atomic_set(&buffer->shared_refcount, 1);
+
 	exynos_gem_obj->base.import_attach = attach;
+
+	ret = drm_prime_insert_fd_handle_mapping(&file_priv->prime,
+							dmabuf, *handle);
+	if (ret < 0)
+		goto fail_handle;
 
 	/* register buffer information to private buffer manager. */
 	ret = register_buf_to_priv_mgr(exynos_gem_obj,
 					&exynos_gem_obj->priv_handle,
 					&exynos_gem_obj->priv_id);
-	if (ret < 0)
-		goto err_release_gem;
+	if (ret < 0) {
+		drm_prime_remove_fd_handle_mapping(&file_priv->prime, dmabuf);
+		goto fail_handle;
+	}
 
-	DRM_DEBUG_PRIME("ump id = %d, dma_addr = 0x%x, size = 0x%lx\n",
-			exynos_gem_obj->priv_id,
-			buffer->dma_addr,
-			buffer->size);
+	DRM_DEBUG_KMS("fd = %d, handle = %d, dma_addr = 0x%x, size = 0x%lx\n",
+			prime_fd, *handle, buffer->dma_addr, buffer->size);
 
-	return &exynos_gem_obj->base;
+	drm_gem_object_unreference(&exynos_gem_obj->base);
+	mutex_unlock(&drm_dev->struct_mutex);
 
-err_release_gem:
+	return 0;
+
+fail_handle:
+	drm_gem_object_unreference(&exynos_gem_obj->base);
+	kfree(buffer);
 	drm_gem_object_release(&exynos_gem_obj->base);
 	kfree(exynos_gem_obj);
-	exynos_gem_obj = NULL;
-err_free_pages:
-	kfree(buffer->pages);
-	buffer->pages = NULL;
-err_free_buffer:
-	kfree(buffer);
-	buffer = NULL;
-err_unmap_attach:
-	dma_buf_unmap_attachment(attach, sgt, DMA_BIDIRECTIONAL);
-err_buf_detach:
-	dma_buf_detach(dma_buf, attach);
-	return ERR_PTR(ret);
+fail_unmap:
+	dma_buf_unmap_attachment(attach, sgt);
+fail_detach:
+	dma_buf_detach(dmabuf, attach);
+fail_put:
+	dma_buf_put(dmabuf);
+out:
+	mutex_unlock(&drm_dev->struct_mutex);
+	return ret;
 }
 
 MODULE_AUTHOR("Inki Dae <inki.dae@samsung.com>");

@@ -147,10 +147,6 @@ static struct modemlink_pm_link_activectl active_ctl;
 
 static void xmm_gpio_revers_bias_clear(void);
 static void xmm_gpio_revers_bias_restore(void);
-
-#ifndef GPIO_AP_DUMP_INT
-#define GPIO_AP_DUMP_INT 0
-#endif
 static struct modem_data umts_modem_data = {
 	.name = "xmm6262",
 
@@ -160,7 +156,6 @@ static struct modem_data umts_modem_data = {
 	.gpio_pda_active = GPIO_PDA_ACTIVE,
 	.gpio_phone_active = GPIO_PHONE_ACTIVE,
 	.gpio_cp_dump_int = GPIO_CP_DUMP_INT,
-	.gpio_ap_dump_int = GPIO_AP_DUMP_INT,
 	.gpio_flm_uart_sel = 0,
 	.gpio_cp_warm_reset = 0,
 #if defined(CONFIG_SIM_DETECT)
@@ -292,7 +287,6 @@ static void umts_modem_cfg_gpio(void)
 	unsigned gpio_pda_active = umts_modem_data.gpio_pda_active;
 	unsigned gpio_phone_active = umts_modem_data.gpio_phone_active;
 	unsigned gpio_cp_dump_int = umts_modem_data.gpio_cp_dump_int;
-	unsigned gpio_ap_dump_int = umts_modem_data.gpio_ap_dump_int;
 	unsigned gpio_flm_uart_sel = umts_modem_data.gpio_flm_uart_sel;
 	unsigned gpio_sim_detect = umts_modem_data.gpio_sim_detect;
 	unsigned irq_phone_active = umts_modem_res[0].start;
@@ -365,15 +359,6 @@ static void umts_modem_cfg_gpio(void)
 			       "CP_DUMP_INT", err);
 		}
 		gpio_direction_input(gpio_cp_dump_int);
-	}
-
-	if (gpio_ap_dump_int) {
-		err = gpio_request(gpio_ap_dump_int, "AP_DUMP_INT");
-		if (err) {
-			pr_err(LOG_TAG "fail to request gpio %s : %d\n",
-			       "AP_DUMP_INT", err);
-		}
-		gpio_direction_output(gpio_ap_dump_int, 0);
 	}
 
 	if (gpio_flm_uart_sel) {
@@ -521,7 +506,7 @@ static void modem_link_pm_config_gpio(void)
 static int __init init_modem(void)
 {
 	int ret;
-	pr_info(LOG_TAG "init_modem, system_rev = %d\n", system_rev);
+	pr_info(LOG_TAG "init_modem\n");
 
 	/* umts gpios configuration */
 	umts_modem_cfg_gpio();

@@ -41,10 +41,10 @@
 #include <linux/power/charger-manager.h>
 #include <linux/sensor/lps331ap.h>
 #include <linux/devfreq/exynos4_bus.h>
+#include <linux/extcon.h>
 #include <linux/platform_data/mms_ts.h>
 #include <linux/pm_qos_params.h>
 #include <drm/exynos_drm.h>
-#include <linux/printk.h>
 
 #include <asm/mach/arch.h>
 #include <asm/mach-types.h>
@@ -112,12 +112,6 @@
 #include <mach/regs-tmu.h>
 #endif
 
-#if defined(CONFIG_BATTERY_SAMSUNG)
-#include <linux/power_supply.h>
-#include <linux/battery/samsung_battery.h>
-#endif
-#include <mach/midas-thermistor.h>
-
 #include <linux/host_notify.h>
 
 enum gpio_i2c {
@@ -142,7 +136,6 @@ enum board_rev {
 	M0_REAL_REV0_6_A = 0x8,
 	SLP_PQ_CMC221_LTE = 0x2,
 	M0_REAL_REV1_0 = 0xb,
-	M0_REAL_REV1_1 = 0xc,
 };
 
 static int hwrevision(int rev)
@@ -571,7 +564,7 @@ static void madis_tv_setup(void)
 	s5p_device_hdmi.dev.platform_data = &drm_hdmi_pdata;
 }
 
-static int tsp_get_lcdtype(void)
+int tsp_get_lcdtype(void)
 {
 	unsigned int hwrev = system_rev & 0xff;
 	unsigned int lcd_type = 0;
@@ -625,9 +618,11 @@ static int lsm330dlc_accel_get_position(void)
 
 #if defined(CONFIG_MACH_SLP_PQ)
 	if (system_rev == 3 || system_rev == 0)
+		position = 6; /* bottom/lower-right */
+	else if (system_rev == 7 || system_rev == 8)
 		position = 2; /* top/lower-right */
 	else
-		position = 6; /* bottom/lower-right */
+		position = 2; /* top/lower-right */
 #elif defined(CONFIG_MACH_SLP_PQ_LTE)
 	position = 3; /* top/lower-left */
 #else /* Common */
@@ -638,7 +633,6 @@ static int lsm330dlc_accel_get_position(void)
 
 static struct accel_platform_data lsm330dlc_accel_pdata = {
 	.accel_get_position = lsm330dlc_accel_get_position,
-	.axis_adjust = true,
 };
 
 static struct i2c_board_info i2c_devs1[] __initdata = {
@@ -745,33 +739,33 @@ static struct max77693_charger_reg_data max77693_charger_regs[] = {
 		.data = 0x3 << 2,
 	}, {
 		/*
-		 * fast-charge timer : 10hr
+		 * fast-charge timer : 5hr
 		 * charger restart threshold : disabled
 		 * low-battery prequalification mode : enabled
 		 */
 		.addr = MAX77693_CHG_REG_CHG_CNFG_01,
-		.data = (0x4 << 0) | (0x3 << 4),
+		.data = (0x1 << 7) | (0x3 << 4) | 0x2,
 	}, {
 		/*
 		 * CHGIN output current limit in OTG mode : 900mA
-		 * fast-charge current : 466mA
+		 * fast-charge current : 500mA
 		 */
 		.addr = MAX77693_CHG_REG_CHG_CNFG_02,
 		.data = (1 << 7) | 0xf,
 	}, {
 		/*
 		 * TOP off timer setting : 0min
-		 * TOP off current threshold : 100mA
+		 * TOP off current threshold : 250mA
 		 */
 		.addr = MAX77693_CHG_REG_CHG_CNFG_03,
-		.data = 0x0,
+		.data = 0x3,
 	}, {
 		/*
-		* minimum system regulation voltage : 3.6V
-		* primary charge termination voltage : 4.2V
-		*/
+		 * minimum system regulation voltage : 3.0V
+		 * primary charge termination voltage : 4.2V
+		 */
 		.addr = MAX77693_CHG_REG_CHG_CNFG_04,
-		.data = 0xd6,
+		.data = 0x16,
 	}, {
 		/*
 		 * maximum input current limit : 600mA
@@ -791,23 +785,6 @@ static struct max77693_charger_platform_data max77693_charger_pdata = {
 	.init_data = max77693_charger_regs,
 	.num_init_data = ARRAY_SIZE(max77693_charger_regs),
 };
-
-static void max77693_change_top_off_vol(void)
-{
-	int i = 0;
-
-	/*
-	* minimum system regulation voltage : 3.6V
-	* primary charge termination voltage : 4.35V
-	*/
-	for (i = 0; i < max77693_charger_pdata.num_init_data; i++) {
-		if (max77693_charger_pdata.init_data[i].addr ==
-				MAX77693_CHG_REG_CHG_CNFG_04)
-			max77693_charger_pdata.init_data[i].data = 0xdd;
-	}
-
-	return ;
-}
 
 static struct max77693_platform_data midas_max77693_info = {
 	.irq_base	= IRQ_BOARD_IFIC_START,
@@ -854,7 +831,7 @@ static struct i2c_board_info i2c_devs7[] __initdata = {
 };
 
 /* I2C HDMIPHY */
-static struct s3c2410_platform_i2c hdmiphy_i2c_data __initdata = {
+struct s3c2410_platform_i2c hdmiphy_i2c_data __initdata = {
 	.bus_num	= 8,
 	.flags		= 0,
 	.slave_addr	= 0x10,
@@ -890,6 +867,30 @@ static void __init smdk4212_ohci_init(void)
 	s5p_ohci_set_platdata(pdata);
 }
 #endif
+
+static void otg_accessory_power(int enable)
+{
+	u8 on = (u8)!!enable;
+
+	/* max77693 otg power control */
+	otg_control(enable);
+
+	gpio_request(GPIO_OTG_EN, "USB_OTG_EN");
+	gpio_direction_output(GPIO_OTG_EN, on);
+	gpio_free(GPIO_OTG_EN);
+	pr_info("%s: otg accessory power = %d\n", __func__, on);
+}
+
+static struct host_notifier_platform_data host_notifier_pdata = {
+	.ndev.name	= "usb_otg",
+	.booster	= otg_accessory_power,
+	.thread_enable	= 0,
+};
+
+struct platform_device host_notifier_device = {
+	.name = "host_notifier",
+	.dev.platform_data = &host_notifier_pdata,
+};
 
 /* USB GADGET */
 #ifdef CONFIG_USB_GADGET
@@ -1119,17 +1120,14 @@ static struct wm8994_pdata wm1811_pdata = {
 	.jd_ext_cap = 1,
 
 	/* Regulated mode at highest output voltage */
-	/* 2.0V for micbias2 */
-	.micbias = {0x2f, 0x27},
+	.micbias = {0x2f, 0x2f},
 
 	.micd_lvl_sel = 0xFF,
 
 	.ldo_ena_always_driven = true,
 	.ldo_ena_delay = 30000,
 
-	/* Disable ground loop noise feedback on lineout1 - NC - */
-	.lineout1fb = 0,
-	/* Enable ground loop noise feedback on lineout2 dock audio */
+	.lineout1fb = 1,
 	.lineout2fb = 1,
 };
 #endif
@@ -1249,15 +1247,6 @@ static struct gpio_keys_button midas_buttons[] = {
 		  1, 1, sec_debug_check_crash_key),
 };
 
-static struct gpio_keys_button midas_06_buttons[] = {
-	GPIO_KEYS(KEY_VOLUMEUP, GPIO_VOL_UP_00,
-		  1, 0, sec_debug_check_crash_key),
-	GPIO_KEYS(KEY_VOLUMEDOWN, GPIO_VOL_DOWN_00,
-		  1, 0, sec_debug_check_crash_key),
-	GPIO_KEYS(KEY_POWER, GPIO_nPOWER,
-		  1, 1, sec_debug_check_crash_key),
-};
-
 static struct gpio_keys_button midas_10_buttons[] = {
 	GPIO_KEYS(KEY_VOLUMEUP, GPIO_VOL_UP_00,
 		  1, 0, sec_debug_check_crash_key),
@@ -1265,13 +1254,6 @@ static struct gpio_keys_button midas_10_buttons[] = {
 		  1, 0, sec_debug_check_crash_key),
 	GPIO_KEYS(KEY_POWER, GPIO_nPOWER,
 		  1, 1, sec_debug_check_crash_key),
-/*
- * keep this code for future use.
- */
-#if 0
-	GPIO_KEYS(KEY_MENU, GPIO_OK_KEY_ANDROID,
-		  1, 1, sec_debug_check_crash_key),
-#endif
 };
 
 static struct gpio_keys_platform_data midas_gpiokeys_platform_data = {
@@ -1308,7 +1290,7 @@ static struct i2c_gpio_platform_data gpio_i2c_fm_radio = {
 	.scl_pin	= EXYNOS4_GPY0(2),
 };
 
-static struct platform_device device_i2c_fm_radio = {
+struct platform_device device_i2c_fm_radio = {
 	.name = "i2c-gpio",
 	.id = I2C_FM_RADIO,
 	.dev.platform_data = &gpio_i2c_fm_radio,
@@ -1337,80 +1319,6 @@ static struct i2c_board_info i2c_devs_fm_radio[] __initdata = {
 	}
 };
 #endif
-
-#if defined(CONFIG_BATTERY_SAMSUNG)
-static struct samsung_battery_platform_data samsung_battery_pdata = {
-	.charger_name	= "max77693-charger",
-	.fuelgauge_name	= "max17047-fuelgauge",
-	.voltage_max = 4200000,
-	.voltage_min = 3400000,
-
-	.in_curr_limit = 1000,
-	.chg_curr_ta = 1000,
-
-	.chg_curr_usb = 475,
-	.chg_curr_cdp = 1000,
-	.chg_curr_wpc = 475,
-	.chg_curr_dock = 1000,
-	.chg_curr_etc = 475,
-
-	.chng_interval = 30,
-	.chng_susp_interval = 60,
-	.norm_interval = 120,
-	.norm_susp_interval = 7200,
-	.emer_lv1_interval = 30,
-	.emer_lv2_interval = 10,
-
-	.recharge_voltage = 4150000,	/* it will be cacaluated in probe */
-
-	.abstimer_charge_duration = 6 * 60 * 60,
-	.abstimer_charge_duration_wpc = 8 * 60 * 60,
-	.abstimer_recharge_duration = 1.5 * 60 * 60,
-
-	.cb_det_src = CABLE_DET_CHARGER,
-	.overheat_stop_temp = 600,
-	.overheat_recovery_temp = 400,
-	.freeze_stop_temp = -50,
-	.freeze_recovery_temp = 0,
-
-	/* CTIA spec */
-	.ctia_spec  = false,
-
-	/* CTIA temperature spec */
-	.event_time = 10 * 60,
-	.event_overheat_stop_temp = 600,
-	.event_overheat_recovery_temp = 400,
-	.event_freeze_stop_temp = -50,
-	.event_freeze_recovery_temp = 0,
-	.lpm_overheat_stop_temp = 480,
-	.lpm_overheat_recovery_temp = 450,
-	.lpm_freeze_stop_temp = -50,
-	.lpm_freeze_recovery_temp = 0,
-
-	.temper_src = TEMPER_AP_ADC,
-	.temper_ch = 2,
-#ifdef CONFIG_S3C_ADC
-	/* s3c adc driver does not convert raw adc data.
-	 * so, register convert function.
-	 */
-	.covert_adc = convert_adc,
-#endif
-
-	.suspend_chging = true,
-
-	.led_indicator = false,
-
-	.battery_standever = false,
-};
-
-static struct platform_device samsung_device_battery = {
-	.name	= "samsung-battery",
-	.id	= -1,
-	.dev.platform_data = &samsung_battery_pdata,
-};
-#endif
-
-
 /* I2C GPIO: Fuel Gauge */
 static struct i2c_gpio_platform_data gpio_i2c_fuel = {
 	/* PQ/PQLTE use GPF1(4, 5) */
@@ -1487,12 +1395,7 @@ static struct platform_device device_i2c_msense = {
 };
 
 static struct akm8975_platform_data akm8975_pdata = {
-#ifdef CONFIG_MACH_SLP_PQ
-	.gpio_data_ready_int = GPIO_MSENSOR_INT,
-#else
-	/* CONFIG_MACH_SLP_PQ_LTE */
 	.gpio_data_ready_int = EXYNOS4_GPX2(2),
-#endif
 };
 
 static struct i2c_board_info i2c_devs_msense[] __initdata = {
@@ -1526,7 +1429,7 @@ static struct i2c_gpio_platform_data gpio_i2c_mhl = {
 	.udelay = 3,
 };
 
-static struct platform_device device_i2c_mhl = {
+struct platform_device device_i2c_mhl = {
 	.name = "i2c-gpio",
 	.id = I2C_MHL,
 	.dev.platform_data = &gpio_i2c_mhl,
@@ -1538,7 +1441,7 @@ static struct i2c_gpio_platform_data gpio_i2c_mhl_d = {
 	.scl_pin = GPIO_MHL_DSCL_2_8V,
 };
 
-static struct platform_device device_i2c_mhl_d = {
+struct platform_device device_i2c_mhl_d = {
 	.name = "i2c-gpio",
 	.id = I2C_MHL_D,
 	.dev.platform_data = &gpio_i2c_mhl_d,
@@ -1731,6 +1634,21 @@ static struct platform_device midas_uart_select = {
 	},
 };
 
+/* External connector */
+static struct extcon_dev midas_usb_extcon = {
+	.name			= "usb-connector",
+	.supported_cable	= extcon_cable_name,
+};
+
+static void midas_extcon_init(void)
+{
+	int ret;
+
+	ret = extcon_dev_register(&midas_usb_extcon, NULL);
+	if (ret)
+		pr_err(KERN_ERR "failed to register extcon_dev\n");
+}
+
 static struct platform_device *slp_midas_devices[] __initdata = {
 	/* Samsung Power Domain */
 	&exynos4_device_pd[PD_MFC],
@@ -1863,12 +1781,8 @@ static struct platform_device *slp_midas_devices[] __initdata = {
 	&exynos_device_flite0,
 	&exynos_device_flite1,
 #endif
-#ifdef CONFIG_CHARGER_MANAGER
 	&midas_charger_manager,
-#endif
-#if defined(CONFIG_BATTERY_SAMSUNG)
-	&samsung_device_battery,
-#endif
+	&s3c_device_adc,
 #ifdef CONFIG_SENSORS_NTC_THERMISTOR
 	&midas_ncp15wb473_thermistor,
 #endif
@@ -1922,22 +1836,16 @@ static void check_hw_revision(void)
 	case M0_REAL_REV0_6:	/* Proxima Rev0.6: M0_REAL_REV0.6_120119 */
 		midas_tsp_set_platdata(&mms_ts_pdata);
 		midas_tsp_init();
-		midas_gpiokeys_platform_data.buttons = midas_06_buttons;
-		midas_gpiokeys_platform_data.nbuttons =
-			ARRAY_SIZE(midas_06_buttons);
 		/* VOL_UP/DOWN keys are not EXTINT. Register them. */
-		s5p_register_gpio_interrupt(GPIO_VOL_UP_00);
-		s5p_register_gpio_interrupt(GPIO_VOL_DOWN_00);
+		s5p_register_gpio_interrupt(GPIO_VOL_UP);
+		s5p_register_gpio_interrupt(GPIO_VOL_DOWN);
 		break;
 	case M0_REAL_REV0_6_A:	/* Proxima Rev0.6: M0_REAL_REV0.6_A */
 		midas_tsp_set_platdata(&mms_ts_pdata);
 		midas_tsp_init();
-		midas_gpiokeys_platform_data.buttons = midas_06_buttons;
-		midas_gpiokeys_platform_data.nbuttons =
-			ARRAY_SIZE(midas_06_buttons);
 		/* VOL_UP/DOWN keys are not EXTINT. Register them. */
-		s5p_register_gpio_interrupt(GPIO_VOL_UP_00);
-		s5p_register_gpio_interrupt(GPIO_VOL_DOWN_00);
+		s5p_register_gpio_interrupt(GPIO_VOL_UP);
+		s5p_register_gpio_interrupt(GPIO_VOL_DOWN);
 		break;
 	case SLP_PQ_CMC221_LTE:	/* PegasusQ LTE: SLP_PQ_CMC221_VIA_1028 */
 		midas_tsp_set_platdata(&mms_ts_pdata_rotate);
@@ -1954,20 +1862,7 @@ static void check_hw_revision(void)
 		/* VOL_UP/DOWN keys are not EXTINT. Register them. */
 		s5p_register_gpio_interrupt(GPIO_VOL_UP_00);
 		s5p_register_gpio_interrupt(GPIO_VOL_DOWN_00);
-/* keep this code for future use */
-#if 0
-		s5p_register_gpio_interrupt(GPIO_OK_KEY_ANDROID);
-#endif
 		break;
-	case M0_REAL_REV1_1:	/* M0_REAL_REV1.1: M0_REAL_REV1.1_2nd_120413 */
-		midas_tsp_set_platdata(&mms_ts_pdata);
-		midas_tsp_init();
-		midas_gpiokeys_platform_data.buttons = midas_10_buttons;
-		midas_gpiokeys_platform_data.nbuttons =
-						ARRAY_SIZE(midas_10_buttons);
-		/* VOL_UP/DOWN keys are not EXTINT. Register them. */
-		s5p_register_gpio_interrupt(GPIO_VOL_UP_00);
-		s5p_register_gpio_interrupt(GPIO_VOL_DOWN_00);
 	default:
 		break;
 	}
@@ -1975,7 +1870,7 @@ static void check_hw_revision(void)
 
 #ifdef CONFIG_EXYNOS4_SETUP_THERMAL
 /* below temperature base on the celcius degree */
-static struct s5p_platform_tmu midas_tmu_data __initdata = {
+struct s5p_platform_tmu midas_tmu_data __initdata = {
 	.ts = {
 		.stop_1st_throttle  = 78,
 		.start_1st_throttle = 80,
@@ -1992,14 +1887,6 @@ static struct s5p_platform_tmu midas_tmu_data __initdata = {
 		.limit_1st_throttle  = 800000, /* 800MHz in KHz order */
 		.limit_2nd_throttle  = 200000, /* 200MHz in KHz order */
 	},
-	.temp_compensate = {
-		/* vdd_arm in uV for temperature compensation */
-		.arm_volt = 900000,
-		/* vdd_bus in uV for temperature compensation */
-		.bus_volt = 900000,
-		/* vdd_g3d in uV for temperature compensation */
-		.g3d_volt = 900000,
-	},
 };
 #endif
 
@@ -2014,22 +1901,6 @@ static int __init s5p_hci_device_initcall(void)
 	int ret = platform_device_register(&s5p_device_ehci);
 	if (ret)
 		return ret;
-
-	/*
-	 * Exynos AP-EVT0 can't use both USB host and device(client)
-	 * on running time, because that has critical ASIC problem
-	 * about USB PHY CLOCK. That issue was already announced by
-	 * S.SLI team (djkim@samsung.com) and already fixed it on
-	 * the new EVT1 chip (new target, system_rev != 3).
-	 * But we have many EVT0 targets (system_rev == 3)
-	 * So, to using old target(EVT0) only using by usb device mode
-	 * we added following unregister codes(disable USB Host)
-	 * by yongsul96.oh@samsung.com 20120417-SLP
-	 */
-	if (system_rev == 3) {
-		pr_warn("[USB-EHCI]AP is EVT0 type!!, unregister ehci!!!");
-		platform_device_unregister(&s5p_device_ehci);
-	}
 #endif
 #ifdef CONFIG_USB_OHCI_S5P
 	return platform_device_register(&s5p_device_ohci);
@@ -2039,106 +1910,105 @@ late_initcall(s5p_hci_device_initcall);
 #endif	/* LINK_DEVICE_HSIC */
 
 #if defined(CONFIG_S5P_MEM_CMA)
-static struct cma_region regions[] = {
+static void __init exynos4_reserve_mem(void)
+{
+	static struct cma_region regions[] = {
 	/*
 	 * caution : do not allowed other region definitions above of drm.
 	 * drm only using region 0 for startup screen display.
 	 */
 #ifdef CONFIG_DRM_EXYNOS
-	{
-		.name = "drm0",
-		.size = CONFIG_DRM_EXYNOS_MEMSIZE / 2 * SZ_1K,
-		.start = 0
-	},
-	{
-		.name = "drm1",
-		.size = CONFIG_DRM_EXYNOS_MEMSIZE / 2 * SZ_1K,
-		.start = 0
-	},
+		{
+			.name = "drm",
+			.size = CONFIG_DRM_EXYNOS_MEMSIZE * SZ_1K,
+			.start = 0
+		},
 #endif
 #ifdef CONFIG_VIDEO_SAMSUNG_MEMSIZE_DMA
-	{
-		.name = "dma",
-		.size = CONFIG_VIDEO_SAMSUNG_MEMSIZE_DMA * SZ_1K,
-		.start = 0
-	},
+		{
+			.name = "dma",
+			.size = CONFIG_VIDEO_SAMSUNG_MEMSIZE_DMA * SZ_1K,
+			.start = 0
+		},
 #endif
 #ifdef CONFIG_VIDEO_SAMSUNG_MEMSIZE_MFC1
-	{
-		.name = "mfc1",
-		.size = CONFIG_VIDEO_SAMSUNG_MEMSIZE_MFC1 * SZ_1K,
 		{
-			.alignment = 1 << 17,
+#ifdef CONFIG_EXYNOS_CONTENT_PATH_PROTECTION
+			.name = "mfc-normal",
+#else
+			.name = "mfc1",
+#endif
+			.size = CONFIG_VIDEO_SAMSUNG_MEMSIZE_MFC1 * SZ_1K,
+			{
+				.alignment = 1 << 17,
+			},
+			.start = 0,
 		},
-		.start = 0,
-	},
 #endif
 #ifdef CONFIG_VIDEO_SAMSUNG_MEMSIZE_MFC0
-	{
-		.name = "mfc0",
-		.size = CONFIG_VIDEO_SAMSUNG_MEMSIZE_MFC0 * SZ_1K,
 		{
-			.alignment = 1 << 17,
+			.name = "mfc-secure",
+			.size = CONFIG_VIDEO_SAMSUNG_MEMSIZE_MFC0 * SZ_1K,
+			{
+				.alignment = 1 << 17,
+			},
+			.start = 0,
 		},
-		.start = 0,
-	},
 #endif
 #ifdef CONFIG_VIDEO_SAMSUNG_MEMSIZE_MFC
-	{
-		.name = "mfc",
-		.size = CONFIG_VIDEO_SAMSUNG_MEMSIZE_MFC * SZ_1K,
 		{
-			.alignment = 1 << 17,
+			.name = "mfc",
+			.size = CONFIG_VIDEO_SAMSUNG_MEMSIZE_MFC * SZ_1K,
+			{
+				.alignment = 1 << 17,
+			},
+			.start = 0
 		},
-		.start = 0
-	},
 #endif
 #if !defined(CONFIG_EXYNOS_CONTENT_PATH_PROTECTION) && \
 	defined(CONFIG_VIDEO_SAMSUNG_S5P_MFC)
-	{
-		.name		= "b2",
-		.size		= 32 << 20,
-		{ .alignment	= 128 << 10 },
-	},
-	{
-		.name		= "b1",
-		.size		= 32 << 20,
-		{ .alignment	= 128 << 10 },
-	},
-	{
-		.name		= "fw",
-		.size		= 1 << 20,
-		{ .alignment	= 128 << 10 },
-		.start		= 0x60500000,	/* FIXME */
-	},
+		{
+			.name		= "b2",
+			.size		= 32 << 20,
+			{ .alignment	= 128 << 10 },
+		},
+		{
+			.name		= "b1",
+			.size		= 32 << 20,
+			{ .alignment	= 128 << 10 },
+		},
+		{
+			.name		= "fw",
+			.size		= 1 << 20,
+			{ .alignment	= 128 << 10 },
+			.start		= 0x60500000,	/* FIXME */
+		},
 #endif
 #ifdef CONFIG_AUDIO_SAMSUNG_MEMSIZE_SRP
-	{
-		.name = "srp",
-		.size = CONFIG_AUDIO_SAMSUNG_MEMSIZE_SRP * SZ_1K,
-		.start = 0,
-	},
+		{
+			.name = "srp",
+			.size = CONFIG_AUDIO_SAMSUNG_MEMSIZE_SRP * SZ_1K,
+			.start = 0,
+		},
 #endif
 #ifdef CONFIG_VIDEO_EXYNOS_FIMC_IS
-	{
-		.name = "fimc_is",
-		.size = CONFIG_VIDEO_EXYNOS_MEMSIZE_FIMC_IS * SZ_1K,
 		{
-			.alignment = 1 << 26,
+			.name = "fimc_is",
+			.size = CONFIG_VIDEO_EXYNOS_MEMSIZE_FIMC_IS * SZ_1K,
+			{
+				.alignment = 1 << 26,
+			},
+			.start = 0
 		},
-		.start = 0
-	},
 #endif
-	{
-		.size = 0
-	},
-};
+		{
+			.size = 0
+		},
+	};
 
-static void __init exynos4_reserve_mem(void)
-{
 	static const char map[] __initconst =
 #ifdef CONFIG_DRM_EXYNOS
-		"exynos-drm=drm0,drm1;"
+		"exynos-drm=drm;"
 #endif
 #ifdef CONFIG_VIDEO_SAMSUNG_MEMSIZE_DMA
 		"s3c-fimc.0=dma;s3c-fimc.1=dma;s3c-fimc.2=dma;s3c-fimc.3=dma;s3c-mem=dma;"
@@ -2160,53 +2030,11 @@ static void __init exynos4_reserve_mem(void)
 #endif
 		""
 	;
-	if (fbmem_start) {
-		regions[0].start = (dma_addr_t) fbmem_start;
-		if (strncmp(regions[1].name, "dma", strlen(regions[1].name))
-		    == 0) {
-			regions[1].start =
-			    (dma_addr_t) fbmem_start - regions[1].size;
-			if (strncmp
-			    (regions[2].name, "mfc1",
-			     strlen(regions[2].name)) == 0) {
-				regions[2].start =
-				    (dma_addr_t) regions[1].start -
-				    regions[2].size;
-				if (strncmp
-				    (regions[3].name, "mfc0",
-				     strlen(regions[3].name)) == 0)
-					regions[3].start =
-					    (dma_addr_t) regions[2].start -
-					    regions[3].size;
-			}
-		}
-	}
-
+	if (fbmem_start)
+		regions[0].start = (dma_addr_t)fbmem_start;
 	s5p_cma_region_reserve(regions, NULL, 0, map);
 }
-
-#ifdef CONFIG_HIBERNATION
-static int __init exynos_set_nosave_regions(void)
-{
-	int i;
-
-	for (i = ARRAY_SIZE(regions) - 2; i >= 0 /* terminator */; i--) {
-		/*
-		 * MFC firmware region SHOULD BE saved.
-		 * If the name of region is fw, don't register to nosave regions
-		 */
-		if (strcmp(regions[i].name, "fw")) {
-			register_nosave_region_late(
-					__phys_to_pfn(regions[i].start),
-					__phys_to_pfn(regions[i].start +
-						regions[i].size));
-		}
-	}
-	return 0;
-}
-late_initcall(exynos_set_nosave_regions);
-#endif /* CONFIG_HIBERNATION */
-#endif /* CONFIG_S5P_MEM_CMA */
+#endif
 
 static void __init midas_map_io(void)
 {
@@ -2224,8 +2052,8 @@ static void __init midas_map_io(void)
 }
 
 #ifdef CONFIG_MDNIE_SUPPORT
-static int exynos4_common_setup_clock(const char *sclk_name,
-	const char *pclk_name, unsigned long rate, unsigned int rate_set)
+int exynos4_common_setup_clock(const char *sclk_name, const char *pclk_name,
+		unsigned long rate, unsigned int rate_set)
 {
 	struct clk *sclk = NULL;
 	struct clk *pclk = NULL;
@@ -2587,6 +2415,8 @@ static void __init midas_machine_init(void)
 
 #endif
 
+
+
 #ifdef CONFIG_USB_EHCI_S5P
 	smdk4212_ehci_init();
 #endif
@@ -2616,7 +2446,7 @@ static void __init midas_machine_init(void)
 				ARRAY_SIZE(i2c_devs_fm_radio));
 #endif
 #ifdef CONFIG_EXYNOS4_DEV_DWMCI
-	exynos_dwmci_set_platdata(&exynos_dwmci_pdata, 0);
+	exynos_dwmci_set_platdata(&exynos_dwmci_pdata);
 #else
 	s3c_mshci_set_platdata(&exynos4_mshc_pdata);
 #endif
@@ -2685,26 +2515,11 @@ static void __init midas_machine_init(void)
 	if (!hwrevision(0))
 		adc_ntc_init(2); /* Channel 2 */
 #endif
-	/* Battery capacity has changed from 1750mA to 2100mA(rev06) */
-	if (system_rev >= 0x7) {
-		/* setting for top off voltage */
-		max77693_change_top_off_vol();
-#ifdef CONFIG_BATTERY_SAMSUNG
-		/* setting for Battery Capacity */
-		samsung_battery_pdata.voltage_max = 4350000;
-		samsung_battery_pdata.recharge_voltage = 4300000;
-#endif
-#ifdef CONFIG_CHARGER_MANAGER
-		cm_change_fullbatt_uV();
-#endif
-	}
-
-#ifdef CONFIG_S3C_ADC
-	if (system_rev != 3)
-		platform_device_register(&s3c_device_adc);
-#endif
 
 	platform_add_devices(slp_midas_devices, ARRAY_SIZE(slp_midas_devices));
+
+	/* Extcon */
+	midas_extcon_init();
 
 	midas_fb_init();
 #ifdef CONFIG_MDNIE_SUPPORT

@@ -13,7 +13,6 @@
 #include <linux/gpio.h>
 #include <linux/irq.h>
 #include <linux/delay.h>
-#include <linux/wakelock.h>
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 #include <linux/earlysuspend.h>
@@ -150,7 +149,6 @@ struct wacom_g5_callbacks {
 };
 
 struct wacom_g5_platform_data {
-	char *name;
 	int x_invert;
 	int y_invert;
 	int xy_switch;
@@ -177,7 +175,6 @@ struct wacom_i2c {
 	struct input_dev *input_dev;
 	struct early_suspend early_suspend;
 	struct mutex lock;
-	struct wake_lock wakelock;
 	struct device	*dev;
 	int irq;
 #ifdef WACOM_PDCT_WORK_AROUND
@@ -203,12 +200,9 @@ struct wacom_i2c {
 #ifdef CONFIG_SEC_TOUCHSCREEN_DVFS_LOCK
 	unsigned int cpufreq_level;
 	bool dvfs_lock_status;
-	bool checksum_result;
 	struct delayed_work dvfs_work;
 #if defined(CONFIG_MACH_P4NOTE)
 	struct device *bus_dev;
-	struct delayed_work query_work;
-	bool pen_type;
 #endif
 #endif
 };

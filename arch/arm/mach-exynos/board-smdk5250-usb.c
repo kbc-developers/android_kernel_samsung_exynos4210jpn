@@ -152,7 +152,7 @@ static void __init smdk5250_usbswitch_init(void)
 		gpio_free(pdata->gpio_drd_host_detect);
 #endif
 
-#ifdef CONFIG_USB_EXYNOS_SS_UDC
+#ifdef CONFIG_EXYNOS_DEV_SS_UDC
 		pdata->gpio_drd_device_detect = EXYNOS5_GPX0(6);
 		err = gpio_request_one(pdata->gpio_drd_device_detect, GPIOF_IN,
 			"DRD_DEVICE_DETECT");

@@ -12,8 +12,8 @@
 #ifndef FIMC_IS_CORE_H
 #define FIMC_IS_CORE_H
 
-/*#define DEBUG 1*/
-#define FRAME_RATE_ENABLE	1
+/*#define DEBUG 1 */
+/*#define FRAME_RATE_ENABLE	1*/
 /*#define ODC_ENABLE	1*/
 /*#define TDNR_ENABLE	1*/
 /*#define DZOOM_ENABLE	1*/
@@ -40,86 +40,85 @@
 #endif
 #include "fimc-is-param.h"
 
-#define FIMC_IS_MODULE_NAME			"exynos5-fimc-is"
-#define FIMC_IS_SENSOR_ENTITY_NAME		"exynos5-fimc-is-sensor"
-#define FIMC_IS_FRONT_ENTITY_NAME		"exynos5-fimc-is-front"
-#define FIMC_IS_BACK_ENTITY_NAME		"exynos5-fimc-is-back"
-#define FIMC_IS_VIDEO_BAYER_NAME		"exynos5-fimc-is-bayer"
-#define FIMC_IS_VIDEO_SCALERC_NAME		"exynos5-fimc-is-scalerc"
-#define FIMC_IS_VIDEO_3DNR_NAME			"exynos5-fimc-is-3dnr"
-#define FIMC_IS_VIDEO_SCALERP_NAME		"exynos5-fimc-is-scalerp"
+#define FIMC_IS_MODULE_NAME				"exynos5-fimc-is"
+#define FIMC_IS_SENSOR_ENTITY_NAME			"exynos5-fimc-is-sensor"
+#define FIMC_IS_FRONT_ENTITY_NAME			"exynos5-fimc-is-front"
+#define FIMC_IS_BACK_ENTITY_NAME			"exynos5-fimc-is-back"
+#define FIMC_IS_VIDEO_BAYER_NAME			"exynos5-fimc-is-bayer"
+#define FIMC_IS_VIDEO_SCALERC_NAME			"exynos5-fimc-is-scalerc"
+#define FIMC_IS_VIDEO_3DNR_NAME				"exynos5-fimc-is-3dnr"
+#define FIMC_IS_VIDEO_SCALERP_NAME			"exynos5-fimc-is-scalerp"
 
-#define FIMC_IS_DEBUG_LEVEL			(3)
-/*#define FIMC_IS_A5_DEBUG_ON			(1)*/
+#define FIMC_IS_DEBUG_LEVEL	3
+/*#define FIMC_IS_A5_DEBUG_ON			1*/
 
-#define MAX_I2H_ARG				(4)
+#define MAX_I2H_ARG					(4)
 
-#define FIMC_IS_FW				"fimc_is_fw.bin"
-#define FIMC_IS_SETFILE				"setfile.bin"
+#define FIMC_IS_FW					"fimc_is_fw.bin"
+#define FIMC_IS_SETFILE					"setfile.bin"
 
-#define FIMC_IS_SHUTDOWN_TIMEOUT		(10*HZ)
-#define FIMC_IS_SHUTDOWN_TIMEOUT_SENSOR		(3*HZ)
+#define FIMC_IS_SHUTDOWN_TIMEOUT			(10*HZ)
+#define FIMC_IS_SHUTDOWN_TIMEOUT_SENSOR			(3*HZ)
 
-#define FIMC_IS_A5_MEM_SIZE			(0x00A00000)
-#define FIMC_IS_REGION_SIZE			(0x5000)
-#define FIMC_IS_SETFILE_SIZE			(0xc0d8)
-#define DRC_SETFILE_SIZE			(0x140)
-#define FD_SETFILE_SIZE				(0x88*2)
-#define FIMC_IS_FW_BASE_MASK			((1 << 26) - 1)
-#define FIMC_IS_TDNR_MEM_SIZE			(1920*1080*4)
-#define FIMC_IS_DEBUG_REGION_ADDR		(0x00840000)
-#define FIMC_IS_SHARED_REGION_ADDR		(0x008C0000)
+#define FIMC_IS_A5_MEM_SIZE				(0x00A00000)
+#define FIMC_IS_REGION_SIZE				(0x5000)
+#define FIMC_IS_SETFILE_SIZE				(0xc0d8)
+#define DRC_SETFILE_SIZE				(0x140)
+#define FD_SETFILE_SIZE					(0x88*2)
+#define FIMC_IS_FW_BASE_MASK				((1 << 26) - 1)
+#define FIMC_IS_TDNR_MEM_SIZE				(1920*1080*4)
+#define FIMC_IS_DEBUG_REGION_ADDR		0x00840000
+#define FIMC_IS_SHARED_REGION_ADDR		0x008C0000
 
-#define FIMC_IS_MAX_BUF_NUM			(16)
-#define FIMC_IS_MAX_BUf_PLANE_NUM		(3)
+#define FIMC_IS_MAX_BUF_NUM				16
+#define FIMC_IS_MAX_BUf_PLANE_NUM			3
 
-#define FIMC_IS_SENSOR_MAX_ENTITIES		(1)
-#define FIMC_IS_SENSOR_PAD_SOURCE_FRONT	(0)
-#define FIMC_IS_SENSOR_PADS_NUM		(1)
+#define FIMC_IS_SENSOR_MAX_ENTITIES			1
+#define FIMC_IS_SENSOR_PAD_SOURCE_FRONT			0
+#define FIMC_IS_SENSOR_PADS_NUM				1
 
-#define FIMC_IS_FRONT_MAX_ENTITIES		(1)
-#define FIMC_IS_FRONT_PAD_SINK			(0)
-#define FIMC_IS_FRONT_PAD_SOURCE_BACK		(1)
-#define FIMC_IS_FRONT_PAD_SOURCE_BAYER		(2)
-#define FIMC_IS_FRONT_PAD_SOURCE_SCALERC	(3)
-#define FIMC_IS_FRONT_PADS_NUM			(4)
+#define FIMC_IS_FRONT_MAX_ENTITIES			1
+#define FIMC_IS_FRONT_PAD_SINK				0
+#define FIMC_IS_FRONT_PAD_SOURCE_BACK			1
+#define FIMC_IS_FRONT_PAD_SOURCE_BAYER			2
+#define FIMC_IS_FRONT_PAD_SOURCE_SCALERC		3
+#define FIMC_IS_FRONT_PADS_NUM				4
 
-#define FIMC_IS_BACK_MAX_ENTITIES		(1)
-#define FIMC_IS_BACK_PAD_SINK			(0)
-#define FIMC_IS_BACK_PAD_SOURCE_3DNR		(1)
-#define FIMC_IS_BACK_PAD_SOURCE_SCALERP	(2)
-#define FIMC_IS_BACK_PADS_NUM			(3)
 
-#define MAX_ISP_INTERNAL_BUF_WIDTH		(2560)  /* 4808 in HW */
-#define MAX_ISP_INTERNAL_BUF_HEIGHT		(1920)  /* 3356 in HW */
-#define SIZE_ISP_INTERNAL_BUF \
-	(MAX_ISP_INTERNAL_BUF_WIDTH * MAX_ISP_INTERNAL_BUF_HEIGHT * 3)
+#define FIMC_IS_BACK_MAX_ENTITIES			1
+#define FIMC_IS_BACK_PAD_SINK				0
+#define FIMC_IS_BACK_PAD_SOURCE_3DNR			1
+#define FIMC_IS_BACK_PAD_SOURCE_SCALERP			2
+#define FIMC_IS_BACK_PADS_NUM				3
 
-#define MAX_ODC_INTERNAL_BUF_WIDTH		(2560)  /* 4808 in HW */
-#define MAX_ODC_INTERNAL_BUF_HEIGHT		(1920)  /* 3356 in HW */
-#define SIZE_ODC_INTERNAL_BUF \
-	(MAX_ODC_INTERNAL_BUF_WIDTH * MAX_ODC_INTERNAL_BUF_HEIGHT * 3)
+#define MAX_ISP_INTERNAL_BUF_WIDTH	2560  /* 4808 in HW */
+#define MAX_ISP_INTERNAL_BUF_HEIGHT	1920  /* 3356 in HW */
+#define SIZE_ISP_INTERNAL_BUF	(MAX_ISP_INTERNAL_BUF_WIDTH*MAX_ISP_INTERNAL_BUF_HEIGHT*3)
 
-#define MAX_DIS_INTERNAL_BUF_WIDTH		(2400)
-#define MAX_DIS_INTERNAL_BUF_HEIGHT		(1360)
-#define SIZE_DIS_INTERNAL_BUF \
-	(MAX_DIS_INTERNAL_BUF_WIDTH * MAX_DIS_INTERNAL_BUF_HEIGHT * 2)
+#define MAX_ODC_INTERNAL_BUF_WIDTH	2560  /* 4808 in HW */
+#define MAX_ODC_INTERNAL_BUF_HEIGHT	1920  /* 3356 in HW */
+#define SIZE_ODC_INTERNAL_BUF	(MAX_ODC_INTERNAL_BUF_WIDTH*MAX_ODC_INTERNAL_BUF_HEIGHT * 3)
 
-#define MAX_3DNR_INTERNAL_BUF_WIDTH		(1920)
-#define MAX_3DNR_INTERNAL_BUF_HEIGHT		(1088)
-#define SIZE_3DNR_INTERNAL_BUF \
-	(MAX_3DNR_INTERNAL_BUF_WIDTH * MAX_3DNR_INTERNAL_BUF_HEIGHT * 2)
+#define MAX_DIS_INTERNAL_BUF_WIDTH	2400
+#define MAX_DIS_INTERNAL_BUF_HEIGHT	1360
+#define SIZE_DIS_INTERNAL_BUF	(MAX_DIS_INTERNAL_BUF_WIDTH*MAX_DIS_INTERNAL_BUF_HEIGHT * 2)
 
-#define NUM_ISP_INTERNAL_BUF			(3)
-#define NUM_ODC_INTERNAL_BUF			(2)
-#define NUM_DIS_INTERNAL_BUF			(3)
-#define NUM_3DNR_INTERNAL_BUF			(2)
+#define MAX_3DNR_INTERNAL_BUF_WIDTH	1920
+#define MAX_3DNR_INTERNAL_BUF_HEIGHT	1088
+#define SIZE_3DNR_INTERNAL_BUF	(MAX_3DNR_INTERNAL_BUF_WIDTH*MAX_3DNR_INTERNAL_BUF_HEIGHT * 2)
 
-#define is_af_use(dev)				((dev->af.use_af) ? 1 : 0)
+#define NUM_ISP_INTERNAL_BUF			3
+#define NUM_ODC_INTERNAL_BUF			2
+#define NUM_DIS_INTERNAL_BUF			3
+#define NUM_3DNR_INTERNAL_BUF			2
 
-#if defined(CONFIG_BUSFREQ_OPP) && defined(CONFIG_CPU_EXYNOS5250)
-#define FIMC_IS_FREQ_MIF		(800)
-#define FIMC_IS_FREQ_INT		(267)
+#define is_af_use(dev)		((dev->af.use_af) ? 1 : 0)
+
+#ifdef CONFIG_BUSFREQ_OPP
+#ifdef CONFIG_CPU_EXYNOS5250
+#define FIMC_IS_FREQ_MIF	(500)
+#define FIMC_IS_FREQ_INT	(267)
+#endif
 #endif
 
 #define err(fmt, args...) \
@@ -127,12 +126,12 @@
 
 #ifdef DEBUG
 #define dbg(fmt, args...) \
-	printk(KERN_DEBUG "%s:%d: " fmt "\n", __func__, __LINE__, ##args)
+	printk("%s:%d: " fmt "\n", __func__, __LINE__, ##args)
 #else
 #define dbg(fmt, args...)
 #endif
 
-enum fimc_is_debug_device {
+enum fimc_is_debug_device{
 	FIMC_IS_DEBUG_MAIN = 0,
 	FIMC_IS_DEBUG_EC,
 	FIMC_IS_DEBUG_SENSOR,
@@ -147,7 +146,7 @@ enum fimc_is_debug_device {
 	FIMC_IS_DEBUG_SCALERP
 };
 
-enum fimc_is_debug_target {
+enum fimc_is_debug_target{
 	FIMC_IS_DEBUG_UART = 0,
 	FIMC_IS_DEBUG_MEMORY,
 	FIMC_IS_DEBUG_DCC3
@@ -466,10 +465,12 @@ struct fimc_is_dev {
 	struct is_fd_result_header		fd_header;
 
 	/* Shared parameter region */
-#if defined(CONFIG_BUSFREQ_OPP) && defined(CONFIG_CPU_EXYNOS5250)
+#ifdef CONFIG_BUSFREQ_OPP
+#ifdef CONFIG_CPU_EXYNOS5250
 	struct device				*bus_dev;
 	struct mutex				busfreq_lock;
 	int					busfreq_num;
+#endif
 #endif
 	atomic_t				p_region_num;
 	unsigned long				p_region_index1;
@@ -511,8 +512,7 @@ void fimc_is_mem_suspend(void *alloc_ctxes);
 void fimc_is_mem_resume(void *alloc_ctxes);
 void fimc_is_mem_cache_clean(const void *start_addr, unsigned long size);
 void fimc_is_mem_cache_inv(const void *start_addr, unsigned long size);
-int fimc_is_pipeline_s_stream_preview
-	(struct media_entity *start_entity, int on);
+int fimc_is_pipeline_s_stream_preview(struct media_entity *start_entity, int on);
 int fimc_is_init_set(struct fimc_is_dev *dev , u32 val);
 int fimc_is_load_fw(struct fimc_is_dev *dev);
 

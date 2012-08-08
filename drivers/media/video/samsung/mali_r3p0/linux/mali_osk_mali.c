@@ -18,6 +18,10 @@
 #include "mali_kernel_common.h" /* MALI_xxx macros */
 #include "mali_osk.h"           /* kernel side OS functions */
 #include "mali_uk_types.h"
+#include "mali_kernel_linux.h"  /* exports initialize/terminate_kernel_device() definition of mali_osk_low_level_mem_init() and term */
+//#if KERNEL_BUILTIN
+#include <mach/irqs.h>
+//#endif
 #include "arch/config.h"        /* contains the configuration of the arch we are compiling for */
 
 _mali_osk_errcode_t _mali_osk_resources_init( _mali_osk_resource_t **arch_config, u32 *num_resources )

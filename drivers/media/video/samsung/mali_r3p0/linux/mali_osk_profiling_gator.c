@@ -1,4 +1,4 @@
-/*
+/**
  * Copyright (C) 2010-2012 ARM Limited. All rights reserved.
  * 
  * This program is free software and is provided to you under the terms of the GNU General Public License version 2
@@ -15,6 +15,7 @@
 #include "mali_ukk.h"
 #include "mali_uk_types.h"
 #include "mali_osk_profiling.h"
+#include "mali_kernel_core.h"
 #include "mali_linux_trace.h"
 #include "mali_gp.h"
 #include "mali_pp.h"
@@ -75,12 +76,6 @@ mali_bool _mali_osk_profiling_have_recording(void)
 	return MALI_FALSE;
 }
 
-void _mali_osk_profiling_report_sw_counters(u32 *counters)
-{
-	trace_mali_sw_counters(0, 0, NULL, counters);
-}
-
-
 _mali_osk_errcode_t _mali_ukk_profiling_start(_mali_uk_profiling_start_s *args)
 {
 	return _mali_osk_profiling_start(&args->limit);
@@ -107,12 +102,6 @@ _mali_osk_errcode_t _mali_ukk_profiling_get_event(_mali_uk_profiling_get_event_s
 _mali_osk_errcode_t _mali_ukk_profiling_clear(_mali_uk_profiling_clear_s *args)
 {
 	return _mali_osk_profiling_clear();
-}
-
-_mali_osk_errcode_t _mali_ukk_sw_counters_report(_mali_uk_sw_counters_report_s *args)
-{
-	_mali_osk_profiling_report_sw_counters(args->counters);
-	return _MALI_OSK_ERR_OK;
 }
 
 /**
@@ -224,40 +213,5 @@ void _mali_profiling_get_counters(u32 *src0, u32 *val0, u32 *src1, u32 *val1)
 	 }
 }
 
-/*
- * List of possible actions to be controlled by Streamline.
- * The following numbers are used by gator to control the frame buffer dumping and s/w counter reporting.
- * We cannot use the enums in mali_uk_types.h because they are unknown inside gator.
- */
-#define FBDUMP_CONTROL_ENABLE (1)
-#define FBDUMP_CONTROL_RATE (2)
-#define SW_COUNTER_ENABLE (3)
-#define FBDUMP_CONTROL_RESIZE_FACTOR (4)
-
-/**
- * Called by gator to control the production of profiling information at runtime.
- */
-void _mali_profiling_control(u32 action, u32 value)
-{
-	switch(action)
-	{
-	case FBDUMP_CONTROL_ENABLE:
-		mali_set_user_setting(_MALI_UK_USER_SETTING_COLORBUFFER_CAPTURE_ENABLED, (value == 0 ? MALI_FALSE : MALI_TRUE));
-		break;
-	case FBDUMP_CONTROL_RATE:
-		mali_set_user_setting(_MALI_UK_USER_SETTING_BUFFER_CAPTURE_N_FRAMES, value);
-		break;
-	case SW_COUNTER_ENABLE:
-		mali_set_user_setting(_MALI_UK_USER_SETTING_SW_COUNTER_ENABLED, value);
-		break;
-	case FBDUMP_CONTROL_RESIZE_FACTOR:
-		mali_set_user_setting(_MALI_UK_USER_SETTING_BUFFER_CAPTURE_RESIZE_FACTOR, value);
-		break;
-	default:
-		break;	/* Ignore unimplemented actions */
-	}
-}
-
 EXPORT_SYMBOL(_mali_profiling_set_event);
 EXPORT_SYMBOL(_mali_profiling_get_counters);
-EXPORT_SYMBOL(_mali_profiling_control);

@@ -65,10 +65,6 @@ struct class *camera_class;
 static int __init camera_class_init(void)
 {
 	camera_class = class_create(THIS_MODULE, "camera");
-	if (IS_ERR(camera_class)) {
-		pr_err("Failed to create class(camera)!\n");
-		return PTR_ERR(camera_class);
-	}
 
 	return 0;
 }
@@ -83,7 +79,7 @@ subsys_initcall(camera_class_init);
 #define USE_8M_CAM_SENSOR_CORE_REVISION	0x07
 #elif defined(CONFIG_MACH_C1_USA_ATT)
 #define FRONT_CAM_MCLK_DEVIDED_REVISION	0x05
-#elif defined(CONFIG_MACH_C1VZW) || defined(CONFIG_MACH_C2)
+#elif defined(CONFIG_MACH_C1VZW)
 #define FRONT_CAM_MCLK_DEVIDED_REVISION	0x0A
 #else
 #define FRONT_CAM_MCLK_DEVIDED_REVISION	0x08
@@ -245,16 +241,15 @@ static int s5k6a3_power_on(void)
 	ret = regulator_enable(regulator);
 	regulator_put(regulator);
 	CAM_CHECK_ERR_RET(ret, "vt_core_1.8v");
-	udelay(1000);
 
 	/* VT_CAM_nRST */
 	ret = gpio_direction_output(GPIO_VT_CAM_nRST, 1);
 	CAM_CHECK_ERR_RET(ret, "GPIO_VT_CAM_nRST");
-	udelay(600);
+	udelay(500);
 
 	ret = gpio_direction_output(GPIO_VT_CAM_nRST, 0);
 	CAM_CHECK_ERR_RET(ret, "GPIO_VT_CAM_nRST");
-	udelay(600);
+	udelay(500);
 
 	ret = gpio_direction_output(GPIO_VT_CAM_nRST, 1);
 	CAM_CHECK_ERR_RET(ret, "GPIO_VT_CAM_nRST");
@@ -323,13 +318,6 @@ static int s5k6a3_gpio_request(void)
 		return ret;
 	}
 
-#ifdef CONFIG_MACH_T0
-	ret = gpio_request(GPIO_VTCAM_MCLK, "GPM2");
-	if (ret) {
-		printk(KERN_ERR "fail to request gpio(GPIO_VTCAM_MCLK)\n");
-		return ret;
-	}
-#else
 	if (system_rev <= FRONT_CAM_MCLK_DEVIDED_REVISION)
 		ret = gpio_request(GPIO_CAM_MCLK, "GPJ1");
 	else
@@ -338,7 +326,6 @@ static int s5k6a3_gpio_request(void)
 		printk(KERN_ERR "fail to request gpio(GPIO_VTCAM_MCLK)\n");
 		return ret;
 	}
-#endif
 
 	ret = gpio_request(GPIO_CAM_VT_nRST, "GPM1");
 	if (ret) {
@@ -365,11 +352,6 @@ static int s5k6a3_power_on(void)
 	udelay(100);
 
 	/* MCLK */
-#ifdef CONFIG_MACH_T0
-	ret = s3c_gpio_cfgpin(GPIO_VTCAM_MCLK, S3C_GPIO_SFN(3));
-	s3c_gpio_setpull(GPIO_VTCAM_MCLK, S3C_GPIO_PULL_NONE);
-	s5p_gpio_set_drvstr(GPIO_VTCAM_MCLK, S5P_GPIO_DRVSTR_LV2);
-#else
 	if (system_rev <= FRONT_CAM_MCLK_DEVIDED_REVISION) {
 		ret = s3c_gpio_cfgpin(GPIO_CAM_MCLK, S3C_GPIO_SFN(2));
 		s3c_gpio_setpull(GPIO_CAM_MCLK, S3C_GPIO_PULL_NONE);
@@ -379,12 +361,7 @@ static int s5k6a3_power_on(void)
 		s3c_gpio_setpull(GPIO_VTCAM_MCLK, S3C_GPIO_PULL_NONE);
 		s5p_gpio_set_drvstr(GPIO_VTCAM_MCLK, S5P_GPIO_DRVSTR_LV2);
 	}
-#endif
 	CAM_CHECK_ERR_RET(ret, "cfg mclk");
-
-	/* VT_RESET */
-	ret = gpio_direction_output(GPIO_CAM_VT_nRST, 1);
-	CAM_CHECK_ERR_RET(ret, "output GPIO_CAM_VT_nRST");
 
 	/* VT_CORE_1.8V */
 	regulator = regulator_get(NULL, "vt_cam_1.8v");
@@ -394,17 +371,24 @@ static int s5k6a3_power_on(void)
 	regulator_put(regulator);
 	CAM_CHECK_ERR_RET(ret, "enable vt_cam_1.8v");
 
+	/* VT_RESET */
+	ret = gpio_direction_output(GPIO_CAM_VT_nRST, 1);
+	CAM_CHECK_ERR_RET(ret, "output GPIO_CAM_VT_nRST");
+	udelay(500);
+
+	ret = gpio_direction_output(GPIO_CAM_VT_nRST, 0);
+	CAM_CHECK_ERR_RET(ret, "output GPIO_CAM_VT_nRST");
+	udelay(500);
+
+	ret = gpio_direction_output(GPIO_CAM_VT_nRST, 1);
+	CAM_CHECK_ERR_RET(ret, "output GPIO_CAM_VT_nRST");
+
 	gpio_free(GPIO_CAM_IO_EN);
 	gpio_free(GPIO_CAM_VT_nRST);
-
-#ifdef CONFIG_MACH_T0
-	gpio_free(GPIO_VTCAM_MCLK);
-#else
 	if (system_rev <= FRONT_CAM_MCLK_DEVIDED_REVISION)
 		gpio_free(GPIO_CAM_MCLK);
 	else
 		gpio_free(GPIO_VTCAM_MCLK);
-#endif
 
 	return ret;
 }
@@ -438,10 +422,6 @@ static int s5k6a3_power_down(void)
 	udelay(500);
 
 	/* MCLK */
-#ifdef CONFIG_MACH_T0
-	ret = s3c_gpio_cfgpin(GPIO_VTCAM_MCLK, S3C_GPIO_INPUT);
-	s3c_gpio_setpull(GPIO_VTCAM_MCLK, S3C_GPIO_PULL_DOWN);
-#else
 	if (system_rev <= FRONT_CAM_MCLK_DEVIDED_REVISION) {
 		ret = s3c_gpio_cfgpin(GPIO_CAM_MCLK, S3C_GPIO_INPUT);
 		s3c_gpio_setpull(GPIO_CAM_MCLK, S3C_GPIO_PULL_DOWN);
@@ -450,20 +430,15 @@ static int s5k6a3_power_down(void)
 		ret = s3c_gpio_cfgpin(GPIO_VTCAM_MCLK, S3C_GPIO_INPUT);
 		s3c_gpio_setpull(GPIO_VTCAM_MCLK, S3C_GPIO_PULL_DOWN);
 	}
-#endif
 	CAM_CHECK_ERR(ret, "cfg mclk");
 
 	gpio_free(GPIO_CAM_IO_EN);
 	gpio_free(GPIO_CAM_VT_nRST);
 
-#ifdef CONFIG_MACH_T0
-	gpio_free(GPIO_VTCAM_MCLK);
-#else
 	if (system_rev <= FRONT_CAM_MCLK_DEVIDED_REVISION)
 		gpio_free(GPIO_CAM_MCLK);
 	else
 		gpio_free(GPIO_VTCAM_MCLK);
-#endif
 
 	return ret;
 }
@@ -490,7 +465,7 @@ error_out:
 
 static const char *s5k6a3_get_clk_name(void)
 {
-#if defined(CONFIG_MACH_P4NOTE) || defined(CONFIG_MACH_T0)
+#ifdef CONFIG_MACH_P4NOTE
 	return "sclk_cam1";
 #else
 	if (system_rev <= FRONT_CAM_MCLK_DEVIDED_REVISION)
@@ -940,6 +915,11 @@ error_out:
 
 static int s5c73m3_get_i2c_busnum(void)
 {
+#if 0
+	if (system_rev == 0x03) /*M0, M1 REV00*/
+		return 18;
+	else
+#endif
 	return 0;
 }
 
@@ -1397,6 +1377,36 @@ static int m9mo_power_on(void)
 	ret = gpio_direction_output(GPIO_ISP_CORE_EN, 1);
 	CAM_CHECK_ERR_RET(ret, "output GPIO_ISP_CORE_EN");
 
+	/* CAM_SENSOR_1.8V (CIS 1.8V) => LDO19*/
+	regulator = regulator_get(NULL, "cam_sensor_1.8v");
+	if (IS_ERR(regulator))
+		return -ENODEV;
+	ret = regulator_enable(regulator);
+	regulator_put(regulator);
+	CAM_CHECK_ERR_RET(ret, "enable cam_sensor_1.8v");
+	udelay(10);
+
+	/* CAM_SENSOR_2.8V (CIS 2.8V) => LDO25*/
+	regulator = regulator_get(NULL, "cam_sensor_2.8v");
+	if (IS_ERR(regulator)) {
+		CAM_CHECK_ERR_RET(ret, "output Err cam_sensor_2.8v");
+		return -ENODEV;
+	}
+	ret = regulator_enable(regulator);
+	regulator_put(regulator);
+	CAM_CHECK_ERR_RET(ret, "enable cam_sensor_2.8v");
+	udelay(10);
+
+	/* CAM_SENSOR_CORE_1.2V (CIS 1.2V) => LDO17*/
+	regulator = regulator_get(NULL, "cam_sensor_core_1.2v");
+	if (IS_ERR(regulator)) {
+		CAM_CHECK_ERR_RET(ret, "output Err cam_sensor_core_1.2v");
+		return -ENODEV;
+	}
+	ret = regulator_enable(regulator);
+	regulator_put(regulator);
+	CAM_CHECK_ERR_RET(ret, "enable cam_sensor_core_1.2v");
+
 	/* CAM_ISP_1.2V (ISP 1.2V) => BUCK 9*/
 	regulator = regulator_get(NULL, "cam_isp_1.2v");
 	if (IS_ERR(regulator)) {
@@ -1416,34 +1426,6 @@ static int m9mo_power_on(void)
 	ret = regulator_enable(regulator);
 	regulator_put(regulator);
 	CAM_CHECK_ERR_RET(ret, "enable cam_isp_1.8v");
-
-	/* CAM_SENSOR_1.8V (CIS 1.8V) => LDO19*/
-	regulator = regulator_get(NULL, "cam_sensor_1.8v");
-	if (IS_ERR(regulator))
-		return -ENODEV;
-	ret = regulator_enable(regulator);
-	regulator_put(regulator);
-	CAM_CHECK_ERR_RET(ret, "enable cam_sensor_1.8v");
-
-	/* CAM_SENSOR_2.8V (CIS 2.8V) => LDO25*/
-	regulator = regulator_get(NULL, "cam_sensor_2.8v");
-	if (IS_ERR(regulator)) {
-		CAM_CHECK_ERR_RET(ret, "output Err cam_sensor_2.8v");
-		return -ENODEV;
-	}
-	ret = regulator_enable(regulator);
-	regulator_put(regulator);
-	CAM_CHECK_ERR_RET(ret, "enable cam_sensor_2.8v");
-
-	/* CAM_SENSOR_CORE_1.2V (CIS 1.2V) => LDO17*/
-	regulator = regulator_get(NULL, "cam_sensor_core_1.2v");
-	if (IS_ERR(regulator)) {
-		CAM_CHECK_ERR_RET(ret, "output Err cam_sensor_core_1.2v");
-		return -ENODEV;
-	}
-	ret = regulator_enable(regulator);
-	regulator_put(regulator);
-	CAM_CHECK_ERR_RET(ret, "enable cam_sensor_core_1.2v");
 
 	/* MCLK */
 	ret = s3c_gpio_cfgpin(GPIO_CAM_MCLK, S3C_GPIO_SFN(2));
@@ -1469,18 +1451,8 @@ static int m9mo_power_down(void)
 
 	printk(KERN_DEBUG "%s: in\n", __func__);
 
-	if (system_rev > 0) {
-		ret = gpio_request(GPIO_MOT_EN, "GPM0");
-		if (ret) {
-			printk(KERN_ERR "faile to request gpio(GPIO_MOT_EN)\n");
-			return ret;
-		}
-		ret = gpio_request(GPIO_SAMBAZ_RESET, "GPM0");
-		if (ret) {
-			printk(KERN_ERR "faile to request gpio(GPIO_SAMBAZ_RESET)\n");
-			return ret;
-		}
-	}
+
+
 	ret = gpio_request(GPIO_ISP_CORE_EN, "GPM0");
 	if (ret) {
 		printk(KERN_ERR "faile to request gpio(GPIO_ISP_CORE_EN)\n");
@@ -1513,7 +1485,7 @@ static int m9mo_power_down(void)
 		ret = regulator_force_disable(regulator);
 	regulator_put(regulator);
 	CAM_CHECK_ERR(ret, "disable ois_1.5v");
-	msleep(10);
+
 
 	/* ISP_RESET */
 	ret = gpio_direction_output(GPIO_ISP_RESET, 0);
@@ -1526,24 +1498,6 @@ static int m9mo_power_down(void)
 	CAM_CHECK_ERR(ret, "cfg mclk");
 	udelay(20);
 
-	/* CAM_SENSOR_2.8V (CIS 2.8V) => LDO25*/
-	regulator = regulator_get(NULL, "cam_sensor_2.8v");
-	if (IS_ERR(regulator))
-		return -ENODEV;
-	if (regulator_is_enabled(regulator))
-		ret = regulator_disable(regulator);
-	regulator_put(regulator);
-	CAM_CHECK_ERR(ret, "disable cam_sensor_2.8v");
-
-	/* CAM_SENSOR_1.8V (CIS 1.8V) => LDO19*/
-	regulator = regulator_get(NULL, "cam_sensor_1.8v");
-	if (IS_ERR(regulator))
-		return -ENODEV;
-	if (regulator_is_enabled(regulator))
-		ret = regulator_disable(regulator);
-	regulator_put(regulator);
-	CAM_CHECK_ERR(ret, "disable cam_sensor_1.8v");
-
 	/* CAM_ISP_1.8V (ISP 1.8V) => LDO23*/
 	regulator = regulator_get(NULL, "cam_isp_1.8v");
 	if (IS_ERR(regulator))
@@ -1553,14 +1507,7 @@ static int m9mo_power_down(void)
 	regulator_put(regulator);
 	CAM_CHECK_ERR(ret, "disable cam_isp_1.8v");
 
-	/* CAM_SENSOR_CORE_1.2V (CIS 1.2V) => LDO17*/
-	regulator = regulator_get(NULL, "cam_sensor_core_1.2v");
-	if (IS_ERR(regulator))
-		return -ENODEV;
-	if (regulator_is_enabled(regulator))
-		ret = regulator_force_disable(regulator);
-	regulator_put(regulator);
-	CAM_CHECK_ERR(ret, "disable cam_sensor_core_1.2v");
+	udelay(500);
 
 	/* CAM_ISP_1.2V (ISP 1.2V) => BUCK 9*/
 	regulator = regulator_get(NULL, "cam_isp_1.2v");
@@ -1570,23 +1517,42 @@ static int m9mo_power_down(void)
 		ret = regulator_force_disable(regulator);
 	regulator_put(regulator);
 	CAM_CHECK_ERR(ret, "disable, cam_isp_1.2v");
+	udelay(10);
+
+	/* CAM_SENSOR_CORE_1.2V (CIS 1.2V) => LDO17*/
+	regulator = regulator_get(NULL, "cam_sensor_core_1.2v");
+	if (IS_ERR(regulator))
+		return -ENODEV;
+	if (regulator_is_enabled(regulator))
+		ret = regulator_force_disable(regulator);
+	regulator_put(regulator);
+	CAM_CHECK_ERR(ret, "disable cam_sensor_core_1.2v");
+	udelay(10);
+
+	/* CAM_SENSOR_2.8V (CIS 2.8V) => LDO25*/
+	regulator = regulator_get(NULL, "cam_sensor_2.8v");
+	if (IS_ERR(regulator))
+		return -ENODEV;
+	if (regulator_is_enabled(regulator))
+		ret = regulator_disable(regulator);
+	regulator_put(regulator);
+	CAM_CHECK_ERR(ret, "disable cam_sensor_2.8v");
+	udelay(500);
+
+	/* CAM_SENSOR_1.8V (CIS 1.8V) => LDO19*/
+	regulator = regulator_get(NULL, "cam_sensor_1.8v");
+	if (IS_ERR(regulator))
+		return -ENODEV;
+	if (regulator_is_enabled(regulator))
+		ret = regulator_disable(regulator);
+	regulator_put(regulator);
+	CAM_CHECK_ERR(ret, "disable cam_sensor_1.8v");
+	udelay(500);
 
 	/* CAM_ISP_CORE_1.2V */
 	ret = gpio_direction_output(GPIO_ISP_CORE_EN, 0);
 	CAM_CHECK_ERR(ret, "output ISP_CORE");
 
-	if (system_rev > 0) {
-		ret = gpio_direction_output(GPIO_SAMBAZ_RESET, 0);
-		CAM_CHECK_ERR(ret, "output GPIO_SAMBAZ_RESET");
-		mdelay(100);
-
-		ret = gpio_direction_output(GPIO_MOT_EN, 0);
-		CAM_CHECK_ERR(ret, "output GPIO_MOT_EN");
-		mdelay(2);
-
-		gpio_free(GPIO_MOT_EN);
-		gpio_free(GPIO_SAMBAZ_RESET);
-	}
 	gpio_free(GPIO_ISP_CORE_EN);
 	gpio_free(GPIO_ISP_RESET);
 
@@ -1632,22 +1598,6 @@ static int m9mo_config_sambaz(int enable)
 	int ret = 0;
 
 	if (enable) {
-		if (system_rev > 0) {
-			ret = gpio_request(GPIO_MOT_EN, "GPM0");
-			if (ret) {
-				printk(KERN_ERR "faile to request gpio(GPIO_ISP_CORE_EN)\n");
-				return ret;
-			}
-			ret = gpio_request(GPIO_SAMBAZ_RESET, "GPM0");
-			if (ret) {
-				printk(KERN_ERR "faile to request gpio(GPIO_ISP_RESET)\n");
-				return ret;
-			}
-			ret = gpio_direction_output(GPIO_MOT_EN, 1);
-			CAM_CHECK_ERR(ret, "output reset");
-			msleep(100);
-		}
-
 		regulator = regulator_get(NULL, "mot_3.3v");
 		if (IS_ERR(regulator))
 			return -ENODEV;
@@ -1663,16 +1613,6 @@ static int m9mo_config_sambaz(int enable)
 		regulator_put(regulator);
 		CAM_CHECK_ERR_RET(ret, "ois_1.5v");
 		mdelay(10);
-
-		if (system_rev > 0) {
-			ret = gpio_direction_output(GPIO_SAMBAZ_RESET, 1);
-			CAM_CHECK_ERR(ret, "output reset");
-			msleep(100);
-
-			gpio_free(GPIO_MOT_EN);
-			gpio_free(GPIO_SAMBAZ_RESET);
-		}
-
 	} else {
 		regulator = regulator_get(NULL, "mot_3.3v");
 		if (IS_ERR(regulator))
@@ -1762,7 +1702,7 @@ static void isx012_flashtimer_handler(unsigned long data)
 	int ret = -ENODEV;
 	atomic_t *flash_status = (atomic_t *)data;
 
-	pr_info("********** flash_handler off **********\n");
+	pr_info("********** flashtimer_handler **********\n");
 
 	ret = gpio_direction_output(GPIO_CAM_FLASH_EN, 0);
 	atomic_set(flash_status, ISX012_FLASH_OFF);
@@ -1802,7 +1742,7 @@ static int isx012_flash_en(u32 mode, u32 onoff)
 			ret = gpio_direction_output(GPIO_CAM_MOVIE_EN, 1);
 		else {
 			ret = gpio_direction_output(GPIO_CAM_FLASH_EN, 1);
-			flash_timer.expires = get_jiffies_64() + (6 * HZ / 10);
+			flash_timer.expires = get_jiffies_64() + HZ / 2;
 			add_timer(&flash_timer);
 		}
 		CAM_CHECK_ERR_GOTO(ret, out,

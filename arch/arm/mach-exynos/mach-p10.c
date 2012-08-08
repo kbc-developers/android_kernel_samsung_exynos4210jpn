@@ -127,6 +127,11 @@ struct stmpe811_platform_data stmpe811_pdata;
 
 #include "p10-wlan.h"
 
+#ifdef CONFIG_EXYNOS5_SETUP_BTS
+#include <mach/bts-exynos5.h>
+#include <mach/regs-bts.h>
+#endif
+
 #ifdef CONFIG_FB_S5P_EXTDSP
 struct s3cfb_extdsp_lcd {
 	int	width;
@@ -2296,23 +2301,6 @@ static struct s5p_platform_cec hdmi_cec_data __initdata = {
 #endif
 
 #if defined(CONFIG_CMA)
-static unsigned long fbmem_start;
-static unsigned long fbmem_size;
-static int __init early_fbmem(char *p)
-{
-	char *endp;
-
-	if (!p)
-		return -EINVAL;
-
-	fbmem_size = memparse(p, &endp);
-	if (*endp == '@')
-		fbmem_start = memparse(endp + 1, &endp);
-
-	return endp > p ? 0 : -EINVAL;
-}
-early_param("fbmem", early_fbmem);
-
 static void __init exynos_reserve_mem(void)
 {
 	static struct cma_region regions[] = {
@@ -2350,18 +2338,18 @@ static void __init exynos_reserve_mem(void)
 		},
 #endif
 #ifdef CONFIG_VIDEO_SAMSUNG_MEMSIZE_FLITE0
-		{
-			.name = "flite0",
-			.size = CONFIG_VIDEO_SAMSUNG_MEMSIZE_FLITE0 * SZ_1K,
-			.start = 0
-		},
+	       {
+		       .name = "flite0",
+		       .size = CONFIG_VIDEO_SAMSUNG_MEMSIZE_FLITE0 * SZ_1K,
+		       .start = 0
+	       },
 #endif
 #ifdef CONFIG_VIDEO_SAMSUNG_MEMSIZE_FLITE1
-		{
-			.name = "flite1",
-			.size = CONFIG_VIDEO_SAMSUNG_MEMSIZE_FLITE1 * SZ_1K,
-			.start = 0
-		},
+	       {
+		       .name = "flite1",
+		       .size = CONFIG_VIDEO_SAMSUNG_MEMSIZE_FLITE1 * SZ_1K,
+		       .start = 0
+	       },
 #endif
 #ifdef CONFIG_VIDEO_SAMSUNG_MEMSIZE_FIMD
 		{
@@ -2429,20 +2417,7 @@ static void __init exynos_reserve_mem(void)
 		"s5p-mixer=tv;"
 		"exynos5-fimc-is=fimc_is;";
 
-	int i;
-
-	s5p_cma_region_reserve(regions, NULL, 0, map);
-
-	if (!(fbmem_start && fbmem_size))
-		return;
-
-	for (i = 0; i < ARRAY_SIZE(regions); i++) {
-		if (regions[i].name && !strcmp(regions[i].name, "fimd")) {
-			memcpy(phys_to_virt(regions[i].start), phys_to_virt(fbmem_start), fbmem_size * SZ_1K);
-			printk(KERN_INFO "Bootloader sent 'fbmem' : %08X\n", (u32)fbmem_start);
-			break;
-		}
-	}
+    s5p_cma_region_reserve(regions, NULL, 0, map);
 }
 #else /* !CONFIG_CMA */
 static inline void exynos_reserve_mem(void)
@@ -2685,6 +2660,510 @@ void __init s3cfb_extdsp_set_platdata(struct s3c_platform_fb *pd)
 }
 #endif
 
+#ifdef CONFIG_EXYNOS5_SETUP_BTS
+static struct exynos5_bts_info p10_bts_info[] __initdata = {
+	[BTS_CPU] = {
+		.clk_name	= NULL,
+		.reg_addr[0]	= S5P_VA_BTS_CPU + EXYNOS5_BTS_SHAP_ON_OFF0,
+		.reg_addr[1]	= S5P_VA_BTS_CPU + EXYNOS5_BTS_MASTER_PRIO,
+		.reg_addr[2]	= S5P_VA_BTS_CPU + EXYNOS5_BTS_SHAP_ON_OFF2,
+		.reg_addr[3]	= S5P_VA_BTS_CPU + EXYNOS5_BTS_SHAP_ON_OFF1,
+		.reg_addr[4]	= S5P_VA_BTS_CPU + EXYNOS5_BTS_DEBLK_SRC_SEL,
+		.reg_addr[5]	= S5P_VA_BTS_CPU + EXYNOS5_BTS_CON,
+		.set_val[0]	= 0x00100010,
+		.set_val[1]	= 0x00010888,
+		.set_val[2]	= 0x00000200,
+		.set_val[3]	= 0x000003fe,
+		.set_val[4]	= 0x00001100,
+		.set_val[5]	= 0x00000085,
+		.num_reg	= 6,
+	},
+	[DDR_R1_FBM] = {
+		.clk_name	= NULL,
+		.reg_addr[0]	= S5P_VA_DDR_R1_FBM + EXYNOS5_FBC_OUT_SEL0,
+		.reg_addr[1]	= S5P_VA_DDR_R1_FBM + EXYNOS5_FBC_OUT_SEL1,
+		.reg_addr[2]	= S5P_VA_DDR_R1_FBM + EXYNOS5_FBC_OUT_SEL2,
+		.reg_addr[3]	= S5P_VA_DDR_R1_FBM + EXYNOS5_FBC_OUT_SEL3,
+		.reg_addr[4]	= S5P_VA_DDR_R1_FBM + EXYNOS5_FBC_OUT_SEL4,
+		.reg_addr[5]	= S5P_VA_DDR_R1_FBM + EXYNOS5_FBC_OUT_SEL5,
+		.reg_addr[6]	= S5P_VA_DDR_R1_FBM + EXYNOS5_FBC_OUT_SEL6,
+		.reg_addr[7]	= S5P_VA_DDR_R1_FBM + EXYNOS5_FBC_OUT_SEL7,
+		.reg_addr[8]	= S5P_VA_DDR_R1_FBM + EXYNOS5_FBC_OUT_SEL8,
+		.reg_addr[9]	= S5P_VA_DDR_R1_FBM + EXYNOS5_FBC_OUT_SEL9,
+		.reg_addr[10]	= S5P_VA_DDR_R1_FBM + EXYNOS5_FBC_OUT_SEL10,
+		.reg_addr[11]	= S5P_VA_DDR_R1_FBM + EXYNOS5_FBC_OUT_SEL11,
+		.reg_addr[12]	= S5P_VA_DDR_R1_FBM + EXYNOS5_FBC_OUT_SEL12,
+		.reg_addr[13]	= S5P_VA_DDR_R1_FBM + EXYNOS5_FBC_OUT_SEL13,
+		.reg_addr[14]	= S5P_VA_DDR_R1_FBM + EXYNOS5_FBC_OUT_SEL14,
+		.reg_addr[15]	= S5P_VA_DDR_R1_FBM + EXYNOS5_FBC_OUT_SEL15,
+		.reg_addr[16]	= S5P_VA_DDR_R1_FBM + EXYNOS5_FBC_OUT_SEL16,
+		.reg_addr[17]	= S5P_VA_DDR_R1_FBM + EXYNOS5_FBC_OUT_SEL17,
+		.reg_addr[18]	= S5P_VA_DDR_R1_FBM + EXYNOS5_FBC_OUT_SEL18,
+		.reg_addr[19]	= S5P_VA_DDR_R1_FBM + EXYNOS5_FBC_OUT_SEL19,
+		.reg_addr[20]	= S5P_VA_DDR_R1_FBM + EXYNOS5_FBC_OUT_SEL20,
+		.reg_addr[21]	= S5P_VA_DDR_R1_FBM + EXYNOS5_FBC_OUT_SEL21,
+		.reg_addr[22]	= S5P_VA_DDR_R1_FBM + EXYNOS5_FBC_OUT_SEL22,
+		.reg_addr[23]	= S5P_VA_DDR_R1_FBM + EXYNOS5_FBC_OUT_SEL23,
+		.reg_addr[24]	= S5P_VA_DDR_R1_FBM + EXYNOS5_FBC_OUT_SEL24,
+		.reg_addr[25]	= S5P_VA_DDR_R1_FBM + EXYNOS5_FBC_OUT_SEL25,
+		.reg_addr[26]	= S5P_VA_DDR_R1_FBM + EXYNOS5_FBC_OUT_SEL26,
+		.reg_addr[27]	= S5P_VA_DDR_R1_FBM + EXYNOS5_FBC_OUT_SEL27,
+		.reg_addr[28]	= S5P_VA_DDR_R1_FBM + EXYNOS5_FBC_OUT_SEL28,
+		.reg_addr[29]	= S5P_VA_DDR_R1_FBM + EXYNOS5_FBC_OUT_SEL29,
+		.reg_addr[30]	= S5P_VA_DDR_R1_FBM + EXYNOS5_FBC_OUT_SEL30,
+		.reg_addr[31]	= S5P_VA_DDR_R1_FBM + EXYNOS5_FBC_OUT_SEL31,
+		.reg_addr[32]	= S5P_VA_DDR_R1_FBM + EXYNOS5_FBC_MODE_SEL0,
+		.reg_addr[33]	= S5P_VA_DDR_R1_FBM + EXYNOS5_FBC_THRESHOLD0,
+		.set_val[0]	= 0x0,
+		.set_val[1]	= 0x0,
+		.set_val[2]	= 0x0,
+		.set_val[3]	= 0x0,
+		.set_val[4]	= 0x0,
+		.set_val[5]	= 0x0,
+		.set_val[6]	= 0x0,
+		.set_val[7]	= 0x0,
+		.set_val[8]	= 0x0,
+		.set_val[9]	= 0x0,
+		.set_val[10]	= 0x0,
+		.set_val[11]	= 0x0,
+		.set_val[12]	= 0x0,
+		.set_val[13]	= 0x0,
+		.set_val[14]	= 0x0,
+		.set_val[15]	= 0x0,
+		.set_val[16]	= 0x0,
+		.set_val[17]	= 0x0,
+		.set_val[18]	= 0x0,
+		.set_val[19]	= 0x0,
+		.set_val[20]	= 0x0,
+		.set_val[21]	= 0x0,
+		.set_val[22]	= 0x0,
+		.set_val[23]	= 0x0,
+		.set_val[24]	= 0x0,
+		.set_val[25]	= 0x0,
+		.set_val[26]	= 0x0,
+		.set_val[27]	= 0x0,
+		.set_val[28]	= 0x0,
+		.set_val[29]	= 0x0,
+		.set_val[30]	= 0x0,
+		.set_val[31]	= 0x0,
+		.set_val[32]	= 0x0,
+		.set_val[33]	= 0x00000004,
+		.num_reg	= 34,
+	},
+	[DDR_R0_FBM] = {
+		.clk_name	= NULL,
+		.reg_addr[0]	= S5P_VA_DDR_R0_FBM + EXYNOS5_FBC_OUT_SEL0,
+		.reg_addr[1]	= S5P_VA_DDR_R0_FBM + EXYNOS5_FBC_OUT_SEL1,
+		.reg_addr[2]	= S5P_VA_DDR_R0_FBM + EXYNOS5_FBC_OUT_SEL2,
+		.reg_addr[3]	= S5P_VA_DDR_R0_FBM + EXYNOS5_FBC_OUT_SEL3,
+		.reg_addr[4]	= S5P_VA_DDR_R0_FBM + EXYNOS5_FBC_OUT_SEL4,
+		.reg_addr[5]	= S5P_VA_DDR_R0_FBM + EXYNOS5_FBC_OUT_SEL5,
+		.reg_addr[6]	= S5P_VA_DDR_R0_FBM + EXYNOS5_FBC_OUT_SEL6,
+		.reg_addr[7]	= S5P_VA_DDR_R0_FBM + EXYNOS5_FBC_OUT_SEL7,
+		.reg_addr[8]	= S5P_VA_DDR_R0_FBM + EXYNOS5_FBC_OUT_SEL8,
+		.reg_addr[9]	= S5P_VA_DDR_R0_FBM + EXYNOS5_FBC_OUT_SEL9,
+		.reg_addr[10]	= S5P_VA_DDR_R0_FBM + EXYNOS5_FBC_OUT_SEL10,
+		.reg_addr[11]	= S5P_VA_DDR_R0_FBM + EXYNOS5_FBC_OUT_SEL11,
+		.reg_addr[12]	= S5P_VA_DDR_R0_FBM + EXYNOS5_FBC_OUT_SEL12,
+		.reg_addr[13]	= S5P_VA_DDR_R0_FBM + EXYNOS5_FBC_OUT_SEL13,
+		.reg_addr[14]	= S5P_VA_DDR_R0_FBM + EXYNOS5_FBC_OUT_SEL14,
+		.reg_addr[15]	= S5P_VA_DDR_R0_FBM + EXYNOS5_FBC_OUT_SEL15,
+		.reg_addr[16]	= S5P_VA_DDR_R0_FBM + EXYNOS5_FBC_OUT_SEL16,
+		.reg_addr[17]	= S5P_VA_DDR_R0_FBM + EXYNOS5_FBC_OUT_SEL17,
+		.reg_addr[18]	= S5P_VA_DDR_R0_FBM + EXYNOS5_FBC_OUT_SEL18,
+		.reg_addr[19]	= S5P_VA_DDR_R0_FBM + EXYNOS5_FBC_OUT_SEL19,
+		.reg_addr[20]	= S5P_VA_DDR_R0_FBM + EXYNOS5_FBC_OUT_SEL20,
+		.reg_addr[21]	= S5P_VA_DDR_R0_FBM + EXYNOS5_FBC_OUT_SEL21,
+		.reg_addr[22]	= S5P_VA_DDR_R0_FBM + EXYNOS5_FBC_OUT_SEL22,
+		.reg_addr[23]	= S5P_VA_DDR_R0_FBM + EXYNOS5_FBC_OUT_SEL23,
+		.reg_addr[24]	= S5P_VA_DDR_R0_FBM + EXYNOS5_FBC_OUT_SEL24,
+		.reg_addr[25]	= S5P_VA_DDR_R0_FBM + EXYNOS5_FBC_OUT_SEL25,
+		.reg_addr[26]	= S5P_VA_DDR_R0_FBM + EXYNOS5_FBC_OUT_SEL26,
+		.reg_addr[27]	= S5P_VA_DDR_R0_FBM + EXYNOS5_FBC_OUT_SEL27,
+		.reg_addr[28]	= S5P_VA_DDR_R0_FBM + EXYNOS5_FBC_OUT_SEL28,
+		.reg_addr[29]	= S5P_VA_DDR_R0_FBM + EXYNOS5_FBC_OUT_SEL29,
+		.reg_addr[30]	= S5P_VA_DDR_R0_FBM + EXYNOS5_FBC_OUT_SEL30,
+		.reg_addr[31]	= S5P_VA_DDR_R0_FBM + EXYNOS5_FBC_OUT_SEL31,
+		.reg_addr[32]	= S5P_VA_DDR_R0_FBM + EXYNOS5_FBC_MODE_SEL0,
+		.reg_addr[33]	= S5P_VA_DDR_R0_FBM + EXYNOS5_FBC_THRESHOLD0,
+		.set_val[0]	= 0x0,
+		.set_val[1]	= 0x0,
+		.set_val[2]	= 0x0,
+		.set_val[3]	= 0x0,
+		.set_val[4]	= 0x0,
+		.set_val[5]	= 0x0,
+		.set_val[6]	= 0x0,
+		.set_val[7]	= 0x0,
+		.set_val[8]	= 0x0,
+		.set_val[9]	= 0x0,
+		.set_val[10]	= 0x0,
+		.set_val[11]	= 0x0,
+		.set_val[12]	= 0x0,
+		.set_val[13]	= 0x0,
+		.set_val[14]	= 0x0,
+		.set_val[15]	= 0x0,
+		.set_val[16]	= 0x0,
+		.set_val[17]	= 0x0,
+		.set_val[18]	= 0x0,
+		.set_val[19]	= 0x0,
+		.set_val[20]	= 0x0,
+		.set_val[21]	= 0x0,
+		.set_val[22]	= 0x0,
+		.set_val[23]	= 0x0,
+		.set_val[24]	= 0x0,
+		.set_val[25]	= 0x0,
+		.set_val[26]	= 0x0,
+		.set_val[27]	= 0x0,
+		.set_val[28]	= 0x0,
+		.set_val[29]	= 0x0,
+		.set_val[30]	= 0x0,
+		.set_val[31]	= 0x0,
+		.set_val[32]	= 0x00000002,
+		.set_val[33]	= 0x00000003,
+		.num_reg	= 34,
+	},
+	[BTS_DISP10] = {
+		.clk_name	= "lcd",
+		.reg_addr[0]	= S5P_VA_BTS_DISP10 + EXYNOS5_BTS_MASTER_PRIO,
+		.reg_addr[1]	= S5P_VA_BTS_DISP10 + EXYNOS5_BTS_SHAP_ON_OFF2,
+		.reg_addr[2]	= S5P_VA_BTS_DISP10 + EXYNOS5_BTS_CON,
+		.set_val[0]	= 0x00030fff,
+		.set_val[1]	= 0x00000003,
+		.set_val[2]	= 0x00000001,
+		.num_reg	= 3,
+	},
+	[BTS_DISP11] = {
+		.clk_name	= "lcd",
+		.reg_addr[0]	= S5P_VA_BTS_DISP11 + EXYNOS5_BTS_MASTER_PRIO,
+		.reg_addr[1]	= S5P_VA_BTS_DISP11 + EXYNOS5_BTS_SHAP_ON_OFF2,
+		.reg_addr[2]	= S5P_VA_BTS_DISP11 + EXYNOS5_BTS_CON,
+		.set_val[0]	= 0x00030fff,
+		.set_val[1]	= 0x00000003,
+		.set_val[2]	= 0x00000001,
+		.num_reg	= 3,
+	},
+	[BTS_TV0] = {
+		.clk_name	= "mixer",
+		.reg_addr[0]	= S5P_VA_BTS_TV0 + EXYNOS5_BTS_MASTER_PRIO,
+		.reg_addr[1]	= S5P_VA_BTS_TV0 + EXYNOS5_BTS_SHAP_ON_OFF2,
+		.reg_addr[2]	= S5P_VA_BTS_TV0 + EXYNOS5_BTS_CON,
+		.set_val[0]	= 0x00030fff,
+		.set_val[1]	= 0x00000003,
+		.set_val[2]	= 0x00000001,
+		.num_reg	= 3,
+	},
+	[BTS_TV1] = {
+		.clk_name	= "mixer",
+		.reg_addr[0]	= S5P_VA_BTS_TV1 + EXYNOS5_BTS_MASTER_PRIO,
+		.reg_addr[1]	= S5P_VA_BTS_TV1 + EXYNOS5_BTS_SHAP_ON_OFF2,
+		.reg_addr[2]	= S5P_VA_BTS_TV1 + EXYNOS5_BTS_CON,
+		.set_val[0]	= 0x00030fff,
+		.set_val[1]	= 0x00000003,
+		.set_val[2]	= 0x00000001,
+		.num_reg	= 3,
+	},
+#ifdef CONFIG_EXYNOS_C2C
+	[BTS_C2C] = {
+		.clk_name	= NULL,
+		.reg_addr[0]	= S5P_VA_BTS_C2C + EXYNOS5_BTS_MASTER_PRIO,
+		.reg_addr[1]	= S5P_VA_BTS_C2C + EXYNOS5_BTS_SHAP_ON_OFF2,
+		.reg_addr[2]	= S5P_VA_BTS_C2C + EXYNOS5_BTS_CON,
+		.set_val[0]	= 0x00030fff,
+		.set_val[1]	= 0x00000003,
+		.set_val[2]	= 0x00000001,
+		.num_reg	= 3,
+	},
+#endif
+	[BTS_JPEG] = {
+		.clk_name	= "jpeg",
+		.reg_addr[0]	= S5P_VA_BTS_JPEG + EXYNOS5_BTS_SHAP_ON_OFF0,
+		.reg_addr[1]	= S5P_VA_BTS_JPEG + EXYNOS5_BTS_MASTER_PRIO,
+		.reg_addr[2]	= S5P_VA_BTS_JPEG + EXYNOS5_BTS_SHAP_ON_OFF2,
+		.reg_addr[3]	= S5P_VA_BTS_JPEG + EXYNOS5_BTS_SHAP_ON_OFF1,
+		.reg_addr[4]	= S5P_VA_BTS_JPEG + EXYNOS5_BTS_DEBLK_SRC_SEL,
+		.reg_addr[5]	= S5P_VA_BTS_JPEG + EXYNOS5_BTS_CON,
+		.set_val[0]	= 0x00100010,
+		.set_val[1]	= 0x00010888,
+		.set_val[2]	= 0x00000200,
+		.set_val[3]	= 0x000003fe,
+		.set_val[4]	= 0x00001100,
+		.set_val[5]	= 0x00000085,
+		.num_reg	= 6,
+	},
+	[BTS_MDMA1] = {
+		.clk_name	= "pdma",
+		.reg_addr[0]	= S5P_VA_BTS_MDMA1 + EXYNOS5_BTS_SHAP_ON_OFF0,
+		.reg_addr[1]	= S5P_VA_BTS_MDMA1 + EXYNOS5_BTS_MASTER_PRIO,
+		.reg_addr[2]	= S5P_VA_BTS_MDMA1 + EXYNOS5_BTS_SHAP_ON_OFF2,
+		.reg_addr[3]	= S5P_VA_BTS_MDMA1 + EXYNOS5_BTS_SHAP_ON_OFF1,
+		.reg_addr[4]	= S5P_VA_BTS_MDMA1 + EXYNOS5_BTS_DEBLK_SRC_SEL,
+		.reg_addr[5]	= S5P_VA_BTS_MDMA1 + EXYNOS5_BTS_CON,
+		.set_val[0]	= 0x00100010,
+		.set_val[1]	= 0x00010888,
+		.set_val[2]	= 0x00000200,
+		.set_val[3]	= 0x000003fe,
+		.set_val[4]	= 0x00001100,
+		.set_val[5]	= 0x00000085,
+		.num_reg	= 6,
+	},
+	[BTS_ROTATOR] = {
+		.clk_name	= "rotator",
+		.reg_addr[0]	= S5P_VA_BTS_ROTATOR + EXYNOS5_BTS_SHAP_ON_OFF0,
+		.reg_addr[1]	= S5P_VA_BTS_ROTATOR + EXYNOS5_BTS_MASTER_PRIO,
+		.reg_addr[2]	= S5P_VA_BTS_ROTATOR + EXYNOS5_BTS_SHAP_ON_OFF2,
+		.reg_addr[3]	= S5P_VA_BTS_ROTATOR + EXYNOS5_BTS_SHAP_ON_OFF1,
+		.reg_addr[4]	= S5P_VA_BTS_ROTATOR + EXYNOS5_BTS_DEBLK_SRC_SEL,
+		.reg_addr[5]	= S5P_VA_BTS_ROTATOR + EXYNOS5_BTS_CON,
+		.set_val[0]	= 0x00100010,
+		.set_val[1]	= 0x00010888,
+		.set_val[2]	= 0x00000200,
+		.set_val[3]	= 0x000003fe,
+		.set_val[4]	= 0x00001100,
+		.set_val[5]	= 0x00000085,
+		.num_reg	= 6,
+	},
+	[BTS_GSCL0] = {
+		.clk_name	= "gscl",
+		.reg_addr[0]	= S5P_VA_BTS_GSCALER0 + EXYNOS5_BTS_SHAP_ON_OFF0,
+		.reg_addr[1]	= S5P_VA_BTS_GSCALER0 + EXYNOS5_BTS_MASTER_PRIO,
+		.reg_addr[2]	= S5P_VA_BTS_GSCALER0 + EXYNOS5_BTS_SHAP_ON_OFF2,
+		.reg_addr[3]	= S5P_VA_BTS_GSCALER0 + EXYNOS5_BTS_SHAP_ON_OFF1,
+		.reg_addr[4]	= S5P_VA_BTS_GSCALER0 + EXYNOS5_BTS_DEBLK_SRC_SEL,
+		.reg_addr[5]	= S5P_VA_BTS_GSCALER0 + EXYNOS5_BTS_CON,
+		.set_val[0]	= 0x00100010,
+		.set_val[1]	= 0x00010888,
+		.set_val[2]	= 0x00000200,
+		.set_val[3]	= 0x000003fe,
+		.set_val[4]	= 0x00001100,
+		.set_val[5]	= 0x00000085,
+		.num_reg	= 6,
+	},
+	[BTS_GSCL1] = {
+		.clk_name	= "gscl",
+		.reg_addr[0]	= S5P_VA_BTS_GSCALER1 + EXYNOS5_BTS_SHAP_ON_OFF0,
+		.reg_addr[1]	= S5P_VA_BTS_GSCALER1 + EXYNOS5_BTS_MASTER_PRIO,
+		.reg_addr[2]	= S5P_VA_BTS_GSCALER1 + EXYNOS5_BTS_SHAP_ON_OFF2,
+		.reg_addr[3]	= S5P_VA_BTS_GSCALER1 + EXYNOS5_BTS_SHAP_ON_OFF1,
+		.reg_addr[4]	= S5P_VA_BTS_GSCALER1 + EXYNOS5_BTS_DEBLK_SRC_SEL,
+		.reg_addr[5]	= S5P_VA_BTS_GSCALER1 + EXYNOS5_BTS_CON,
+		.set_val[0]	= 0x00100010,
+		.set_val[1]	= 0x00010888,
+		.set_val[2]	= 0x00000200,
+		.set_val[3]	= 0x000003fe,
+		.set_val[4]	= 0x00001100,
+		.set_val[5]	= 0x00000085,
+		.num_reg	= 6,
+	},
+	[BTS_GSCL2] = {
+		.clk_name	= "gscl",
+		.reg_addr[0]	= S5P_VA_BTS_GSCALER2 + EXYNOS5_BTS_SHAP_ON_OFF0,
+		.reg_addr[1]	= S5P_VA_BTS_GSCALER2 + EXYNOS5_BTS_MASTER_PRIO,
+		.reg_addr[2]	= S5P_VA_BTS_GSCALER2 + EXYNOS5_BTS_SHAP_ON_OFF2,
+		.reg_addr[3]	= S5P_VA_BTS_GSCALER2 + EXYNOS5_BTS_SHAP_ON_OFF1,
+		.reg_addr[4]	= S5P_VA_BTS_GSCALER2 + EXYNOS5_BTS_DEBLK_SRC_SEL,
+		.reg_addr[5]	= S5P_VA_BTS_GSCALER2 + EXYNOS5_BTS_CON,
+		.set_val[0]	= 0x00100010,
+		.set_val[1]	= 0x00010888,
+		.set_val[2]	= 0x00000200,
+		.set_val[3]	= 0x000003fe,
+		.set_val[4]	= 0x00001100,
+		.set_val[5]	= 0x00000085,
+		.num_reg	= 6,
+	},
+	[BTS_GSCL3] = {
+		.clk_name	= "gscl",
+		.reg_addr[0]	= S5P_VA_BTS_GSCALER3 + EXYNOS5_BTS_SHAP_ON_OFF0,
+		.reg_addr[1]	= S5P_VA_BTS_GSCALER3 + EXYNOS5_BTS_MASTER_PRIO,
+		.reg_addr[2]	= S5P_VA_BTS_GSCALER3 + EXYNOS5_BTS_SHAP_ON_OFF2,
+		.reg_addr[3]	= S5P_VA_BTS_GSCALER3 + EXYNOS5_BTS_SHAP_ON_OFF1,
+		.reg_addr[4]	= S5P_VA_BTS_GSCALER3 + EXYNOS5_BTS_DEBLK_SRC_SEL,
+		.reg_addr[5]	= S5P_VA_BTS_GSCALER3 + EXYNOS5_BTS_CON,
+		.set_val[0]	= 0x00100010,
+		.set_val[1]	= 0x00010888,
+		.set_val[2]	= 0x00000200,
+		.set_val[3]	= 0x000003fe,
+		.set_val[4]	= 0x00001100,
+		.set_val[5]	= 0x00000085,
+		.num_reg	= 6,
+	},
+	[BTS_MFC0] = {
+		.clk_name	= "mfc",
+		.reg_addr[0]	= S5P_VA_BTS_MFC0 + EXYNOS5_BTS_SHAP_ON_OFF0,
+		.reg_addr[1]	= S5P_VA_BTS_MFC0 + EXYNOS5_BTS_MASTER_PRIO,
+		.reg_addr[2]	= S5P_VA_BTS_MFC0 + EXYNOS5_BTS_SHAP_ON_OFF2,
+		.reg_addr[3]	= S5P_VA_BTS_MFC0 + EXYNOS5_BTS_SHAP_ON_OFF1,
+		.reg_addr[4]	= S5P_VA_BTS_MFC0 + EXYNOS5_BTS_DEBLK_SRC_SEL,
+		.reg_addr[5]	= S5P_VA_BTS_MFC0 + EXYNOS5_BTS_CON,
+		.set_val[0]	= 0x00100010,
+		.set_val[1]	= 0x00010888,
+		.set_val[2]	= 0x00000200,
+		.set_val[3]	= 0x000003fe,
+		.set_val[4]	= 0x00001100,
+		.set_val[5]	= 0x00000085,
+		.num_reg	= 6,
+	},
+	[BTS_MFC1] = {
+		.clk_name	= "mfc",
+		.reg_addr[0]	= S5P_VA_BTS_MFC1 + EXYNOS5_BTS_SHAP_ON_OFF0,
+		.reg_addr[1]	= S5P_VA_BTS_MFC1 + EXYNOS5_BTS_MASTER_PRIO,
+		.reg_addr[2]	= S5P_VA_BTS_MFC1 + EXYNOS5_BTS_SHAP_ON_OFF2,
+		.reg_addr[3]	= S5P_VA_BTS_MFC1 + EXYNOS5_BTS_SHAP_ON_OFF1,
+		.reg_addr[4]	= S5P_VA_BTS_MFC1 + EXYNOS5_BTS_DEBLK_SRC_SEL,
+		.reg_addr[5]	= S5P_VA_BTS_MFC1 + EXYNOS5_BTS_CON,
+		.set_val[0]	= 0x00100010,
+		.set_val[1]	= 0x00010888,
+		.set_val[2]	= 0x00000200,
+		.set_val[3]	= 0x000003fe,
+		.set_val[4]	= 0x00001100,
+		.set_val[5]	= 0x00000085,
+		.num_reg	= 6,
+	},
+	[BTS_FIMC_ISP] = {
+		.clk_name	= "isp0",
+		.reg_addr[0]	= S5P_VA_BTS_FIMC_ISP + EXYNOS5_BTS_SHAP_ON_OFF0,
+		.reg_addr[1]	= S5P_VA_BTS_FIMC_ISP + EXYNOS5_BTS_MASTER_PRIO,
+		.reg_addr[2]	= S5P_VA_BTS_FIMC_ISP + EXYNOS5_BTS_SHAP_ON_OFF2,
+		.reg_addr[3]	= S5P_VA_BTS_FIMC_ISP + EXYNOS5_BTS_SHAP_ON_OFF1,
+		.reg_addr[4]	= S5P_VA_BTS_FIMC_ISP + EXYNOS5_BTS_DEBLK_SRC_SEL,
+		.reg_addr[5]	= S5P_VA_BTS_FIMC_ISP + EXYNOS5_BTS_CON,
+		.set_val[0]	= 0x00100010,
+		.set_val[1]	= 0x00010888,
+		.set_val[2]	= 0x00000200,
+		.set_val[3]	= 0x000003fe,
+		.set_val[4]	= 0x00001100,
+		.set_val[5]	= 0x00000085,
+		.num_reg	= 6,
+	},
+	[BTS_FIMC_SCALER_C] = {
+		.clk_name	= "isp0",
+		.reg_addr[0]	= S5P_VA_BTS_FIMC_SCALER_C + EXYNOS5_BTS_SHAP_ON_OFF0,
+		.reg_addr[1]	= S5P_VA_BTS_FIMC_SCALER_C + EXYNOS5_BTS_MASTER_PRIO,
+		.reg_addr[2]	= S5P_VA_BTS_FIMC_SCALER_C + EXYNOS5_BTS_SHAP_ON_OFF2,
+		.reg_addr[3]	= S5P_VA_BTS_FIMC_SCALER_C + EXYNOS5_BTS_SHAP_ON_OFF1,
+		.reg_addr[4]	= S5P_VA_BTS_FIMC_SCALER_C + EXYNOS5_BTS_DEBLK_SRC_SEL,
+		.reg_addr[5]	= S5P_VA_BTS_FIMC_SCALER_C + EXYNOS5_BTS_CON,
+		.set_val[0]	= 0x00100010,
+		.set_val[1]	= 0x00010888,
+		.set_val[2]	= 0x00000200,
+		.set_val[3]	= 0x000003fe,
+		.set_val[4]	= 0x00001100,
+		.set_val[5]	= 0x00000085,
+		.num_reg	= 6,
+	},
+	[BTS_FIMC_SCALER_P] = {
+		.clk_name	= "isp0",
+		.reg_addr[0]	= S5P_VA_BTS_FIMC_SCALER_P + EXYNOS5_BTS_SHAP_ON_OFF0,
+		.reg_addr[1]	= S5P_VA_BTS_FIMC_SCALER_P + EXYNOS5_BTS_MASTER_PRIO,
+		.reg_addr[2]	= S5P_VA_BTS_FIMC_SCALER_P + EXYNOS5_BTS_SHAP_ON_OFF2,
+		.reg_addr[3]	= S5P_VA_BTS_FIMC_SCALER_P + EXYNOS5_BTS_SHAP_ON_OFF1,
+		.reg_addr[4]	= S5P_VA_BTS_FIMC_SCALER_P + EXYNOS5_BTS_DEBLK_SRC_SEL,
+		.reg_addr[5]	= S5P_VA_BTS_FIMC_SCALER_P + EXYNOS5_BTS_CON,
+		.set_val[0]	= 0x00100010,
+		.set_val[1]	= 0x00010888,
+		.set_val[2]	= 0x00000200,
+		.set_val[3]	= 0x000003fe,
+		.set_val[4]	= 0x00001100,
+		.set_val[5]	= 0x00000085,
+		.num_reg	= 6,
+	},
+	[BTS_FIMC_FD] = {
+		.clk_name	= "isp0",
+		.reg_addr[0]	= S5P_VA_BTS_FIMC_FD + EXYNOS5_BTS_SHAP_ON_OFF0,
+		.reg_addr[1]	= S5P_VA_BTS_FIMC_FD + EXYNOS5_BTS_MASTER_PRIO,
+		.reg_addr[2]	= S5P_VA_BTS_FIMC_FD + EXYNOS5_BTS_SHAP_ON_OFF2,
+		.reg_addr[3]	= S5P_VA_BTS_FIMC_FD + EXYNOS5_BTS_SHAP_ON_OFF1,
+		.reg_addr[4]	= S5P_VA_BTS_FIMC_FD + EXYNOS5_BTS_DEBLK_SRC_SEL,
+		.reg_addr[5]	= S5P_VA_BTS_FIMC_FD + EXYNOS5_BTS_CON,
+		.set_val[0]	= 0x00100010,
+		.set_val[1]	= 0x00010888,
+		.set_val[2]	= 0x00000200,
+		.set_val[3]	= 0x000003fe,
+		.set_val[4]	= 0x00001100,
+		.set_val[5]	= 0x00000085,
+		.num_reg	= 6,
+	},
+	[BTS_FIMC_ODC] = {
+		.clk_name	= "isp1",
+		.reg_addr[0]	= S5P_VA_BTS_FIMC_ODC + EXYNOS5_BTS_SHAP_ON_OFF0,
+		.reg_addr[1]	= S5P_VA_BTS_FIMC_ODC + EXYNOS5_BTS_MASTER_PRIO,
+		.reg_addr[2]	= S5P_VA_BTS_FIMC_ODC + EXYNOS5_BTS_SHAP_ON_OFF2,
+		.reg_addr[3]	= S5P_VA_BTS_FIMC_ODC + EXYNOS5_BTS_SHAP_ON_OFF1,
+		.reg_addr[4]	= S5P_VA_BTS_FIMC_ODC + EXYNOS5_BTS_DEBLK_SRC_SEL,
+		.reg_addr[5]	= S5P_VA_BTS_FIMC_ODC + EXYNOS5_BTS_CON,
+		.set_val[0]	= 0x00100010,
+		.set_val[1]	= 0x00010888,
+		.set_val[2]	= 0x00000200,
+		.set_val[3]	= 0x000003fe,
+		.set_val[4]	= 0x00001100,
+		.set_val[5]	= 0x00000085,
+		.num_reg	= 6,
+	},
+	[BTS_FIMC_DIS0] = {
+		.clk_name	= "isp1",
+		.reg_addr[0]	= S5P_VA_BTS_FIMC_DIS0 + EXYNOS5_BTS_SHAP_ON_OFF0,
+		.reg_addr[1]	= S5P_VA_BTS_FIMC_DIS0 + EXYNOS5_BTS_MASTER_PRIO,
+		.reg_addr[2]	= S5P_VA_BTS_FIMC_DIS0 + EXYNOS5_BTS_SHAP_ON_OFF2,
+		.reg_addr[3]	= S5P_VA_BTS_FIMC_DIS0 + EXYNOS5_BTS_SHAP_ON_OFF1,
+		.reg_addr[4]	= S5P_VA_BTS_FIMC_DIS0 + EXYNOS5_BTS_DEBLK_SRC_SEL,
+		.reg_addr[5]	= S5P_VA_BTS_FIMC_DIS0 + EXYNOS5_BTS_CON,
+		.set_val[0]	= 0x00100010,
+		.set_val[1]	= 0x00010888,
+		.set_val[2]	= 0x00000200,
+		.set_val[3]	= 0x000003fe,
+		.set_val[4]	= 0x00001100,
+		.set_val[5]	= 0x00000085,
+		.num_reg	= 6,
+	},
+	[BTS_FIMC_DIS1] = {
+		.clk_name	= "isp1",
+		.reg_addr[0]	= S5P_VA_BTS_FIMC_DIS1 + EXYNOS5_BTS_SHAP_ON_OFF0,
+		.reg_addr[1]	= S5P_VA_BTS_FIMC_DIS1 + EXYNOS5_BTS_MASTER_PRIO,
+		.reg_addr[2]	= S5P_VA_BTS_FIMC_DIS1 + EXYNOS5_BTS_SHAP_ON_OFF2,
+		.reg_addr[3]	= S5P_VA_BTS_FIMC_DIS1 + EXYNOS5_BTS_SHAP_ON_OFF1,
+		.reg_addr[4]	= S5P_VA_BTS_FIMC_DIS1 + EXYNOS5_BTS_DEBLK_SRC_SEL,
+		.reg_addr[5]	= S5P_VA_BTS_FIMC_DIS1 + EXYNOS5_BTS_CON,
+		.set_val[0]	= 0x00100010,
+		.set_val[1]	= 0x00010888,
+		.set_val[2]	= 0x00000200,
+		.set_val[3]	= 0x000003fe,
+		.set_val[4]	= 0x00001100,
+		.set_val[5]	= 0x00000085,
+		.num_reg	= 6,
+	},
+	[BTS_FIMC_3DNR] = {
+		.clk_name	= "isp1",
+		.reg_addr[0]	= S5P_VA_BTS_FIMC_3DNR + EXYNOS5_BTS_SHAP_ON_OFF0,
+		.reg_addr[1]	= S5P_VA_BTS_FIMC_3DNR + EXYNOS5_BTS_MASTER_PRIO,
+		.reg_addr[2]	= S5P_VA_BTS_FIMC_3DNR + EXYNOS5_BTS_SHAP_ON_OFF2,
+		.reg_addr[3]	= S5P_VA_BTS_FIMC_3DNR + EXYNOS5_BTS_SHAP_ON_OFF1,
+		.reg_addr[4]	= S5P_VA_BTS_FIMC_3DNR + EXYNOS5_BTS_DEBLK_SRC_SEL,
+		.reg_addr[5]	= S5P_VA_BTS_FIMC_3DNR + EXYNOS5_BTS_CON,
+		.set_val[0]	= 0x00100010,
+		.set_val[1]	= 0x00010888,
+		.set_val[2]	= 0x00000200,
+		.set_val[3]	= 0x000003fe,
+		.set_val[4]	= 0x00001100,
+		.set_val[5]	= 0x00000085,
+		.num_reg	= 6,
+	},
+	[BTS_G3D] = {
+		.clk_name	= "g3d",
+		.reg_addr[0]	= S5P_VA_BTS_3D_ACP + EXYNOS5_BTS_SHAP_ON_OFF0,
+		.reg_addr[1]	= S5P_VA_BTS_3D_ACP + EXYNOS5_BTS_MASTER_PRIO,
+		.reg_addr[2]	= S5P_VA_BTS_3D_ACP + EXYNOS5_BTS_SHAP_ON_OFF2,
+		.reg_addr[3]	= S5P_VA_BTS_3D_ACP + EXYNOS5_BTS_SHAP_ON_OFF1,
+		.reg_addr[4]	= S5P_VA_BTS_3D_ACP + EXYNOS5_BTS_DEBLK_SRC_SEL,
+		.reg_addr[5]	= S5P_VA_BTS_3D_ACP + EXYNOS5_BTS_CON,
+		.set_val[0]	= 0x00100010,
+		.set_val[1]	= 0x00010888,
+		.set_val[2]	= 0x00000200,
+		.set_val[3]	= 0x000003fe,
+		.set_val[4]	= 0x00001100,
+		.set_val[5]	= 0x00000085,
+		.num_reg	= 6,
+	},
+};
+#endif
 static void camera_init(void)
 {
 	camera_class = class_create(THIS_MODULE, "camera");
@@ -3075,6 +3554,9 @@ static void __init p10_machine_init(void)
 	/* for BRCM Wi-Fi */
 	brcm_wlan_init();
 
+#ifdef CONFIG_EXYNOS5_SETUP_BTS
+	exynos5_setup_bts_param(p10_bts_info, sizeof(p10_bts_info));
+#endif
 	/* for camera*/
 	camera_init();
 

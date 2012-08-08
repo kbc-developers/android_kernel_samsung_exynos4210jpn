@@ -1,6 +1,5 @@
 #
-# makefile for IR remote control
+# makefile for accessory
 #
 
-obj-$(CONFIG_IR_REMOCON_GPIO)		+= ir_remote_con_gpio.o
-obj-$(CONFIG_IR_REMOCON_MC96)		+= ir_remote_con_mc96.o
+obj-y				+= ir_remote_con.o

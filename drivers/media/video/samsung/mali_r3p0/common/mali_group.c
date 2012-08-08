@@ -33,7 +33,7 @@
 
 /**
  * The structure represents a render group
- * A render group is defined by all the cores that share the same Mali MMU
+ * A render cluster is defined by all the cores that share the same Mali MMU
  */
 
 struct mali_group
@@ -57,10 +57,13 @@ struct mali_group
 	u32                         pp_running_sub_job;
 
 	_mali_osk_lock_t *lock;
+#ifdef DEBUG
+	u32 lock_owner;
+#endif
 };
 
-static struct mali_group *mali_global_groups[MALI_MAX_NUMBER_OF_GROUPS];
-static u32 mali_global_num_groups = 0;
+static struct mali_group *global_groups[MALI_MAX_NUMBER_OF_GROUPS];
+static u32 global_num_groups = 0;
 
 /* local helper functions */
 static mali_bool mali_group_activate_page_directory(struct mali_group *group, struct mali_session_data *session);
@@ -76,10 +79,14 @@ void mali_group_lock(struct mali_group *group)
 		MALI_DEBUG_ASSERT(0);
 	}
 	MALI_DEBUG_PRINT(5, ("Mali group: Group lock taken 0x%08X\n", group));
+	MALI_DEBUG_ASSERT(0 == group->lock_owner);
+	MALI_DEBUG_CODE(group->lock_owner = _mali_osk_get_tid());
 }
 
 void mali_group_unlock(struct mali_group *group)
 {
+	MALI_DEBUG_ASSERT(_mali_osk_get_tid() == group->lock_owner);
+	MALI_DEBUG_CODE(group->lock_owner = 0);
 	MALI_DEBUG_PRINT(5, ("Mali group: Releasing group lock 0x%08X\n", group));
 	_mali_osk_lock_signal(group->lock, _MALI_OSK_LOCKMODE_RW);
 }
@@ -87,7 +94,7 @@ void mali_group_unlock(struct mali_group *group)
 #ifdef DEBUG
 void mali_group_assert_locked(struct mali_group *group)
 {
-	MALI_DEBUG_ASSERT_LOCK_HELD(group->lock);
+	MALI_DEBUG_ASSERT(group->lock_owner == _mali_osk_get_tid());
 }
 #endif
 
@@ -95,12 +102,6 @@ void mali_group_assert_locked(struct mali_group *group)
 struct mali_group *mali_group_create(struct mali_cluster *cluster, struct mali_mmu_core *mmu)
 {
 	struct mali_group *group = NULL;
-
-	if (mali_global_num_groups >= MALI_MAX_NUMBER_OF_GROUPS)
-	{
-		MALI_PRINT_ERROR(("Mali group: Too many group objects created\n"));
-		return NULL;
-	}
 
 	group = _mali_osk_malloc(sizeof(struct mali_group));
 	if (NULL != group)
@@ -116,8 +117,16 @@ struct mali_group *mali_group_create(struct mali_cluster *cluster, struct mali_m
 #if defined(USING_MALI200)
 			group->pagedir_activation_failed = MALI_FALSE;
 #endif
-			mali_global_groups[mali_global_num_groups] = group;
-			mali_global_num_groups++;
+			if(global_num_groups < MALI_MAX_NUMBER_OF_GROUPS-1)
+			{
+				MALI_DEBUG_PRINT(2, ("Mali group create: global number of groups %d\n", global_num_groups));
+				global_groups[global_num_groups] = group;
+				global_num_groups++;
+			}
+			else
+			{
+				MALI_PRINT_ERROR(("Mali group: Wrong number of global groups\n"));
+			}
 
 			return group;
 		}
@@ -141,8 +150,6 @@ void mali_group_add_pp_core(struct mali_group *group, struct mali_pp_core* pp_co
 
 void mali_group_delete(struct mali_group *group)
 {
-	u32 i;
-
 	/* Delete the resources that this group owns */
 	if (NULL != group->gp_core)
 	{
@@ -159,17 +166,30 @@ void mali_group_delete(struct mali_group *group)
 		mali_mmu_delete(group->mmu);
 	}
 
-	for (i = 0; i < mali_global_num_groups; i++)
+	if(global_num_groups > 0)
 	{
-		if (mali_global_groups[i] == group)
-		{
-			mali_global_groups[i] = NULL;
-			mali_global_num_groups--;
-			break;
-		}
-	}
+		u32 i,j;
 
-	_mali_osk_lock_term(group->lock);
+		for(i = 0; i < global_num_groups; i++)
+		{
+			if(global_groups[i] == group)
+			{
+				MALI_DEBUG_PRINT(2, ("Mali group delete: Deleting global group %d\n", global_num_groups));
+				global_groups[i] = NULL; /*this might be skipped!*/
+
+				for(j = i; j < global_num_groups-1; j++)
+				{
+					global_groups[j] = global_groups[j+1];
+				}
+				global_groups[global_num_groups-1] = NULL; /*this might be skipped!*/
+			}
+		}
+		global_num_groups--;
+	}
+	else
+	{
+		MALI_PRINT_ERROR(("Mali group: Wrong number of groups\n"));
+	}
 
 	_mali_osk_free(group);
 }
@@ -418,21 +438,11 @@ void mali_group_bottom_half(struct mali_group *group, enum mali_group_event_t ev
 	}
 }
 
-struct mali_mmu_core *mali_group_get_mmu(struct mali_group *group)
-{
-	return group->mmu;
-}
-
-struct mali_session_data *mali_group_get_session(struct mali_group *group)
-{
-	return group->session;
-}
-
 struct mali_group *mali_group_get_glob_group(u32 index)
 {
-	if(mali_global_num_groups > index)
+	if(global_num_groups > index)
 	{
-		return mali_global_groups[index];
+		return global_groups[index];
 	}
 
 	return NULL;
@@ -440,7 +450,7 @@ struct mali_group *mali_group_get_glob_group(u32 index)
 
 u32 mali_group_get_glob_num_groups(void)
 {
-	return mali_global_num_groups;
+	return global_num_groups;
 }
 
 /* Used to check if scheduler for the other core type needs to be called on job completion.
@@ -567,10 +577,10 @@ static void mali_group_complete_jobs(struct mali_group *group, mali_bool complet
 			struct mali_gp_job *gp_job_to_return = group->gp_running_job;
 			group->gp_state = MALI_GROUP_CORE_STATE_IDLE;
 			group->gp_running_job = NULL;
-
-			MALI_DEBUG_ASSERT_POINTER(gp_job_to_return);
-
-			mali_group_deactivate_page_directory(group, mali_gp_job_get_session(gp_job_to_return));
+			if (NULL != gp_job_to_return)
+			{
+				mali_group_deactivate_page_directory(group, mali_gp_job_get_session(gp_job_to_return));
+			}
 
 			if(mali_group_other_reschedule_needed(group))
 			{
@@ -603,10 +613,10 @@ static void mali_group_complete_jobs(struct mali_group *group, mali_bool complet
 			u32 pp_sub_job_to_return = group->pp_running_sub_job;
 			group->pp_state = MALI_GROUP_CORE_STATE_IDLE;
 			group->pp_running_job = NULL;
-
-			MALI_DEBUG_ASSERT_POINTER(pp_job_to_return);
-
-			mali_group_deactivate_page_directory(group, mali_pp_job_get_session(pp_job_to_return));
+			if (NULL != pp_job_to_return)
+			{
+				mali_group_deactivate_page_directory(group, mali_pp_job_get_session(pp_job_to_return));
+			}
 
 			if(mali_group_other_reschedule_needed(group))
 			{

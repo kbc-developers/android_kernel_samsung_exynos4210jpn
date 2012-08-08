@@ -24,10 +24,10 @@
 #define IS_PARAM_ISP(dev)		(dev->is_p_region->parameter.isp)
 #define IS_PARAM_DRC(dev)		(dev->is_p_region->parameter.drc)
 #define IS_PARAM_FD(dev)		(dev->is_p_region->parameter.fd)
-#define IS_HEADER(dev)			(dev->is_p_region->header)
+#define IS_HEADER(dev)		(dev->is_p_region->header)
 #define IS_FACE(dev)			(dev->is_p_region->face)
-#define IS_SHARED(dev)			(dev->is_shared_region)
-#define IS_PARAM_SIZE			(FIMC_IS_REGION_SIZE + 1)
+#define IS_SHARED(dev)		(dev->is_shared_region)
+#define IS_PARAM_SIZE		(FIMC_IS_REGION_SIZE+1)
 
 /* Global control */
 #define IS_SET_PARAM_GLOBAL_SHOTMODE_CMD(dev, x) \
@@ -259,7 +259,7 @@
 #define IS_ISP_SET_PARAM_DMA_OUTPUT2_MASK(dev, x) \
 		(dev->is_p_region->parameter.isp.dma2_output.dma_out_mask = x)
 #define IS_ISP_SET_PARAM_DMA_OUTPUT2_DMA_DONE(dev, x) \
-	(dev->is_p_region->parameter.isp.dma2_output.notify_dma_done = x)
+		(dev->is_p_region->parameter.isp.dma2_output.notify_dma_done = x)
 
 #define IS_ISP_SET_PARAM_DMA_OUTPUT2_ERR(dev, x) \
 		(dev->is_p_region->parameter.isp.dma2_output.err = x)
@@ -1349,14 +1349,14 @@ enum iso_error {
 
 /* --------------------------  Adjust  ----------------------------------- */
 enum iso_adjust_command {
-	ISP_ADJUST_COMMAND_AUTO			= 0,
+	ISP_ADJUST_COMMAND_AUTO					= 0,
 	ISP_ADJUST_COMMAND_MANUAL_CONTRAST	= (1 << 0),
-	ISP_ADJUST_COMMAND_MANUAL_SATURATION	= (1 << 1),
-	ISP_ADJUST_COMMAND_MANUAL_SHARPNESS	= (1 << 2),
-	ISP_ADJUST_COMMAND_MANUAL_EXPOSURE	= (1 << 3),
-	ISP_ADJUST_COMMAND_MANUAL_BRIGHTNESS	= (1 << 4),
-	ISP_ADJUST_COMMAND_MANUAL_HUE		= (1 << 5),
-	ISP_ADJUST_COMMAND_MANUAL_ALL		= 0x7F
+	ISP_ADJUST_COMMAND_MANUAL_SATURATION	=(1 << 1),
+	ISP_ADJUST_COMMAND_MANUAL_SHARPNESS	=(1 << 2),
+	ISP_ADJUST_COMMAND_MANUAL_EXPOSURE	=(1 << 3),
+	ISP_ADJUST_COMMAND_MANUAL_BRIGHTNESS	=(1 << 4),
+	ISP_ADJUST_COMMAND_MANUAL_HUE			=(1 << 5),
+	ISP_ADJUST_COMMAND_MANUAL_ALL			=0x7F
 };
 
 enum isp_adjust_error {
@@ -1396,17 +1396,17 @@ enum isp_scene_command {
 	ISP_SCENE_PORTRAIT	= 1,
 	ISP_SCENE_LANDSCAPE     = 2,
 	ISP_SCENE_SPORTS        = 3,
-	ISP_SCENE_PARTYINDOOR	= 4,
-	ISP_SCENE_BEACHSNOW	= 5,
-	ISP_SCENE_SUNSET	= 6,
-	ISP_SCENE_DAWN		= 7,
-	ISP_SCENE_FALL		= 8,
-	ISP_SCENE_NIGHT		= 9,
-	ISP_SCENE_AGAINSTLIGHTWLIGHT	= 10,
-	ISP_SCENE_AGAINSTLIGHTWOLIGHT	= 11,
-	ISP_SCENE_FIRE			= 12,
-	ISP_SCENE_TEXT			= 13,
-	ISP_SCENE_CANDLE		= 14
+	ISP_SCENE_PARTYINDOOR = 4,
+	ISP_SCENE_BEACHSNOW    = 5,
+	ISP_SCENE_SUNSET           = 6,
+	ISP_SCENE_DAWN              = 7,
+	ISP_SCENE_FALL                = 8,
+	ISP_SCENE_NIGHT              = 9,
+	ISP_SCENE_AGAINSTLIGHTWLIGHT  = 10,
+	ISP_SCENE_AGAINSTLIGHTWOLIGHT  = 11,
+	ISP_SCENE_FIRE                 = 12,
+	ISP_SCENE_TEXT                 = 13,
+	ISP_SCENE_CANDLE            = 14
 };
 
 /* --------------------------  Scaler  --------------------------------- */
@@ -1999,9 +1999,7 @@ struct is_debug_frame_descriptor {
 	u32	req_lei;
 };
 
-#define MAX_FRAMEDESCRIPTOR_CONTEXT_NUM	(30 * 20)	/* 600 frame */
-#define MAX_VERSION_DISPLAY_BUF		(32)
-
+#define MAX_FRAMEDESCRIPTOR_CONTEXT_NUM	(30*20)	/* 600 frame */
 struct is_share_region {
 	u32	frame_time;
 	u32	exposure_time;
@@ -2013,42 +2011,37 @@ struct is_share_region {
 
 	u32	af_position;
 	u32	af_status;
-	u32  	af_scene_type;
+	u32  af_scene_type;
 
 	u32	frame_descp_onoff_control;
 	u32	frame_descp_update_done;
 	u32	frame_descp_idx;
-	u32  	frame_descp_max_idx;
+	u32  frame_descp_max_idx;
 
 	struct is_debug_frame_descriptor
 		dbg_frame_descp_ctx[MAX_FRAMEDESCRIPTOR_CONTEXT_NUM];
 
-	u32 	chip_id;
-	u32 	chip_rev_no;
-	u8	ispfw_version_no[MAX_VERSION_DISPLAY_BUF];
-	u8	ispfw_version_date[MAX_VERSION_DISPLAY_BUF];
-	u8	sirc_sdk_version_no[MAX_VERSION_DISPLAY_BUF];
-	u8	sirc_sdk_revsion_no[MAX_VERSION_DISPLAY_BUF];
-	u8	sirc_sdk_version_date[MAX_VERSION_DISPLAY_BUF];
+	u32 chip_id;
+	u32 chip_rev_no;
 };
 
-struct is_debug_control {
-	u32 uiWritePoint;	/* 0~500KB boundary*/
-	u32 uiAssertFlag;	/* 0:Not Inovked, 1:Invoked*/
-	u32 uiPAbortFlag;	/* 0:Not Inovked, 1:Invoked*/
-	u32 uiDAbortFlag;	/* 0:Not Inovked, 1:Invoked*/
-	u32 uiPDReadyFlag;	/* 0:Normal, 1:EnterIdle(Ready to power down)*/
-	u32 uiISPFrameErr;	/* Frame Error Count.*/
-	u32 uiDRCFrameErr;	/* Frame Error Count.*/
-	u32 uiSCCFrameErr;	/* Frame Error Count.*/
-	u32 uiODCFrameErr;	/* Frame Error Count.*/
-	u32 uiDISFrameErr;	/* Frame Error Count.*/
-	u32 uiTDNRFrameErr;	/* Frame Error Count.*/
-	u32 uiSCPFrameErr;	/* Frame Error Count.*/
-	u32 uiFDFrameErr;	/* Frame Error Count.*/
-	u32 uiISPFrameDrop;	/* Frame Drop Count.*/
-	u32 uiDRCFrameDrop;	/* Frame Drop Count.*/
-	u32 uiDISFrameDrop;	/* Frame Drop Count.*/
-};
+typedef struct is_debug_control {
+	u32 uiWritePoint; 	/* 0~500KB boundary*/
+	u32 uiAssertFlag; 	/* 0:Not Inovked, 1:Invoked*/
+	u32 uiPAbortFlag; 	/* 0:Not Inovked, 1:Invoked*/
+	u32 uiDAbortFlag; 	/* 0:Not Inovked, 1:Invoked*/
+	u32 uiPDReadyFlag; 	/* 0:Normal, 1:EnterIdle(Ready to power down)*/
+	u32 uiISPFrameErr; 	/* Frame Error Count.*/
+	u32 uiDRCFrameErr; 	/* Frame Error Count.*/
+	u32 uiSCCFrameErr; 	/* Frame Error Count.*/
+	u32 uiODCFrameErr; 	/* Frame Error Count.*/
+	u32 uiDISFrameErr; 	/* Frame Error Count.*/
+	u32 uiTDNRFrameErr; 	/* Frame Error Count.*/
+	u32 uiSCPFrameErr; 	/* Frame Error Count.*/
+	u32 uiFDFrameErr; 	/* Frame Error Count.*/
+	u32 uiISPFrameDrop; 	/* Frame Drop Count.*/
+	u32 uiDRCFrameDrop; 	/* Frame Drop Count.*/
+	u32 uiDISFrameDrop; 	/* Frame Drop Count.*/
+} *PIS_DebugControl;
 
 #endif

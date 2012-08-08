@@ -25,10 +25,9 @@ int init_shm(struct mfc_inst_ctx *ctx)
 	struct mfc_alloc_buffer *alloc;
 
 	if (ctx->drm_flag) {
-		ctx->shm = (unsigned char *)(dev->drm_info.addr + MFC_SHM_OFS_DRM
-			+ MFC_SHM_SIZE*ctx->id);
-		ctx->shmofs = mfc_mem_ext_ofs(dev->drm_info.base + MFC_SHM_OFS_DRM
-			+ MFC_SHM_SIZE*ctx->id, MFC_SHM_SIZE, PORT_A);
+		ctx->shm = (unsigned char *)(dev->drm_info.addr + MFC_SHM_OFS_DRM);
+		ctx->shmofs = mfc_mem_ext_ofs(dev->drm_info.base + MFC_SHM_OFS_DRM,
+			MFC_SHM_SIZE, PORT_A);
 
 		if (ctx->shmofs >= 0) {
 			memset((void *)ctx->shm, 0, MFC_SHM_SIZE);
@@ -75,12 +74,17 @@ int init_shm(struct mfc_inst_ctx *ctx)
 void write_shm(struct mfc_inst_ctx *ctx, unsigned int data, unsigned int offset)
 {
 	writel(data, (ctx->shm + offset));
-
+#ifdef CONFIG_EXYNOS_CONTENT_PATH_PROTECTION
+	if (!ctx->drm_flag)
+#endif
 	mfc_mem_cache_clean((void *)((unsigned int)(ctx->shm) + offset), 4);
 }
 
 unsigned int read_shm(struct mfc_inst_ctx *ctx, unsigned int offset)
 {
+#ifdef CONFIG_EXYNOS_CONTENT_PATH_PROTECTION
+	if (!ctx->drm_flag)
+#endif
 	mfc_mem_cache_inv((void *)((unsigned int)(ctx->shm) + offset), 4);
 
 	return readl(ctx->shm + offset);

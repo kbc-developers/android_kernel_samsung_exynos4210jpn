@@ -166,11 +166,6 @@ inline void _mali_osk_profiling_report_hw_counter(u32 counter_id, u32 value)
     /* Not implemented */
 }
 
-void _mali_osk_profiling_report_sw_counters(u32 *counters)
-{
-	/* Not implemented */
-}
-
 inline _mali_osk_errcode_t _mali_osk_profiling_stop(u32 * count)
 {
 	_mali_osk_lock_wait(lock, _MALI_OSK_LOCKMODE_RW);
@@ -299,10 +294,3 @@ _mali_osk_errcode_t _mali_ukk_profiling_clear(_mali_uk_profiling_clear_s *args)
 {
 	return _mali_osk_profiling_clear();
 }
-
-_mali_osk_errcode_t _mali_ukk_sw_counters_report(_mali_uk_sw_counters_report_s *args)
-{
-	_mali_osk_profiling_report_sw_counters(args->counters);
-	return _MALI_OSK_ERR_OK;
-}
-

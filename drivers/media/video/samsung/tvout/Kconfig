@@ -52,16 +52,6 @@ config HDMI_HPD
 	  This is a HDMI HPD driver for Samsung S5P platform.
 	  Check dev node (major 10, minor 243)
 
-config HDMI_CONTROLLED_BY_EXT_IC
-	bool "External HDMI related IC support"
-	depends on HDMI_HPD
-	default n
-	---help---
-	  Say y here if the H/W has external IC to control HDMI hpd and
-	  it needs to be controlled by HPD interrupt.
-	  For example, the H/W has HDMI level shifter then it should be turned
-	  on when HPD interrupt comes.
-
 config HDMI_SWITCH_HPD
 	bool "HDMI HPD switch uevent driver support"
 	depends on HDMI_HPD

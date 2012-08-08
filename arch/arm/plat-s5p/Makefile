@@ -25,7 +25,6 @@ obj-$(CONFIG_S5P_SYSTEM_MMU)	+= s5p-sysmmu.o
 obj-$(CONFIG_PM)		+= pm.o
 obj-$(CONFIG_PM)		+= irq-pm.o
 obj-$(CONFIG_S5P_HRT) 		+= s5p-time.o
-obj-$(CONFIG_S5P_BTS)		+= bts.o
 
 # devices
 

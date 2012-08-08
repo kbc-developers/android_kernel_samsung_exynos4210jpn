@@ -77,17 +77,6 @@ enum s3cfb_cpu_auto_cmd_rate {
 	PER_THIRTY_FRM,
 };
 #endif
-#ifdef CONFIG_DRM_EXYNOS_FIMD_WB
-#include <plat/fimc.h>
-#ifdef CONFIG_ARM_EXYNOS4_DISPLAY_DEVFREQ
-#include <plat/pd.h>
-#include <linux/pm_qos_params.h>
-#endif
-#define FIMD_GET_LCD_WIDTH	_IOR('F', 302, int)
-#define FIMD_GET_LCD_HEIGHT	_IOR('F', 303, int)
-#define FIMD_SET_WRITEBACK	_IOW('F', 304, u32)
-#endif
-
 /*
  * FIMD is stand for Fully Interactive Mobile Display and
  * as a display controller, it transfers contents drawn on memory
@@ -170,12 +159,6 @@ struct fimd_context {
 
 	struct work_struct		work;
 	bool				errata;
-#ifdef CONFIG_DRM_EXYNOS_FIMD_WB
-	struct notifier_block	nb_ctrl;
-#ifdef CONFIG_ARM_EXYNOS4_DISPLAY_DEVFREQ
-	struct pm_qos_request_list	pm_qos;
-#endif
-#endif
 };
 #ifdef CONFIG_MACH_SLP_NAPLES
 struct fimd_context *ctx_global;
@@ -370,7 +353,7 @@ static void fimd_dpms(struct device *subdrv_dev, int mode)
 static void fimd_apply(struct device *subdrv_dev)
 {
 	struct fimd_context *ctx = get_fimd_context(subdrv_dev);
-	struct exynos_drm_manager *mgr = ctx->subdrv.manager;
+	struct exynos_drm_manager *mgr = &ctx->subdrv.manager;
 	struct exynos_drm_manager_ops *mgr_ops = mgr->ops;
 	struct exynos_drm_overlay_ops *ovl_ops = mgr->overlay_ops;
 	struct fimd_win_data *win_data;
@@ -872,13 +855,6 @@ static struct exynos_drm_overlay_ops fimd_overlay_ops = {
 	.disable = fimd_win_disable,
 };
 
-static struct exynos_drm_manager fimd_manager = {
-	.pipe		= -1,
-	.ops		= &fimd_manager_ops,
-	.overlay_ops	= &fimd_overlay_ops,
-	.display_ops	= &fimd_display_ops,
-};
-
 static void fimd_finish_pageflip(struct drm_device *drm_dev, int crtc)
 {
 	struct exynos_drm_private *dev_priv = drm_dev->dev_private;
@@ -954,7 +930,7 @@ void fimd_set_trigger(void)
 	u32 reg = 0;
 	struct exynos_drm_subdrv *subdrv = &ctx_global->subdrv;
 	struct drm_device *drm_dev = subdrv->drm_dev;
-	struct exynos_drm_manager *manager = subdrv->manager;
+	struct exynos_drm_manager *manager = &subdrv->manager;
 	u32 val;
 
 	val = readl(ctx_global->regs + VIDINTCON1);
@@ -984,7 +960,7 @@ static irqreturn_t fimd_irq_handler(int irq, void *dev_id)
 	struct fimd_context *ctx = (struct fimd_context *)dev_id;
 	struct exynos_drm_subdrv *subdrv = &ctx->subdrv;
 	struct drm_device *drm_dev = subdrv->drm_dev;
-	struct exynos_drm_manager *manager = subdrv->manager;
+	struct exynos_drm_manager *manager = &subdrv->manager;
 	u32 val;
 
 	val = readl(ctx->regs + VIDINTCON1);
@@ -1163,7 +1139,7 @@ static int fimd_notifier_call_chain(void)
 static int fimd_power_on(struct fimd_context *ctx, bool enable)
 {
 	struct exynos_drm_subdrv *subdrv = &ctx->subdrv;
-	struct device *dev = subdrv->dev;
+	struct device *dev = subdrv->manager.dev;
 
 	DRM_DEBUG_KMS("%s\n", __FILE__);
 
@@ -1320,80 +1296,6 @@ static struct device_attribute device_attrs[] = {
 	__ATTR(refresh, S_IRUGO|S_IWUSR, show_refresh, store_refresh),
 };
 
-#ifdef CONFIG_DRM_EXYNOS_FIMD_WB
-static void fimd_set_writeback(struct fimd_context *ctx, int enable)
-{
-	u32 vidcon0 = readl(ctx->regs + VIDCON0);
-	u32 vidcon2 = readl(ctx->regs + VIDCON2);
-
-	vidcon0 &= ~VIDCON0_VIDOUT_MASK;
-	vidcon2 &= ~(VIDCON2_WB_MASK |
-			VIDCON2_WB_SKIP_MASK |
-			VIDCON2_TVFORMATSEL_HW_SW_MASK |
-			VIDCON2_TVFORMATSEL_MASK);
-
-	if (enable) {
-		vidcon0 |= VIDCON0_VIDOUT_WB;
-		vidcon2 |= (VIDCON2_WB_ENABLE |
-				VIDCON2_TVFORMATSEL_SW |
-				VIDCON2_TVFORMATSEL_YUV444);
-	} else {
-		vidcon0 |= VIDCON0_VIDOUT_RGB;
-		vidcon2 |= VIDCON2_WB_DISABLE;
-	}
-
-	writel(vidcon0, ctx->regs + VIDCON0);
-	writel(vidcon2, ctx->regs + VIDCON2);
-}
-
-static int fimd_notifier_ctrl(struct notifier_block *this,
-			unsigned long event, void *_data)
-{
-	struct fimd_context *ctx = container_of(this,
-				struct fimd_context, nb_ctrl);
-
-	switch (event) {
-	case FIMD_GET_LCD_WIDTH: {
-		struct exynos_drm_panel_info *panel = ctx->panel;
-		struct fb_videomode *timing = &panel->timing;
-		int *width = (int *)_data;
-
-		*width = timing->xres;
-	}
-		break;
-	case FIMD_GET_LCD_HEIGHT: {
-		struct exynos_drm_panel_info *panel = ctx->panel;
-		struct fb_videomode *timing = &panel->timing;
-		int *height = (int *)_data;
-
-		*height = timing->yres;
-	}
-		break;
-	case FIMD_SET_WRITEBACK: {
-		unsigned int refresh;
-		int *enable = (int *)&_data;
-
-#ifdef CONFIG_ARM_EXYNOS4_DISPLAY_DEVFREQ
-		if (*enable)
-			refresh = EXYNOS4_DISPLAY_LV_HF;
-		else
-			refresh = EXYNOS4_DISPLAY_LV_LF;
-		pm_qos_update_request(&ctx->pm_qos,
-						refresh);
-#endif
-		fimd_set_writeback(ctx, *enable);
-	}
-		break;
-	default:
-		/* ToDo : for checking use case */
-		DRM_INFO("%s:event[0x%x]\n", __func__, (unsigned int)event);
-		break;
-	}
-
-	return NOTIFY_DONE;
-}
-#endif
-
 static int __devinit fimd_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -1533,23 +1435,13 @@ static int __devinit fimd_probe(struct platform_device *pdev)
 
 	subdrv = &ctx->subdrv;
 
-	subdrv->dev = dev;
-	subdrv->manager = &fimd_manager;
 	subdrv->probe = fimd_subdrv_probe;
 	subdrv->remove = fimd_subdrv_remove;
-
-#ifdef CONFIG_DRM_EXYNOS_FIMD_WB
-	ctx->nb_ctrl.notifier_call = fimd_notifier_ctrl;
-	ret = fimc_register_client(&ctx->nb_ctrl);
-	if (ret) {
-		dev_err(dev, "could not register fimd notify callback\n");
-		goto err_alloc_fail;
-	}
-#ifdef CONFIG_ARM_EXYNOS4_DISPLAY_DEVFREQ
-	pm_qos_add_request(&ctx->pm_qos,
-		PM_QOS_DISPLAY_FREQUENCY, EXYNOS4_DISPLAY_LV_LF);
-#endif
-#endif
+	subdrv->manager.pipe = -1;
+	subdrv->manager.ops = &fimd_manager_ops;
+	subdrv->manager.overlay_ops = &fimd_overlay_ops;
+	subdrv->manager.display_ops = &fimd_display_ops;
+	subdrv->manager.dev = dev;
 
 	mutex_init(&ctx->lock);
 
@@ -1598,12 +1490,6 @@ static int __devexit fimd_remove(struct platform_device *pdev)
 	DRM_DEBUG_KMS("%s\n", __FILE__);
 
 	exynos_drm_subdrv_unregister(&ctx->subdrv);
-#ifdef CONFIG_DRM_EXYNOS_FIMD_WB
-	fimc_unregister_client(&ctx->nb_ctrl);
-#ifdef CONFIG_ARM_EXYNOS4_DISPLAY_DEVFREQ
-	pm_qos_remove_request(&ctx->pm_qos);
-#endif
-#endif
 
 	if (ctx->suspended)
 		goto out;

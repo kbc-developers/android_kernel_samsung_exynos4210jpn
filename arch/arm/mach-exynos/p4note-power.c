@@ -1099,8 +1099,13 @@ struct s5m_platform_data exynos4_s5m8767_info = {
 
 void midas_power_init(void)
 {
+#ifdef CONFIG_MACH_S2PLUS
+	ldo8_init_data.constraints.always_on = 1;
+	ldo13_init_data.constraints.always_on = 1;
+#else
 	ldo8_init_data.constraints.always_on = 1;
 	ldo10_init_data.constraints.always_on = 1;
+#endif
 }
 
 /* End of S5M8767 */

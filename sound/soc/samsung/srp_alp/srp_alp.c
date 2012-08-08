@@ -1155,6 +1155,8 @@ static int srp_resume(struct platform_device *pdev)
 			srp_request_intr_mode(RESUME);
 	}
 
+	srp.audss_clk_enable(false);
+
 	return 0;
 }
 

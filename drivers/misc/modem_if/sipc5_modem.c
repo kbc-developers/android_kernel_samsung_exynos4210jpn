@@ -41,45 +41,31 @@
 #define FMT_WAKE_TIME   (HZ/2)
 #define RAW_WAKE_TIME   (HZ*6)
 
-static struct modem_shared *create_modem_shared_data(void)
-{
-	struct modem_shared *msd;
-
-	msd = kzalloc(sizeof(struct modem_shared), GFP_KERNEL);
-	if (!msd)
-		return NULL;
-
-	/* initialize link device list */
-	INIT_LIST_HEAD(&msd->link_dev_list);
-
-	/* initialize tree of io devices */
-	msd->iodevs_tree_chan = RB_ROOT;
-	msd->iodevs_tree_fmt = RB_ROOT;
-
-	return msd;
-}
-
-static struct modem_ctl *create_modemctl_device(struct platform_device *pdev,
-		struct modem_shared *msd)
+static struct modem_ctl *create_modemctl_device(struct platform_device *pdev)
 {
 	int ret = 0;
 	struct modem_data *pdata;
 	struct modem_ctl *modemctl;
 	struct device *dev = &pdev->dev;
-	int count, i;
 
 	/* create modem control device */
 	modemctl = kzalloc(sizeof(struct modem_ctl), GFP_KERNEL);
 	if (!modemctl)
 		return NULL;
 
-	modemctl->msd = msd;
 	modemctl->dev = dev;
 	modemctl->phone_state = STATE_OFFLINE;
 
 	pdata = pdev->dev.platform_data;
 	modemctl->mdm_data = pdata;
 	modemctl->name = pdata->name;
+
+	/* initialize link device list */
+	INIT_LIST_HEAD(&modemctl->commons.link_dev_list);
+
+	/* initialize tree of io devices */
+	modemctl->commons.iodevs_tree_chan = RB_ROOT;
+	modemctl->commons.iodevs_tree_fmt = RB_ROOT;
 
 	/* init modemctl device for getting modemctl operations */
 	ret = call_modem_init_func(modemctl, pdata);
@@ -88,14 +74,15 @@ static struct modem_ctl *create_modemctl_device(struct platform_device *pdev,
 		return NULL;
 	}
 
-	modemctl->msd->storage.cnt = 0;
-	modemctl->msd->storage.addr = kzalloc(MAX_MIF_BUFF_SIZE, GFP_KERNEL);
-	if (!modemctl->msd->storage.addr) {
-		mif_err("IPC logger buff alloc failed!!\n");
+	modemctl->use_mif_log = pdata->use_mif_log;
+	if (pdata->use_mif_log)
+		mif_err("<%s> IPC logger can be used.\n", pdata->name);
+
+	ret = mif_init_log(modemctl);
+	if (ret < 0) {
+		kfree(modemctl);
 		return NULL;
 	}
-	memset(modemctl->msd->storage.addr, 0, MAX_MIF_BUFF_SIZE);
-	spin_lock_init(&modemctl->msd->lock);
 
 	mif_info("%s is created!!!\n", pdata->name);
 
@@ -103,8 +90,7 @@ static struct modem_ctl *create_modemctl_device(struct platform_device *pdev,
 }
 
 static struct io_device *create_io_device(struct modem_io_t *io_t,
-		struct modem_shared *msd, struct modem_ctl *modemctl,
-		struct modem_data *pdata)
+		struct modem_ctl *modemctl, struct modem_data *pdata)
 {
 	int ret = 0;
 	struct io_device *iod = NULL;
@@ -137,16 +123,6 @@ static struct io_device *create_io_device(struct modem_io_t *io_t,
 		mif_info("Bood device = %s\n", iod->name);
 	}
 
-	/* link between io device and modem shared */
-	iod->msd = msd;
-
-	/* add iod to rb_tree */
-	if (iod->format != IPC_RAW)
-		insert_iod_with_format(msd, iod->format, iod);
-
-	if (sipc5_is_not_reserved_channel(iod->id))
-		insert_iod_with_channel(msd, iod->id, iod);
-
 	/* register misc device or net device */
 	ret = sipc5_init_io_device(iod);
 	if (ret) {
@@ -159,14 +135,21 @@ static struct io_device *create_io_device(struct modem_io_t *io_t,
 	return iod;
 }
 
-static int attach_devices(struct io_device *iod, enum modem_link tx_link)
+static int attach_devices(struct modem_ctl *mc, struct io_device *iod,
+		enum modem_link tx_link)
 {
-	struct modem_shared *msd = iod->msd;
 	struct link_device *ld;
 	unsigned ch;
 
+	/* add iod to rb_tree */
+	if (iod->format != IPC_RAW)
+		insert_iod_with_format(&mc->commons, iod->format, iod);
+
+	if (sipc5_is_not_reserved_channel(iod->id))
+		insert_iod_with_channel(&mc->commons, iod->id, iod);
+
 	/* find link type for this io device */
-	list_for_each_entry(ld, &msd->link_dev_list, list) {
+	list_for_each_entry(ld, &mc->commons.link_dev_list, list) {
 		if (IS_CONNECTED(iod, ld)) {
 			/* The count 1 bits of iod->link_types is count
 			 * of link devices of this iod.
@@ -192,30 +175,17 @@ static int attach_devices(struct io_device *iod, enum modem_link tx_link)
 
 	switch (iod->format) {
 	case IPC_FMT:
-		wake_lock_init(&iod->wakelock, WAKE_LOCK_SUSPEND, iod->name);
-		iod->waketime = FMT_WAKE_TIME;
-		break;
-
 	case IPC_RAW:
-		wake_lock_init(&iod->wakelock, WAKE_LOCK_SUSPEND, iod->name);
-		iod->waketime = RAW_WAKE_TIME;
-		break;
-
 	case IPC_RFS:
 		wake_lock_init(&iod->wakelock, WAKE_LOCK_SUSPEND, iod->name);
-		iod->waketime = RAW_WAKE_TIME;
+		/* RFS hold the RX wakelock same time with FMT*/
+		iod->waketime = FMT_WAKE_TIME;
 		break;
 
 	case IPC_MULTI_RAW:
 		wake_lock_init(&iod->wakelock, WAKE_LOCK_SUSPEND, iod->name);
 		iod->waketime = RAW_WAKE_TIME;
 		break;
-
-	case IPC_BOOT:
-		wake_lock_init(&iod->wakelock, WAKE_LOCK_SUSPEND, iod->name);
-		iod->waketime = RAW_WAKE_TIME;
-		break;
-
 	default:
 		break;
 	}
@@ -227,21 +197,14 @@ static int __devinit modem_probe(struct platform_device *pdev)
 {
 	int i;
 	struct modem_data *pdata = pdev->dev.platform_data;
-	struct modem_shared *msd = NULL;
-	struct modem_ctl *modemctl = NULL;
+	struct modem_ctl *modemctl;
 	struct io_device *iod[pdata->num_iodevs];
-	struct link_device *ld;
+	struct link_device *ld = NULL;
 
 	mif_err("%s\n", pdev->name);
 	memset(iod, 0, sizeof(iod));
 
-	msd = create_modem_shared_data();
-	if (!msd) {
-		mif_err("msd == NULL\n");
-		goto err_free_modemctl;
-	}
-
-	modemctl = create_modemctl_device(pdev, msd);
+	modemctl = create_modemctl_device(pdev);
 	if (!modemctl) {
 		mif_err("modemctl == NULL\n");
 		goto err_free_modemctl;
@@ -259,21 +222,20 @@ static int __devinit modem_probe(struct platform_device *pdev)
 			mif_err("link created: %s\n", ld->name);
 			ld->link_type = i;
 			ld->mc = modemctl;
-			ld->msd = msd;
-			list_add(&ld->list, &msd->link_dev_list);
+			list_add(&ld->list, &modemctl->commons.link_dev_list);
 		}
 	}
 
 	/* create io deivces and connect to modemctl device */
 	for (i = 0; i < pdata->num_iodevs; i++) {
-		iod[i] = create_io_device(&pdata->iodevs[i], msd, modemctl,
-				pdata);
+		iod[i] = create_io_device(&pdata->iodevs[i], modemctl, pdata);
 		if (!iod[i]) {
 			mif_err("iod[%d] == NULL\n", i);
 			goto err_free_modemctl;
 		}
 
-		attach_devices(iod[i], pdata->iodevs[i].tx_link);
+		attach_devices(modemctl, iod[i],
+				pdata->iodevs[i].tx_link);
 	}
 
 	platform_set_drvdata(pdev, modemctl);
@@ -290,9 +252,6 @@ err_free_modemctl:
 	if (modemctl != NULL)
 		kfree(modemctl);
 
-	if (msd != NULL)
-		kfree(msd);
-
 	return -ENOMEM;
 }
 
@@ -301,7 +260,6 @@ static void modem_shutdown(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct modem_ctl *mc = dev_get_drvdata(dev);
 	mc->ops.modem_off(mc);
-	mc->phone_state = STATE_OFFLINE;
 }
 
 static int modem_suspend(struct device *pdev)

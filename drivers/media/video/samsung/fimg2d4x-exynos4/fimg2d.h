@@ -40,7 +40,6 @@
 #define FIMG2D_BITBLT_BLIT	_IOWR(FIMG2D_IOCTL_MAGIC, 0, struct fimg2d_blit)
 #define FIMG2D_BITBLT_SYNC	_IOW(FIMG2D_IOCTL_MAGIC, 1, int)
 #define FIMG2D_BITBLT_VERSION	_IOR(FIMG2D_IOCTL_MAGIC, 2, struct fimg2d_version)
-#define FIMG2D_BITBLT_SECURE	_IOW(FIMG2D_IOCTL_MAGIC, 3, unsigned int)
 
 struct fimg2d_version {
 	unsigned int hw;
@@ -484,8 +483,8 @@ struct fimg2d_control {
 	struct resource *mem;
 	void __iomem *regs;
 
+	bool err;
 	int irq;
-	unsigned int secure;
 	atomic_t nctx;
 	atomic_t busy;
 	atomic_t active;

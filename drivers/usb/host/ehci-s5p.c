@@ -24,11 +24,6 @@
 #include <mach/regs-usb-host.h>
 #include <mach/board_rev.h>
 
-#ifdef CONFIG_MDM_HSIC_PM
-#include <linux/mdm_hsic_pm.h>
-static const char hsic_pm_dev[] = "mdm_hsic_pm0";
-#endif
-
 struct s5p_ehci_hcd {
 	struct device *dev;
 	struct usb_hcd *hcd;
@@ -93,11 +88,7 @@ static int s5p_ehci_configurate(struct usb_hcd *hcd)
 
 #if defined(CONFIG_LINK_DEVICE_HSIC) || defined(CONFIG_LINK_DEVICE_USB) ||\
 	defined(CONFIG_CDMA_MODEM_MDM6600)
-#ifdef CONFIG_MACH_P8LTE
-#define CP_PORT		 1  /* HSIC0 in S5PC210 */
-#else
-#define CP_PORT      2  /* HSIC0 in S5PC210 */
-#endif
+#define CP_PORT		 2  /* HSIC0 in S5PC210 */
 #define RETRY_CNT_LIMIT 30  /* Max 300ms wait for cp resume*/
 
 int s5p_ehci_port_control(struct platform_device *pdev, int port, int enable)
@@ -180,17 +171,6 @@ static int s5p_ehci_suspend(struct device *dev)
 	struct ehci_hcd *ehci = hcd_to_ehci(hcd);
 	unsigned long flags;
 	int rc = 0;
-
-#ifdef CONFIG_MDM_HSIC_PM
-	if (check_udev_suspend_allowed(hsic_pm_dev) > 0) {
-		set_host_stat(hsic_pm_dev, POWER_OFF);
-		if (wait_dev_pwr_stat(hsic_pm_dev, POWER_OFF) < 0) {
-			set_host_stat(hsic_pm_dev, POWER_ON);
-			return -EBUSY;
-		}
-	} else
-		return -EBUSY;
-#endif
 
 	if (time_before(jiffies, ehci->next_statechange))
 		msleep(10);
@@ -281,14 +261,8 @@ static int s5p_ehci_resume(struct device *dev)
 	ehci_port_power(ehci, 1);
 
 	hcd->state = HC_STATE_SUSPENDED;
-#if defined(CONFIG_LINK_DEVICE_HSIC) || \
-		(defined(CONFIG_LINK_DEVICE_USB) && \
-		!defined(CONFIG_USBHUB_USB3503))
+#if defined(CONFIG_LINK_DEVICE_HSIC) || defined(CONFIG_LINK_DEVICE_USB)
 	s5p_wait_for_cp_resume(pdev, hcd);
-#endif
-#ifdef CONFIG_MDM_HSIC_PM
-	set_host_stat(hsic_pm_dev, POWER_ON);
-	wait_dev_pwr_stat(hsic_pm_dev, POWER_ON);
 #endif
 	return 0;
 }
@@ -306,9 +280,7 @@ static int s5p_ehci_runtime_suspend(struct device *dev)
 
 	if (pdata && pdata->phy_suspend)
 		pdata->phy_suspend(pdev, S5P_USB_PHY_HOST);
-#ifdef CONFIG_MDM_HSIC_PM
-	request_active_lock_release(hsic_pm_dev);
-#endif
+
 	return 0;
 }
 
@@ -324,9 +296,6 @@ static int s5p_ehci_runtime_resume(struct device *dev)
 	if (dev->power.is_suspended)
 		return 0;
 
-#ifdef CONFIG_MDM_HSIC_PM
-	request_active_lock_set(hsic_pm_dev);
-#endif
 	/* platform device isn't suspended */
 	if (pdata && pdata->phy_resume)
 		rc = pdata->phy_resume(pdev, S5P_USB_PHY_HOST);
@@ -351,9 +320,7 @@ static int s5p_ehci_runtime_resume(struct device *dev)
 		ehci_port_power(ehci, 1);
 
 		hcd->state = HC_STATE_SUSPENDED;
-#if defined(CONFIG_LINK_DEVICE_HSIC) || \
-		(defined(CONFIG_LINK_DEVICE_USB) && \
-		!defined(CONFIG_USBHUB_USB3503))
+#if defined(CONFIG_LINK_DEVICE_HSIC) || defined(CONFIG_LINK_DEVICE_USB)
 		s5p_wait_for_cp_resume(pdev, hcd);
 #endif
 	}
@@ -623,14 +590,6 @@ static int __devinit s5p_ehci_probe(struct platform_device *pdev)
 	pm_runtime_set_active(&pdev->dev);
 	pm_runtime_enable(&pdev->dev);
 #endif
-#ifdef CONFIG_MDM_HSIC_PM
-/*
-	set_host_stat(hsic_pm_dev, POWER_ON);
-*/
-	pm_runtime_allow(&pdev->dev);
-	pm_runtime_set_autosuspend_delay(&hcd->self.root_hub->dev, 0);
-	enable_periodic(ehci);
-#endif
 #if defined(CONFIG_LINK_DEVICE_HSIC) || defined(CONFIG_LINK_DEVICE_USB)
 	/* for cp enumeration */
 	pm_runtime_forbid(&pdev->dev);
@@ -660,17 +619,8 @@ static int __devexit s5p_ehci_remove(struct platform_device *pdev)
 	struct s5p_ehci_hcd *s5p_ehci = platform_get_drvdata(pdev);
 	struct usb_hcd *hcd = s5p_ehci->hcd;
 
-/* pm_runtime_disable called twice during pdev unregistering
- * it causes disable_depth mismatching, so rpm for this device
- * cannot works from disable_depth count
- * replace it to runtime forbid.
- */
 #ifdef CONFIG_USB_SUSPEND
-#ifdef CONFIG_MDM_HSIC_PM
-	pm_runtime_forbid(&pdev->dev);
-#else
 	pm_runtime_disable(&pdev->dev);
-#endif
 #endif
 	s5p_ehci->power_on = 0;
 	remove_ehci_sys_file(hcd_to_ehci(hcd));
@@ -707,9 +657,8 @@ static void s5p_ehci_shutdown(struct platform_device *pdev)
 static const struct dev_pm_ops s5p_ehci_pm_ops = {
 	.suspend		= s5p_ehci_suspend,
 	.resume			= s5p_ehci_resume,
-#ifdef CONFIG_HIBERNATION
+#ifdef CONFIG_SLP
 	.freeze			= s5p_ehci_suspend,
-	.thaw			= s5p_ehci_resume,
 	.restore		= s5p_ehci_resume,
 #endif
 	.runtime_suspend	= s5p_ehci_runtime_suspend,

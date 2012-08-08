@@ -303,17 +303,6 @@ typedef enum
 
 /** @brief Private type for Mutual Exclusion lock objects */
 typedef struct _mali_osk_lock_t_struct _mali_osk_lock_t;
-
-#ifdef DEBUG
-/** @brief Macro for asserting that the current thread holds a given lock
- */
-#define MALI_DEBUG_ASSERT_LOCK_HELD(l) MALI_DEBUG_ASSERT(_mali_osk_lock_get_owner(l) == _mali_osk_get_tid());
-
-/** @brief returns a lock's owner (thread id) if debugging is enabled
- */
-u32 _mali_osk_lock_get_owner( _mali_osk_lock_t *lock );
-#endif
-
 /** @} */ /* end group _mali_osk_lock */
 
 /** @defgroup _mali_osk_low_level_memory OSK Low-level Memory Operations
@@ -411,7 +400,6 @@ typedef struct _mali_osk_notification_queue_t_struct _mali_osk_notification_queu
 /** @brief Public notification data object type */
 typedef struct _mali_osk_notification_t_struct
 {
-	u32 magic_code;
 	u32 notification_type;   /**< The notification type */
 	u32 result_buffer_size; /**< Size of the result buffer to copy to user space */
 	void * result_buffer;   /**< Buffer containing any type specific data */
@@ -1681,41 +1669,6 @@ u64 _mali_osk_time_get_ns( void );
  */
 u32 _mali_osk_clz( u32 val );
 /** @} */ /* end group _mali_osk_math */
-
-/** @defgroup _mali_osk_wait_queue OSK Wait Queue functionality
- * @{ */
-/** @brief Private type for wait queue objects */
-typedef struct _mali_osk_wait_queue_t_struct _mali_osk_wait_queue_t;
-
-/** @brief Initialize an empty Wait Queue */
-_mali_osk_wait_queue_t* _mali_osk_wait_queue_init( void );
-
-/** @brief Sleep  if condition is false
- *
- * @param queue the queue to use
- * @param condition function pointer to a boolean function
- *
- * Put thread to sleep if the given \a codition function returns false. When
- * being asked to wake up again, the condition will be re-checked and the
- * thread only woken up if the condition is now true.
- */
-void _mali_osk_wait_queue_wait_event( _mali_osk_wait_queue_t *queue, mali_bool (*condition)(void) );
-
-/** @brief Wake up all threads in wait queue if their respective conditions are
- * true
- *
- * @param queue the queue whose threads should be woken up
- *
- * Wake up all threads in wait queue \a queue whose condition is now true.
- */
-void _mali_osk_wait_queue_wake_up( _mali_osk_wait_queue_t *queue );
-
-/** @brief terminate a wait queue
- *
- * @param queue the queue to terminate.
- */
-void _mali_osk_wait_queue_term( _mali_osk_wait_queue_t *queue );
-/** @} */ /* end group _mali_osk_wait_queue */
 
 
 /** @addtogroup _mali_osk_miscellaneous

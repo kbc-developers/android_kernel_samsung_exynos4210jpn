@@ -55,11 +55,7 @@ obj-$(CONFIG_APANIC)		+= apanic.o
 obj-$(CONFIG_SENSORS_AK8975)	+= akm8975.o
 obj-$(CONFIG_SAMSUNG_C2C)	+= c2c/
 obj-$(CONFIG_USBHUB_USB3503)	+= usb3503.o
-ifeq ($(CONFIG_SEC_MODEM_P8LTE),y)
-obj-$(CONFIG_SEC_MODEM)         += modem_if_na/
-else
 obj-$(CONFIG_SEC_MODEM)		+= modem_if/
-endif
 obj-$(CONFIG_MFD_MAX77693)	+= max77693-muic.o
 obj-$(CONFIG_STMPE811_ADC)	+= stmpe811-adc.o
 obj-$(CONFIG_JACK_MON)		+= jack.o
@@ -75,6 +71,3 @@ obj-$(CONFIG_SLP_PROCESS_MON)	+= slp_process_monitor.o
 obj-$(CONFIG_SLP_LOWMEM_NOTIFY)	+= slp_lowmem_notify.o
 
 obj-$(CONFIG_MACH_M0_CTC)   += cw_tty.o
-
-# Secure OS Mobicore Interface
-obj-$(CONFIG_MOBICORE_SUPPORT)  += tzic.o

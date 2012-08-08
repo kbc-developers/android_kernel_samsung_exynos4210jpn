@@ -39,10 +39,6 @@ extern int s3c_gpio_slp_setpull_updown(unsigned int pin, unsigned int config);
 #define GPIO_CAM_IO_EN		EXYNOS4212_GPM0(2)
 #define GPIO_ISP_CORE_EN	EXYNOS4212_GPM0(3)
 #define GPIO_CAM_AF_EN		EXYNOS4212_GPM0(4)
-
-#define GPIO_MOT_EN		EXYNOS4212_GPM0(5)
-#define GPIO_SAMBAZ_RESET	EXYNOS4212_GPM0(6)
-
 #define GPIO_CAM_VT_nRST	EXYNOS4212_GPM1(6)
 
 #if 1
@@ -62,13 +58,8 @@ extern int s3c_gpio_slp_setpull_updown(unsigned int pin, unsigned int config);
 #define GPIO_GPS_nRST		EXYNOS4_GPL2(1)
 #define GPIO_GPS_PWR_EN		EXYNOS4_GPL2(2)
 
-#define GPIO_TOP_PCB_PWREN	EXYNOS4_GPL2(4)
-
 /* Sensors */
 #define GPIO_ACC_INT		EXYNOS4_GPX0(0)
-#define GPIO_GYRO_INT		EXYNOS4_GPF0(3)
-#define GPIO_GYRO_DE		EXYNOS4_GPL2(0)
-
 #define GPIO_GSENSE_SDA_18V	EXYNOS4_GPD1(2)
 #define GPIO_GSENSE_SCL_18V	EXYNOS4_GPD1(3)
 
@@ -304,8 +295,6 @@ extern int s3c_gpio_slp_setpull_updown(unsigned int pin, unsigned int config);
 #define GPIO_S2_KEY			EXYNOS4_GPX2(1)
 #define GPIO_TELE_KEY		EXYNOS4_GPX2(2)
 #define GPIO_WIDE_KEY		EXYNOS4_GPX3(3)
-#define GPIO_FAST_TELE_KEY	EXYNOS4_GPX1(4)
-#define GPIO_FAST_WIDE_KEY	EXYNOS4_GPX0(4)
 
 #define GPIO_FM_INT_REV15	EXYNOS4_GPX1(4)
 #define GPIO_FM_INT_REV07	EXYNOS4_GPX1(3)

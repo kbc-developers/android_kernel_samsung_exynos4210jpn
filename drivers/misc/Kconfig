@@ -63,7 +63,7 @@ config AD525X_DPOT_SPI
 
 config ANDROID_PMEM
 	bool "Android pmem allocator"
-	depends on MACH_U1 || MACH_PX || MACH_TRATS
+	depends on MACH_U1 || MACH_PX
 	default n
 
 if ANDROID_PMEM
@@ -603,14 +603,6 @@ config MUIC_MAX8997_OVPUI
 	  is used in Chinese models. When OVP is occurred, the battery UI
 	  must be changed to uncharging status.
 
-config MUIC_MAX77693_SEPARATE_MHL_PORT
-	bool "MUIC_MAX77693_SEPARATE_MHL_PORT"
-	depends on MFD_MAX77693
-	default n
-	help
-	  If you say yes here you will get support for the separated
-	  MHL port.
-
 config USBHUB_USB3503
 	bool "USB3503 USB HUB Driver"
 	depends on I2C
@@ -652,7 +644,6 @@ source "drivers/misc/lis3lv02d/Kconfig"
 source "drivers/misc/carma/Kconfig"
 source "drivers/misc/c2c/Kconfig"
 source "drivers/misc/modem_if/Kconfig"
-source "drivers/misc/modem_if_na/Kconfig"
 
 config SLP_LOWMEM_NOTIFY
 	bool "Driver for SLP Low Memory Notification"

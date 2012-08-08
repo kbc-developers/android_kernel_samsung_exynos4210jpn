@@ -13,10 +13,12 @@
 #include "mali_osk.h"
 #include "mali_group.h"
 #include "mali_l2_cache.h"
-#include "mali_scheduler.h"
 
-static struct mali_cluster *mali_global_clusters[MALI_MAX_NUMBER_OF_CLUSTERS] = { NULL, NULL, NULL };
-static u32 mali_global_num_clusters = 0;
+/* id of the last job that caused the cache to be invalidated */
+static uint32_t last_invalidate_id = 0;
+
+static struct mali_cluster *global_clusters[MALI_MAX_NUMBER_OF_CLUSTERS] = { NULL, NULL, NULL };
+static u32 global_num_clusters = 0;
 
 /**
  * The structure represents a render cluster
@@ -27,28 +29,29 @@ struct mali_cluster
 	struct mali_l2_cache_core *l2;
 	u32 number_of_groups;
 	struct mali_group* groups[MALI_MAX_NUMBER_OF_GROUPS_PER_CLUSTER];
-	u32 last_invalidated_id;
 };
 
 struct mali_cluster *mali_cluster_create(struct mali_l2_cache_core *l2_cache)
 {
 	struct mali_cluster *cluster = NULL;
 
-	if (mali_global_num_clusters >= MALI_MAX_NUMBER_OF_CLUSTERS)
-	{
-		MALI_PRINT_ERROR(("Mali cluster: Too many cluster objects created\n"));
-		return NULL;
-	}
-
 	cluster = _mali_osk_malloc(sizeof(struct mali_cluster));
 	if (NULL != cluster)
 	{
 		_mali_osk_memset(cluster, 0, sizeof(struct mali_cluster));
 		cluster->l2 = l2_cache; /* This cluster now owns this L2 cache object */
-		cluster->last_invalidated_id = 0;
 
-		mali_global_clusters[mali_global_num_clusters] = cluster;
-		mali_global_num_clusters++;
+		if(global_num_clusters < MALI_MAX_NUMBER_OF_CLUSTERS-1)
+		{
+			MALI_DEBUG_PRINT(2, ("Mali cluster: set global cluster no %d from 0x%08X to 0x%08X\n", global_num_clusters, global_clusters[global_num_clusters], cluster));
+			global_clusters[global_num_clusters] = cluster;
+			MALI_DEBUG_PRINT(2, ("Mali cluster: global cluster no %d set to 0x%08X\n", global_num_clusters, global_clusters[global_num_clusters]));
+			global_num_clusters++;
+		}
+		else
+		{
+			MALI_PRINT_ERROR(("Mali cluster: Wrong number of global clusters\n"));
+		}
 
 		return cluster;
 	}
@@ -85,14 +88,29 @@ void mali_cluster_delete(struct mali_cluster *cluster)
 		mali_l2_cache_delete(cluster->l2);
 	}
 
-	for (i = 0; i < mali_global_num_clusters; i++)
+	if(global_num_clusters > 0)
 	{
-		if (mali_global_clusters[i] == cluster)
+		u32 i,j;
+
+		for(i=0; i<global_num_clusters; i++)
 		{
-			mali_global_clusters[i] = NULL;
-			mali_global_num_clusters--;
-			break;
+			if(global_clusters[i] == cluster)
+			{
+				MALI_DEBUG_PRINT(2, ("Mali cluster: set global cluster no %d from 0x%08X to NULL\n", i, global_clusters[i]));
+				global_clusters[i] = NULL;
+				MALI_DEBUG_PRINT(2, ("Mali cluster: global cluster no %d set to 0x%08X\n", i, global_clusters[i]));
+				for(j=i; j<global_num_clusters-1; j++)
+				{
+					global_clusters[j] = global_clusters[j+1];
+				}
+				global_clusters[global_num_clusters-1] = NULL;
+			}
 		}
+		global_num_clusters--;
+	}
+	else
+	{
+		MALI_PRINT_ERROR(("Mali cluster: Wrong number of global clusters\n"));
 	}
 
 	_mali_osk_free(cluster);
@@ -138,9 +156,9 @@ struct mali_group *mali_cluster_get_group(struct mali_cluster *cluster, u32 inde
 
 struct mali_cluster *mali_cluster_get_global_cluster(u32 index)
 {
-	if (MALI_MAX_NUMBER_OF_CLUSTERS > index)
+	if (MALI_MAX_NUMBER_OF_CLUSTERS >= index)
 	{
-		return mali_global_clusters[index];
+		return global_clusters[index];
 	}
 
 	return NULL;
@@ -148,7 +166,12 @@ struct mali_cluster *mali_cluster_get_global_cluster(u32 index)
 
 u32 mali_cluster_get_glob_num_clusters(void)
 {
-	return mali_global_num_clusters;
+	return global_num_clusters;
+}
+
+void mali_cluster_set_glob_num_clusters(u32 num)
+{
+	global_num_clusters = num;
 }
 
 void mali_cluster_l2_cache_invalidate_all(struct mali_cluster *cluster, u32 id)
@@ -163,13 +186,13 @@ void mali_cluster_l2_cache_invalidate_all(struct mali_cluster *cluster, u32 id)
 		 * we don't have to flush for job n-1 if job n has already invalidated
 		 * the cache since we know for sure that job n-1's memory was already
 		 * written when job n was started. */
-		if (cluster->last_invalidated_id > id)
+		if (last_invalidate_id > id)
 		{
 			return;
 		}
 		else
 		{
-			cluster->last_invalidated_id = mali_scheduler_get_new_id();
+			last_invalidate_id = id;
 		}
 
 		mali_l2_cache_invalidate_all(cluster->l2);
@@ -183,21 +206,5 @@ void mali_cluster_l2_cache_invalidate_all_force(struct mali_cluster *cluster)
 	if (NULL != cluster->l2)
 	{
 		mali_l2_cache_invalidate_all(cluster->l2);
-	}
-}
-
-void mali_cluster_invalidate_pages(u32 *pages, u32 num_pages)
-{
-	u32 i;
-
-	for (i = 0; i < mali_global_num_clusters; i++)
-	{
-		/*additional check for cluster*/
-		if (MALI_TRUE == mali_l2_cache_lock_power_state(mali_global_clusters[i]->l2))
-		{
-			mali_l2_cache_invalidate_pages(mali_global_clusters[i]->l2, pages, num_pages);
-		}
-		mali_l2_cache_unlock_power_state(mali_global_clusters[i]->l2);
-		/*check for failed power locking???*/
 	}
 }

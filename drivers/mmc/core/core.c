@@ -214,8 +214,7 @@ static void __mmc_start_req(struct mmc_host *host, struct mmc_request *mrq)
 	}
 
 #if (defined(CONFIG_MIDAS_COMMON) && !defined(CONFIG_EXYNOS4_DEV_DWMCI)) || \
-	defined(CONFIG_MACH_U1) || defined(CONFIG_MACH_SLP_NAPLES) || \
-	defined(CONFIG_MACH_TRATS)
+	defined(CONFIG_MACH_U1) || defined(CONFIG_MACH_SLP_NAPLES)
 #ifndef CONFIG_MMC_POLLING_WAIT_CMD23
 
 	if(mrq->sbc) {
@@ -395,6 +394,27 @@ struct mmc_async_req *mmc_start_req(struct mmc_host *host,
 				mmc_post_req(host, areq->mrq, -EINVAL);
 
 			host->areq = NULL;
+#if defined(CONFIG_MACH_M0) || defined(CONFIG_MACH_P4NOTE)
+			/* dh0421.hwang */
+			/*
+			 * dh0421.hwang
+			 * It's for Engineering DEBUGGING only
+			 * This has to be removed before PVR(guessing)
+			 * Please refer mshci reg dumps
+			 */
+			if (mmc_card_mmc(host->card) &&
+					err != 3) {
+				printk(KERN_ERR "[TEST] err means...\n");
+				printk(KERN_ERR "\t1: MMC_BLK_PARTIAL.\n");
+				printk(KERN_ERR "\t2: MMC_BLK_CMD_ERR.\n");
+				printk(KERN_ERR "\t3: MMC_BLK_RETRY.\n");
+				printk(KERN_ERR "\t4: MMC_BLK_ABORT.\n");
+				printk(KERN_ERR "\t5: MMC_BLK_DATA_ERR.\n");
+				printk(KERN_ERR "\t6: MMC_BLK_ECC_ERR.\n");
+				panic("[TEST] mmc%d, err_check returns %d.\n",
+						host->index, err);
+			}
+#endif
 			goto out;
 		}
 	}
@@ -2374,9 +2394,12 @@ int mmc_flush_cache(struct mmc_card *card)
 			(card->ext_csd.cache_ctrl & 1)) {
 		err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
 				EXT_CSD_FLUSH_CACHE, 1, 0);
-		if (err)
+		if (err) {
 			pr_err("%s: cache flush error %d\n",
 					mmc_hostname(card->host), err);
+			panic("[TEST] mmc%d, %s returns %d.\n",
+					host->index, __func__, err);
+		}
 	}
 
 	return err;
@@ -2433,6 +2456,9 @@ int mmc_suspend_host(struct mmc_host *host)
 
 	if (mmc_bus_needs_resume(host))
 		return 0;
+
+	if (host->pm_flags & MMC_PM_IGNORE_SUSPEND_RESUME)
+		host->pm_flags |= MMC_PM_KEEP_POWER;
 
 	if (host->caps & MMC_CAP_DISABLE)
 		cancel_delayed_work(&host->disable);
@@ -2518,8 +2544,10 @@ int mmc_suspend_host(struct mmc_host *host)
 	}
 	mmc_bus_put(host);
 
-	if (!err && !mmc_card_keep_power(host))
-		mmc_power_off(host);
+	if (!err && !mmc_card_keep_power(host)) {
+		if (!(host->pm_flags & MMC_PM_IGNORE_SUSPEND_RESUME))
+			mmc_power_off(host);
+	}
 
 out:
 	return err;
@@ -2544,7 +2572,10 @@ int mmc_resume_host(struct mmc_host *host)
 
 	if (host->bus_ops && !host->bus_dead) {
 		if (!mmc_card_keep_power(host)) {
-			mmc_power_up(host);
+			/* for BCM WIFI */
+			if (!(host->pm_flags & MMC_PM_IGNORE_SUSPEND_RESUME))
+				mmc_power_up(host);
+
 			mmc_select_voltage(host, host->ocr);
 			/*
 			 * Tell runtime PM core we just powered up the card,
@@ -2696,11 +2727,7 @@ static void __exit mmc_exit(void)
 	destroy_workqueue(workqueue);
 }
 
-#ifdef CONFIG_FAST_RESUME
-beforeresume_initcall(mmc_init);
-#else
 subsys_initcall(mmc_init);
-#endif
 module_exit(mmc_exit);
 
 MODULE_LICENSE("GPL");

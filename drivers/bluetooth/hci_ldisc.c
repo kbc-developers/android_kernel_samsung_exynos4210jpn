@@ -546,7 +546,7 @@ static int hci_uart_tty_ioctl(struct tty_struct *tty, struct file * file,
 struct hci_uart_hook {
     unsigned int len;
     unsigned char *head;
-    unsigned char data[HCI_MAX_EVENT_SIZE + 1];  /* save packet type at data[0] and then place event packet */
+    unsigned char data[HCI_MAX_EVENT_SIZE];
 };
 
 static struct hci_uart_hook *hook;
@@ -565,7 +565,7 @@ void hci_uart_tty_read_hook(struct sk_buff *skb)
     }
 
 	BT_DBG("%s: Received len = %d", __func__, skb->len);
-	if (skb->len > sizeof(hook->data)-1) {
+	if (skb->len > sizeof(hook->data)) {
 		BT_DBG("Packet size exceeds max len, skip it");
 		goto hci_uart_tty_read_hook_exit;
     }

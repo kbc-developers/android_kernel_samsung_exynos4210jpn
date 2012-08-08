@@ -404,11 +404,7 @@ static struct s3c_gpio_chip exynos5_gpio_common_4bit[] = {
 			.ngpio	= EXYNOS5_GPIO_V4_NR,
 			.label	= "GPV4",
 		},
-	},
-};
-
-static struct s3c_gpio_chip exynos5_gpio_no_pm_4bit[] = {
-{
+	}, {
 		.base   = S5P_VA_GPIO4,
 		.chip	= {
 			.base	= EXYNOS5_GPZ(0),
@@ -610,7 +606,8 @@ static __init int exynos5_gpiolib_init(void)
 	int i;
 	int nr_chips;
 
-	/* GPIO common part */
+	/* GPIO common part  */
+
 	chip = exynos5_gpio_common_4bit;
 	nr_chips = ARRAY_SIZE(exynos5_gpio_common_4bit);
 
@@ -622,19 +619,6 @@ static __init int exynos5_gpiolib_init(void)
 	}
 
 	samsung_gpiolib_add_4bit_chips(exynos5_gpio_common_4bit, nr_chips);
-
-	/* GPIO no PM part */
-	chip = exynos5_gpio_no_pm_4bit;
-	nr_chips = ARRAY_SIZE(exynos5_gpio_no_pm_4bit);
-
-	for (i = 0; i < nr_chips; i++, chip++) {
-		if (chip->config == NULL)
-			chip->config = &gpio_cfg;
-		if (chip->base == NULL)
-			pr_err("No allocation of base address for [common gpio]");
-	}
-
-	samsung_gpiolib_add_4bit_chips_no_pm(exynos5_gpio_no_pm_4bit, nr_chips);
 
 #if defined(CONFIG_CPU_EXYNOS5250) && defined(CONFIG_S5P_GPIO_INT)
 	s5p_register_gpioint_bank(IRQ_GPIO_XA, 0, IRQ_GPIO1_NR_GROUPS);

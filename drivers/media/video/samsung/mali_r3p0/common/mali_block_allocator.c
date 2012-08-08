@@ -355,7 +355,7 @@ static void block_allocator_release_page_table_block( mali_page_table_block *pag
 	_mali_osk_mem_unmapioregion( page_table_block->phys_base, page_table_block->size, page_table_block->mapping );
 
 	/** @note This loop handles the case where more than one block_info was linked.
-	 * Probably unnecessary for page table block releasing. */
+	 * Probably unnecssary for page table block releasing. */
 	while (block)
 	{
 		next = block->next;

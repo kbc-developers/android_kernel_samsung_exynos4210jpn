@@ -549,13 +549,16 @@ int vidi_connection_ioctl(struct drm_device *drm_dev, void *data,
 	struct exynos_drm_manager *manager;
 	struct exynos_drm_display_ops *display_ops;
 	struct drm_exynos_vidi_connection *vidi = data;
-	struct edid *raw_edid;
-	int edid_len;
 
 	DRM_DEBUG_KMS("%s\n", __FILE__);
 
 	if (!vidi) {
 		DRM_DEBUG_KMS("user data for vidi is null.\n");
+		return -EINVAL;
+	}
+
+	if (!vidi->edid) {
+		DRM_DEBUG_KMS("edid data is null.\n");
 		return -EINVAL;
 	}
 
@@ -585,23 +588,8 @@ int vidi_connection_ioctl(struct drm_device *drm_dev, void *data,
 		return -EINVAL;
 	}
 
-	if (vidi->connection) {
-		if (!vidi->edid) {
-			DRM_DEBUG_KMS("edid data is null.\n");
-			return -EINVAL;
-		}
-		raw_edid = (struct edid *)vidi->edid;
-		edid_len = (1 + raw_edid->extensions) * EDID_LENGTH;
-		ctx->raw_edid = kzalloc(edid_len, GFP_KERNEL);
-		if (!ctx->raw_edid) {
-			DRM_DEBUG_KMS("failed to allocate raw_edid.\n");
-			return -ENOMEM;
-		}
-		memcpy(ctx->raw_edid, raw_edid, edid_len);
-	} else {
-		kfree(ctx->raw_edid);
-		ctx->raw_edid = NULL;
-	}
+	if (vidi->connection)
+		ctx->raw_edid = (struct edid *)vidi->edid;
 
 	ctx->connected = vidi->connection;
 	drm_helper_hpd_irq_event(ctx->subdrv.drm_dev);
@@ -656,7 +644,6 @@ static int __devexit vidi_remove(struct platform_device *pdev)
 
 	exynos_drm_subdrv_unregister(&ctx->subdrv);
 
-	kfree(ctx->raw_edid);
 	kfree(ctx);
 
 	return 0;

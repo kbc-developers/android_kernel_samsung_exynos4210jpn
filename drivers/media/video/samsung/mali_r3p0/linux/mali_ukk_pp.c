@@ -71,18 +71,3 @@ int pp_get_core_version_wrapper(struct mali_session_data *session_data, _mali_uk
 
     return 0;
 }
-
-int pp_disable_wb_wrapper(struct mali_session_data *session_data, _mali_uk_pp_disable_wb_s __user *uargs)
-{
-	_mali_uk_pp_disable_wb_s kargs;
-
-    MALI_CHECK_NON_NULL(uargs, -EINVAL);
-    MALI_CHECK_NON_NULL(session_data, -EINVAL);
-
-    if (0 != copy_from_user(&kargs, uargs, sizeof(_mali_uk_pp_disable_wb_s))) return -EFAULT;
-
-    kargs.ctx = session_data;
-    _mali_ukk_pp_job_disable_wb(&kargs);
-
-    return 0;
-}

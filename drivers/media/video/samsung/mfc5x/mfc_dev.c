@@ -86,20 +86,15 @@ static struct pm_qos_request_list bus_qos_pm_qos_req;
 #define MFC_DRM_MAGIC_CHUNK2	0x5e87f4f5
 #define MFC_DRM_MAGIC_CHUNK3	0x3bd05317
 
-static int check_magic(unsigned char *addr)
+static bool check_magic(unsigned char *addr)
 {
 	if (((u32)*(u32 *)(addr) == MFC_DRM_MAGIC_CHUNK0) &&
 	    ((u32)*(u32 *)(addr + 0x4) == MFC_DRM_MAGIC_CHUNK1) &&
 	    ((u32)*(u32 *)(addr + 0x8) == MFC_DRM_MAGIC_CHUNK2) &&
 	    ((u32)*(u32 *)(addr + 0xC) == MFC_DRM_MAGIC_CHUNK3))
-		return 0;
-	else if (((u32)*(u32 *)(addr+0x10) == MFC_DRM_MAGIC_CHUNK0) &&
-	    ((u32)*(u32 *)(addr + 0x14) == MFC_DRM_MAGIC_CHUNK1) &&
-	    ((u32)*(u32 *)(addr + 0x18) == MFC_DRM_MAGIC_CHUNK2) &&
-	    ((u32)*(u32 *)(addr + 0x1C) == MFC_DRM_MAGIC_CHUNK3))
-		return 0x10;
+		return true;
 	else
-		return -1;
+		return false;
 }
 
 static inline void clear_magic(unsigned char *addr)
@@ -248,9 +243,9 @@ static int mfc_open(struct inode *inode, struct file *file)
 	mfcdev->inst_ctx[inst_id] = mfc_ctx;
 
 #ifdef CONFIG_EXYNOS_CONTENT_PATH_PROTECTION
-	if (check_magic(mfcdev->drm_info.addr) >= 0) {
+	if (check_magic(mfcdev->drm_info.addr)) {
 		mfc_info("DRM instance starting\n");
-		clear_magic(mfcdev->drm_info.addr + check_magic(mfcdev->drm_info.addr));
+		clear_magic(mfcdev->drm_info.addr);
 		mfc_ctx->drm_flag = 1;
 		mfc_set_buf_alloc_scheme(MBS_FIRST_FIT);
 	} else {
@@ -1428,8 +1423,6 @@ static int __devinit mfc_probe(struct platform_device *pdev)
 	if ((soc_is_exynos4212() && (samsung_rev() < EXYNOS4212_REV_1_0)) ||
 		(soc_is_exynos4412() && (samsung_rev() < EXYNOS4412_REV_1_1)))
 		mfc_pd_enable();
-
-	disable_irq(mfcdev->irq);
 
 	mfc_info("MFC(Multi Function Codec - FIMV v5.x) registered successfully\n");
 

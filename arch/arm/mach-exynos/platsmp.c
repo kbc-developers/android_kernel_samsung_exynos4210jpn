@@ -181,15 +181,15 @@ int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
 	while (time_before(jiffies, timeout)) {
 		smp_rmb();
 
-		__raw_writel(BSYM(virt_to_phys(exynos_secondary_startup)),
-			cpu_boot_info[cpu].boot_base);
-
 #ifdef CONFIG_ARM_TRUSTZONE
 		if (soc_is_exynos4412())
 			exynos_smc(SMC_CMD_CPU1BOOT, cpu, 0, 0);
 		else
 			exynos_smc(SMC_CMD_CPU1BOOT, 0, 0, 0);
 #endif
+		__raw_writel(BSYM(virt_to_phys(exynos_secondary_startup)),
+			     cpu_boot_info[cpu].boot_base);
+
 		smp_send_reschedule(cpu);
 
 		if (pen_release == -1)

@@ -81,10 +81,10 @@ IMMVIBESPIAPI VibeStatus ImmVibeSPI_ForceOut_AmpDisable(VibeUInt8 nActuatorIndex
 #endif
 		if (regulator_hapticmotor_enabled == 1) {
 			regulator_hapticmotor_enabled = 0;
-
-			printk(KERN_DEBUG "Motor:tspdrv: %s (%d)\n", __func__,
+/*
+			printk(KERN_DEBUG "tspdrv: %s (%d)\n", __func__,
 						regulator_hapticmotor_enabled);
-
+*/
 		}
 	}
 
@@ -118,10 +118,10 @@ IMMVIBESPIAPI VibeStatus ImmVibeSPI_ForceOut_AmpEnable(VibeUInt8 nActuatorIndex)
 
 		g_bAmpEnabled = true;
 		regulator_hapticmotor_enabled = 1;
-
-		printk(KERN_DEBUG "Motor:tspdrv: %s (%d)\n", __func__,
+/*
+		printk(KERN_DEBUG "tspdrv: %s (%d)\n", __func__,
 					regulator_hapticmotor_enabled);
-
+*/
 	}
 
 	return VIBE_S_SUCCESS;

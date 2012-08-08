@@ -22,7 +22,7 @@ extern "C"
 {
 #endif
 
-#define MALI_STATIC_INLINE static inline
+#define MALI_STATIC_INLINE     static inline
 #define MALI_NON_STATIC_INLINE inline
 
 #ifdef __cplusplus

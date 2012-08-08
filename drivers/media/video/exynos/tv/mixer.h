@@ -28,8 +28,6 @@
 
 #include "regs-mixer.h"
 
-#define INT_LOCK_TV 267200
-
 /** maximum number of output interfaces */
 #define MXR_MAX_OUTPUTS 2
 
@@ -329,7 +327,6 @@ struct sub_mxr_device {
 struct mxr_device {
 	/** master device */
 	struct device *dev;
-	struct device *bus_dev;
 	/** state of each output */
 	struct mxr_output *output[MXR_MAX_OUTPUTS];
 	/** number of registered outputs */

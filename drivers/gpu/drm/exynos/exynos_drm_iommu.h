@@ -26,21 +26,37 @@
 #ifndef _EXYNOS_DRM_IOMMU_H_
 #define _EXYNOS_DRM_IOMMU_H_
 
-struct exynos_iommu_gem_data {
-	unsigned int	gem_handle_in;
-	void		*gem_obj_out;
+enum iommu_types {
+	IOMMU_FIMD	= 0,
+	IOMMU_HDMI,
+	IOMMU_G2D,
+	IOMMU_FIMC,
+	IOMMU_G3D,
+	IOMMU_MASK	= 0x1f
 };
 
+struct iommu_gem_map_params {
+	struct device		*dev;
+	struct drm_device	*drm_dev;
+	struct drm_file		*file;
+	void			*gem_obj;
+};
+
+#define is_iommu_type_valid(t)	(((1 << (t)) & ~(IOMMU_MASK)) ? false : true)
+
+void exynos_drm_remove_iommu_list(struct list_head *iommu_list,
+					void *gem_obj);
+
 /* get all pages to gem object and map them to iommu table. */
-dma_addr_t exynos_drm_iommu_map_gem(struct exynos_drm_subdrv *subdrv,
-				struct drm_file *filp,
-				struct list_head *iommu_list,
-				struct exynos_iommu_gem_data *gem_data);
+dma_addr_t exynos_drm_iommu_map_gem(struct iommu_gem_map_params *params,
+					struct list_head *iommu_list,
+					unsigned int gem_handle,
+					enum iommu_types type);
 
 /* unmap device address space to gem object from iommu table. */
-void exynos_drm_iommu_unmap_gem(struct exynos_drm_subdrv *subdrv,
-				struct drm_file *filp,
-				void *obj, dma_addr_t dma_addr);
+void exynos_drm_iommu_unmap_gem(struct iommu_gem_map_params *params,
+				dma_addr_t dma_addr,
+				enum iommu_types type);
 
 /* map physical memory region pointed by paddr to iommu table. */
 dma_addr_t exynos_drm_iommu_map(struct device *dev, dma_addr_t paddr,

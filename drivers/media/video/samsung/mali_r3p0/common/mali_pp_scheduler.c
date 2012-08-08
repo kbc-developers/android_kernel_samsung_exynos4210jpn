@@ -8,8 +8,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#include "mali_pp_scheduler.h"
 #include "mali_kernel_common.h"
+#include "mali_kernel_core.h"
 #include "mali_osk.h"
 #include "mali_osk_list.h"
 #include "mali_scheduler.h"
@@ -20,8 +20,6 @@
 
 /* Maximum of 8 PP cores (a group can only have maximum of 1 PP core) */
 #define MALI_MAX_NUMBER_OF_PP_GROUPS 8
-
-static mali_bool mali_pp_scheduler_is_suspended(void);
 
 enum mali_pp_slot_state
 {
@@ -47,7 +45,7 @@ static u32 num_slots = 0;
 static u32 num_slots_idle = 0;
 
 /* Variables to allow safe pausing of the scheduler */
-static _mali_osk_wait_queue_t *pp_scheduler_working_wait_queue = NULL;
+static _mali_osk_lock_t *pp_scheduler_working_lock = NULL;
 static u32 pause_count = 0;
 
 static _mali_osk_lock_t *pp_scheduler_lock = NULL;
@@ -61,23 +59,19 @@ _mali_osk_errcode_t mali_pp_scheduler_initialize(void)
 	_MALI_OSK_INIT_LIST_HEAD(&job_queue);
 
 	pp_scheduler_lock = _mali_osk_lock_init(_MALI_OSK_LOCKFLAG_ORDERED |_MALI_OSK_LOCKFLAG_NONINTERRUPTABLE, 0, _MALI_OSK_LOCK_ORDER_SCHEDULER);
+	pp_scheduler_working_lock = _mali_osk_lock_init( _MALI_OSK_LOCKFLAG_NONINTERRUPTABLE, 0, 0); /* This lock is not ordered. */
+
 	if (NULL == pp_scheduler_lock)
 	{
 		return _MALI_OSK_ERR_NOMEM;
 	}
 
-	pp_scheduler_working_wait_queue = _mali_osk_wait_queue_init();
-	if (NULL == pp_scheduler_working_wait_queue)
-	{
-		_mali_osk_lock_term(pp_scheduler_lock);
-		return _MALI_OSK_ERR_NOMEM;
-	}
-
 	/* Find all the available PP cores */
+	/*for (i = 0; i < mali_kernel_core_get_cluster_count(); i++)*/
 	for (i = 0; i < mali_cluster_get_glob_num_clusters(); i++)
 	{
 		u32 group_id = 0;
-		struct mali_cluster *curr_cluster = mali_cluster_get_global_cluster(i);
+		struct mali_cluster *curr_cluster = mali_cluster_get_global_cluster(i);/*mali_kernel_core_get_cluster(i);*/
 		struct mali_group *group = mali_cluster_get_group(curr_cluster, group_id);
 		while (NULL != group)
 		{
@@ -104,7 +98,7 @@ _mali_osk_errcode_t mali_pp_scheduler_initialize(void)
 
 void mali_pp_scheduler_terminate(void)
 {
-	_mali_osk_wait_queue_term(pp_scheduler_working_wait_queue);
+	_mali_osk_lock_term(pp_scheduler_working_lock);
 	_mali_osk_lock_term(pp_scheduler_lock);
 }
 
@@ -138,13 +132,21 @@ MALI_STATIC_INLINE void mali_pp_scheduler_assert_locked(void)
 #define MALI_ASSERT_PP_SCHEDULER_LOCKED()
 #endif
 
+MALI_STATIC_INLINE void mali_pp_scheduler_working_lock(void)
+{
+	_mali_osk_lock_wait(pp_scheduler_working_lock, _MALI_OSK_LOCKMODE_RW);
+	MALI_DEBUG_PRINT(5, ("Mali PP scheduler: PP scheduler working lock taken\n"));
+}
+
+MALI_STATIC_INLINE void mali_pp_scheduler_working_unlock(void)
+{
+	MALI_DEBUG_PRINT(5, ("Mali PP scheduler: Releasing PP scheduler working lock\n"));
+	_mali_osk_lock_signal(pp_scheduler_working_lock, _MALI_OSK_LOCKMODE_RW);
+}
+
 static void mali_pp_scheduler_schedule(void)
 {
 	u32 i;
-	struct mali_pp_job *job;
-#if MALI_PP_SCHEDULER_FORCE_NO_JOB_OVERLAP_BETWEEN_APPS
-	struct mali_session_data * session;
-#endif
 
 	MALI_ASSERT_PP_SCHEDULER_LOCKED();
 
@@ -154,98 +156,70 @@ static void mali_pp_scheduler_schedule(void)
 		                     pause_count, num_slots_idle));
 		return; /* Nothing to do, so early out */
 	}
-
 #if MALI_PP_SCHEDULER_FORCE_NO_JOB_OVERLAP
-	if ( num_slots_idle < num_slots )
+	if ( (num_slots_idle<num_slots) )
 	{
-		MALI_DEBUG_PRINT(4, ("Mali PP scheduler: Job not started, since only %d/%d cores are available\n", num_slots_idle,num_slots));
+		MALI_DEBUG_PRINT(4, ("Mali PP scheduler: Job with %d subjobs not started, sine only %d/%d cores are available\n", job->sub_job_count, num_slots_idle,num_slots));
 		return;
-	}
-#endif
-
-#if MALI_PP_SCHEDULER_FORCE_NO_JOB_OVERLAP_BETWEEN_APPS
-	/* Finding initial session for the PP cores */
-	job = _MALI_OSK_LIST_ENTRY(job_queue.next, struct mali_pp_job, list);
-	session = job->session;
-	if ( num_slots != num_slots_idle )
-	{
-		for (i = 0; (i < num_slots) ; i++)
-		{
-			if ( slots[i].state == MALI_PP_SLOT_STATE_IDLE )
-			{
-				continue;
-			}
-			session = mali_group_get_session(slots[i].group);
-			break;
-		}
 	}
 #endif
 
 	for (i = 0; (i < num_slots) && (0 < num_slots_idle); i++)
 	{
-		u32 sub_job;
 
-		if (_mali_osk_list_empty(&job_queue)) /* move this check down to where we know we have started all sub jobs for this job??? */
+		if (MALI_PP_SLOT_STATE_IDLE == slots[i].state)
 		{
-			break; /* No more jobs to schedule, so early out */
-		}
+			struct mali_pp_job *job;
+			u32 sub_job;
 
-		if (MALI_PP_SLOT_STATE_IDLE != slots[i].state)
-		{
-			continue;
-		}
-
-		job = _MALI_OSK_LIST_ENTRY(job_queue.next, struct mali_pp_job, list);
-		MALI_DEBUG_ASSERT(mali_pp_job_has_unstarted_sub_jobs(job)); /* All jobs on the job_queue should have unstarted sub jobs */
-
-		#if MALI_PP_SCHEDULER_KEEP_SUB_JOB_STARTS_ALIGNED
-		if ( (0==job->sub_jobs_started) && (num_slots_idle < num_slots) && (job->sub_job_count > num_slots_idle))
-		{
-			MALI_DEBUG_PRINT(4, ("Mali PP scheduler: Job with %d subjobs not started, since only %d/%d cores are available\n", job->sub_job_count, num_slots_idle,num_slots));
-			return;
-		}
-		#endif
-
-		#if MALI_PP_SCHEDULER_FORCE_NO_JOB_OVERLAP_BETWEEN_APPS
-		if ( job->session != session )
-		{
-			MALI_DEBUG_PRINT(4, ("Mali PP scheduler: Job not started since existing job is from another application\n"));
-			return;
-		}
-		#endif
-
-		sub_job = mali_pp_job_get_first_unstarted_sub_job(job);
-
-		MALI_DEBUG_PRINT(3, ("Mali PP scheduler: Starting job %u (0x%08X) part %u/%u\n", mali_pp_job_get_id(job), job, sub_job + 1, mali_pp_job_get_sub_job_count(job)));
-		if (_MALI_OSK_ERR_OK == mali_group_start_pp_job(slots[i].group, job, sub_job))
-		{
-			MALI_DEBUG_PRINT(4, ("Mali PP scheduler: Job %u (0x%08X) part %u/%u started\n", mali_pp_job_get_id(job), job, sub_job + 1, mali_pp_job_get_sub_job_count(job)));
-
-			/* Mark this sub job as started */
-			mali_pp_job_mark_sub_job_started(job, sub_job);
-
-			/* Mark slot as busy */
-			slots[i].state = MALI_PP_SLOT_STATE_WORKING;
-			num_slots_idle--;
-
-			if (!mali_pp_job_has_unstarted_sub_jobs(job))
+			if (_mali_osk_list_empty(&job_queue)) /* move this check down to where we know we have started all sub jobs for this job??? */
 			{
-				/*
-				* All sub jobs have now started for this job, remove this job from the job queue.
-				* The job will now only be referred to by the slots which are running it.
-				* The last slot to complete will make sure it is returned to user space.
-				*/
-				_mali_osk_list_del(&job->list);
-#if MALI_PP_SCHEDULER_FORCE_NO_JOB_OVERLAP
-				MALI_DEBUG_PRINT(6, ("Mali PP scheduler: Skip scheduling more jobs when MALI_PP_SCHEDULER_FORCE_NO_JOB_OVERLAP is set.\n"));
-				return;
-#endif
+				break; /* No more jobs to schedule, so early out */
 			}
-		}
-		else
-		{
-			MALI_DEBUG_PRINT(3, ("Mali PP scheduler: Failed to start PP job\n"));
-			return;
+
+			job = _MALI_OSK_LIST_ENTRY(job_queue.next, struct mali_pp_job, list);
+			MALI_DEBUG_ASSERT(mali_pp_job_has_unstarted_sub_jobs(job)); /* All jobs on the job_queue should have unstarted sub jobs */
+
+#if MALI_PP_SCHEDULER_KEEP_SUB_JOB_STARTS_ALIGNED
+			if ( (0==i) && (job->sub_job_count>num_slots_idle) && (num_slots_idle<num_slots) )
+			{
+				MALI_DEBUG_PRINT(4, ("Mali PP scheduler: Job with %d subjobs not started, sine only %d/%d cores are available\n", job->sub_job_count, num_slots_idle,num_slots));
+				break;
+			}
+#endif
+
+			sub_job = mali_pp_job_get_first_unstarted_sub_job(job);
+
+			MALI_DEBUG_PRINT(3, ("Mali PP scheduler: Starting job %u (0x%08X) part %u/%u\n", mali_pp_job_get_id(job), job, sub_job + 1, mali_pp_job_get_sub_job_count(job)));
+			if (_MALI_OSK_ERR_OK == mali_group_start_pp_job(slots[i].group, job, sub_job))
+			{
+				if (num_slots == num_slots_idle)
+				{
+					/* Hold the working lock as long as we are working on something */
+					mali_pp_scheduler_working_lock();
+				}
+
+				/* Mark this sub job as started */
+				mali_pp_job_mark_sub_job_started(job, sub_job);
+
+				/* Mark slot as busy */
+				slots[i].state = MALI_PP_SLOT_STATE_WORKING;
+				num_slots_idle--;
+
+				if (!mali_pp_job_has_unstarted_sub_jobs(job))
+				{
+					/*
+					* All sub jobs have now started for this job, remove this job from the job queue.
+					* The job will now only be referred to by the slots which are running it.
+					* The last slot to complete will make sure it is returned to user space.
+					*/
+					_mali_osk_list_del(&job->list);
+				}
+			}
+			else
+			{
+				MALI_DEBUG_PRINT(3, ("Mali PP scheduler: Failed to start PP job\n"));
+			}
 		}
 	}
 }
@@ -317,19 +291,13 @@ void mali_pp_scheduler_job_done(struct mali_group *group, struct mali_pp_job *jo
 		}
 	}
 
-	/* If paused, then this was the last job, so wake up sleeping workers */
-	if (pause_count > 0)
+	if (num_slots == num_slots_idle)
 	{
-		/* Wake up sleeping workers. Their wake-up condition is that
-		 * num_slots == num_slots_idle, so unless we are done working, no
-		 * threads will actually be woken up.
-		 */
-		_mali_osk_wait_queue_wake_up(pp_scheduler_working_wait_queue);
+		/* We are not working any more, so release the working lock */
+		mali_pp_scheduler_working_unlock();
 	}
-	else
-	{
-		mali_pp_scheduler_schedule();
-	}
+
+	mali_pp_scheduler_schedule();
 
 	job_is_done = mali_pp_job_is_complete(job);
 
@@ -349,16 +317,9 @@ void mali_pp_scheduler_suspend(void)
 	pause_count++; /* Increment the pause_count so that no more jobs will be scheduled */
 	mali_pp_scheduler_unlock();
 
-	/*mali_pp_scheduler_working_lock();*/
+	mali_pp_scheduler_working_lock();
 	/* We have now aquired the working lock, which means that we have successfully paused the scheduler */
-	/*mali_pp_scheduler_working_unlock();*/
-
-	/* go to sleep. When woken up again (in mali_pp_scheduler_job_done), the
-	 * mali_pp_scheduler_suspended() function will be called. This will return true
-	 * iff state is idle and pause_count > 0, so if the core is active this
-	 * will not do anything.
-	 */
-	_mali_osk_wait_queue_wait_event(pp_scheduler_working_wait_queue, mali_pp_scheduler_is_suspended);
+	mali_pp_scheduler_working_unlock();
 }
 
 void mali_pp_scheduler_resume(void)
@@ -378,9 +339,17 @@ _mali_osk_errcode_t _mali_ukk_pp_start_job(_mali_uk_pp_start_job_s *args)
 	struct mali_pp_job *job;
 
 	MALI_DEBUG_ASSERT_POINTER(args);
-	MALI_DEBUG_ASSERT_POINTER(args->ctx);
+
+	if (NULL == args->ctx)
+	{
+		return _MALI_OSK_ERR_INVALID_ARGS;
+	}
 
 	session = (struct mali_session_data*)args->ctx;
+	if (NULL == session)
+	{
+		return _MALI_OSK_ERR_FAULT;
+	}
 
 	job = mali_pp_job_create(session, args, mali_scheduler_get_new_id());
 	if (NULL == job)
@@ -412,7 +381,7 @@ _mali_osk_errcode_t _mali_ukk_pp_start_job(_mali_uk_pp_start_job_s *args)
 _mali_osk_errcode_t _mali_ukk_get_pp_number_of_cores(_mali_uk_get_pp_number_of_cores_s *args)
 {
 	MALI_DEBUG_ASSERT_POINTER(args);
-	MALI_DEBUG_ASSERT_POINTER(args->ctx);
+	MALI_CHECK_NON_NULL(args->ctx, _MALI_OSK_ERR_INVALID_ARGS);
 	args->number_of_cores = num_slots;
 	return _MALI_OSK_ERR_OK;
 }
@@ -420,48 +389,9 @@ _mali_osk_errcode_t _mali_ukk_get_pp_number_of_cores(_mali_uk_get_pp_number_of_c
 _mali_osk_errcode_t _mali_ukk_get_pp_core_version(_mali_uk_get_pp_core_version_s *args)
 {
 	MALI_DEBUG_ASSERT_POINTER(args);
-	MALI_DEBUG_ASSERT_POINTER(args->ctx);
+	MALI_CHECK_NON_NULL(args->ctx, _MALI_OSK_ERR_INVALID_ARGS);
 	args->version = pp_version;
 	return _MALI_OSK_ERR_OK;
-}
-
-void _mali_ukk_pp_job_disable_wb(_mali_uk_pp_disable_wb_s *args)
-{
-	struct mali_session_data *session;
-	struct mali_pp_job *job;
-	struct mali_pp_job *tmp;
-
-	MALI_DEBUG_ASSERT_POINTER(args);
-	MALI_DEBUG_ASSERT_POINTER(args->ctx);
-
-	session = (struct mali_session_data*)args->ctx;
-
-	mali_pp_scheduler_lock();
-
-	/* Check queue for jobs that match */
-	_MALI_OSK_LIST_FOREACHENTRY(job, tmp, &job_queue, struct mali_pp_job, list)
-	{
-		if (mali_pp_job_get_session(job) == session &&
-		    mali_pp_job_get_frame_builder_id(job) == (u32)args->fb_id &&
-		    mali_pp_job_get_flush_id(job) == (u32)args->flush_id)
-		{
-			if (args->wbx & _MALI_UK_PP_JOB_WB0)
-			{
-				mali_pp_job_disable_wb0(job);
-			}
-			if (args->wbx & _MALI_UK_PP_JOB_WB1)
-			{
-				mali_pp_job_disable_wb1(job);
-			}
-			if (args->wbx & _MALI_UK_PP_JOB_WB2)
-			{
-				mali_pp_job_disable_wb2(job);
-			}
-			break;
-		}
-	}
-
-	mali_pp_scheduler_unlock();
 }
 
 void mali_pp_scheduler_abort_session(struct mali_session_data *session)
@@ -507,17 +437,6 @@ void mali_pp_scheduler_abort_session(struct mali_session_data *session)
 			mali_group_abort_session(group, session);
 		}
 	}
-}
-
-static mali_bool mali_pp_scheduler_is_suspended(void)
-{
-	mali_bool ret;
-
-	mali_pp_scheduler_lock();
-	ret = pause_count > 0 && num_slots == num_slots_idle;
-	mali_pp_scheduler_unlock();
-
-	return ret;
 }
 
 #if MALI_STATE_TRACKING

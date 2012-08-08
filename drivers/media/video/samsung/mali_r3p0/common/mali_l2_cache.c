@@ -11,6 +11,7 @@
 #include "mali_kernel_common.h"
 #include "mali_osk.h"
 
+#include "regs/mali_200_regs.h"
 #include "mali_l2_cache.h"
 #include "mali_hw_core.h"
 #include "mali_pm.h"
@@ -87,8 +88,8 @@ struct mali_l2_cache_core
 
 #define MALI400_L2_MAX_READS_DEFAULT 0x1C
 
-static struct mali_l2_cache_core *mali_global_l2_cache_cores[MALI_MAX_NUMBER_OF_L2_CACHE_CORES];
-static u32 mali_global_num_l2_cache_cores = 0;
+static struct mali_l2_cache_core *global_l2_cache_cores[MALI_MAX_NUMBER_OF_L2_CACHE_CORES];
+static u32 global_num_l2_cache_cores = 0;
 
 int mali_l2_max_reads = MALI400_L2_MAX_READS_DEFAULT;
 
@@ -102,16 +103,10 @@ struct mali_l2_cache_core *mali_l2_cache_create(_mali_osk_resource_t *resource)
 
 	MALI_DEBUG_PRINT(2, ("Mali L2 cache: Creating Mali L2 cache: %s\n", resource->description));
 
-	if (mali_global_num_l2_cache_cores >= MALI_MAX_NUMBER_OF_L2_CACHE_CORES)
-	{
-		MALI_PRINT_ERROR(("Mali L2 cache: Too many L2 cache core objects created\n"));
-		return NULL;
-	}
-
 	cache = _mali_osk_malloc(sizeof(struct mali_l2_cache_core));
 	if (NULL != cache)
 	{
-		cache->core_id =  mali_global_num_l2_cache_cores;
+		cache->core_id =  global_num_l2_cache_cores;
 		cache->counter_src0 = MALI_HW_CORE_NO_COUNTER;
 		cache->counter_src1 = MALI_HW_CORE_NO_COUNTER;
 		if (_MALI_OSK_ERR_OK == mali_hw_core_create(&cache->hw_core, resource, MALI400_L2_CACHE_REGISTERS_SIZE))
@@ -126,8 +121,15 @@ struct mali_l2_cache_core *mali_l2_cache_create(_mali_osk_resource_t *resource)
 				{
 					if (_MALI_OSK_ERR_OK == mali_l2_cache_reset(cache))
 					{
-						mali_global_l2_cache_cores[mali_global_num_l2_cache_cores] = cache;
-						mali_global_num_l2_cache_cores++;
+						if (global_num_l2_cache_cores < MALI_MAX_NUMBER_OF_L2_CACHE_CORES-1)
+						{
+							global_l2_cache_cores[global_num_l2_cache_cores] = cache;
+							global_num_l2_cache_cores++;
+						}
+						else
+						{
+							MALI_PRINT_ERROR(("Mali L2 cache: Wrong number of global LS cache cores\n"));
+						}
 
 						return cache;
 					}
@@ -157,7 +159,7 @@ struct mali_l2_cache_core *mali_l2_cache_create(_mali_osk_resource_t *resource)
 	}
 	else
 	{
-		MALI_PRINT_ERROR(("Mali L2 cache: Failed to allocate memory for L2 cache core\n"));
+		MALI_PRINT_ERROR(("Mali L2 cache: Failed to allocate memory for L2 cache core %s\n", cache->hw_core.description));
 	}
 
 	return NULL;
@@ -165,8 +167,6 @@ struct mali_l2_cache_core *mali_l2_cache_create(_mali_osk_resource_t *resource)
 
 void mali_l2_cache_delete(struct mali_l2_cache_core *cache)
 {
-	u32 i;
-
 	/* reset to defaults */
 	mali_hw_core_register_write(&cache->hw_core, MALI400_L2_CACHE_REGISTER_MAX_READS, (u32)MALI400_L2_MAX_READS_DEFAULT);
 	mali_hw_core_register_write(&cache->hw_core, MALI400_L2_CACHE_REGISTER_ENABLE, (u32)MALI400_L2_CACHE_ENABLE_DEFAULT);
@@ -175,13 +175,27 @@ void mali_l2_cache_delete(struct mali_l2_cache_core *cache)
 	_mali_osk_lock_term(cache->command_lock);
 	mali_hw_core_delete(&cache->hw_core);
 
-	for (i = 0; i < mali_global_num_l2_cache_cores; i++)
+	if(global_num_l2_cache_cores > 0)
 	{
-		if (mali_global_l2_cache_cores[i] == cache)
+		u32 i,j;
+
+		for (i = 0; i < global_num_l2_cache_cores; i++)
 		{
-			mali_global_l2_cache_cores[i] = NULL;
-			mali_global_num_l2_cache_cores--;
+			if (global_l2_cache_cores[i] == cache)
+			{
+				global_l2_cache_cores[i] = NULL;
+				for (j = i; j < global_num_l2_cache_cores-1; j++)
+				{
+					global_l2_cache_cores[j] = global_l2_cache_cores[j+1];
+				}
+				global_l2_cache_cores[global_num_l2_cache_cores-1] = NULL;
+			}
 		}
+		global_num_l2_cache_cores--;
+	}
+	else
+	{
+		MALI_PRINT_ERROR(("Mali L2 cache: Wrong number of global LS cache cores\n"));
 	}
 
 	_mali_osk_free(cache);
@@ -277,7 +291,7 @@ struct mali_l2_cache_core *mali_l2_cache_core_get_glob_l2_core(u32 index)
 {
 	if (MALI_MAX_NUMBER_OF_L2_CACHE_CORES > index)
 	{
-		return mali_global_l2_cache_cores[index];
+		return global_l2_cache_cores[index];
 	}
 
 	return NULL;
@@ -285,7 +299,7 @@ struct mali_l2_cache_core *mali_l2_cache_core_get_glob_l2_core(u32 index)
 
 u32 mali_l2_cache_core_get_glob_num_l2_cores(void)
 {
-	return mali_global_num_l2_cache_cores;
+	return global_num_l2_cache_cores;
 }
 
 u32 mali_l2_cache_core_get_max_num_l2_cores(void)
@@ -325,21 +339,9 @@ _mali_osk_errcode_t mali_l2_cache_invalidate_all(struct mali_l2_cache_core *cach
 	return mali_l2_cache_send_command(cache, MALI400_L2_CACHE_REGISTER_COMMAND, MALI400_L2_CACHE_COMMAND_CLEAR_ALL);
 }
 
-_mali_osk_errcode_t mali_l2_cache_invalidate_pages(struct mali_l2_cache_core *cache, u32 *pages, u32 num_pages)
+_mali_osk_errcode_t mali_l2_cache_invalidate_page(struct mali_l2_cache_core *cache, u32 page)
 {
-	u32 i;
-	_mali_osk_errcode_t ret1, ret = _MALI_OSK_ERR_OK;
-
-	for (i = 0; i < num_pages; i++)
-	{
-		ret1 = mali_l2_cache_send_command(cache, MALI400_L2_CACHE_REGISTER_CLEAR_PAGE, pages[i]);
-		if (_MALI_OSK_ERR_OK != ret1)
-		{
-			ret = ret1;
-		}
-	}
-
-	return ret;
+	return mali_l2_cache_send_command(cache, MALI400_L2_CACHE_REGISTER_CLEAR_PAGE, page);
 }
 
 mali_bool mali_l2_cache_lock_power_state(struct mali_l2_cache_core *cache)
@@ -394,6 +396,6 @@ static _mali_osk_errcode_t mali_l2_cache_send_command(struct mali_l2_cache_core 
 	mali_hw_core_register_write(&cache->hw_core, reg, val);
 
 	_mali_osk_lock_signal(cache->command_lock, _MALI_OSK_LOCKMODE_RW);
-
 	MALI_SUCCESS;
 }
+

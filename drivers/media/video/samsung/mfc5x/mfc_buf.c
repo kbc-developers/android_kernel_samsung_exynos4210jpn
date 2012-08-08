@@ -122,7 +122,7 @@ static int mfc_put_free_buf(unsigned long addr, unsigned int size, int port)
 	/* 0x00: not merged, 0x01: prev merged, 0x02: next merged */
 	int merged = 0x00;
 
-	if ((!size) || (port >= MFC_MAX_MEM_PORT_NUM))
+	if (!size)
 		return -EINVAL;
 
 	mfc_dbg("addr: 0x%08lx, size: %d, port: %d\n", addr, size, port);

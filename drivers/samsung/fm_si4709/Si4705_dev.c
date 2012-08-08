@@ -112,7 +112,11 @@ static int powerdown(void);
 
 static int seek(u32 *, int, int);
 static int tune_freq(u32);
+
+static void get_cur_chan_freq(u32 *, u16);
+
 static u16 freq_to_channel(u32);
+static u32 channel_to_freq(u16);
 static void fmTuneStatus(u8 cancel, u8 intack);
 static void fmRsqStatus(u8 intack);
 static void si47xx_set_property(u16 propNumber, u16 propValue);
@@ -432,6 +436,7 @@ int Si4709_dev_resume(void)
 int Si4709_dev_band_set(int band)
 {
 	int ret = 0;
+	u16 sysconfig2 = 0;
 	u16 prev_band = 0;
 	u32 prev_bottom_of_band = 0;
 
@@ -1033,6 +1038,7 @@ int Si4709_dev_reset_rds_data()
 int Si4709_dev_VOLEXT_ENB(void)
 {
 	int ret = 0;
+	u16 sysconfig3 = 0;
 
 	debug("Si4709_dev_VOLEXT_ENB called");
 
@@ -1042,6 +1048,7 @@ int Si4709_dev_VOLEXT_ENB(void)
 int Si4709_dev_VOLEXT_DISB(void)
 {
 	int ret = 0;
+	u16 sysconfig3 = 0;
 
 	debug("Si4709_dev_VOLEXT_DISB called");
 
@@ -1346,7 +1353,7 @@ int Si4709_dev_rstate_get(struct dev_state_t *dev_state)
 #ifdef RDS_INTERRUPT_ON_ALWAYS
 void Si4709_work_func(struct work_struct *work)
 {
-	int i = 0;
+	int i, ret = 0;
 #ifdef RDS_TESTING
 	u8 group_type;
 #endif
@@ -1618,6 +1625,7 @@ static int powerup(void)
 {
 	int ret = 0;
 	u16 powercfg = Si4709_dev.registers[POWERCFG];
+	int reg;
 
 #if defined(CONFIG_MACH_M0) || defined(CONFIG_MACH_M0_CTC)
 	gpio_set_value(Si4709_dev_sw, GPIO_LEVEL_HIGH);
@@ -1680,6 +1688,9 @@ static int powerdown(void)
 static int seek(u32 *frequency, int up, int mode)
 {
 	int ret = 0;
+	u16 powercfg = Si4709_dev.registers[POWERCFG];
+	u16 channel = 0;
+	int valid_station_found = 0;
 	u8 get_int;
 
 	if (ret < 0) {
@@ -1688,11 +1699,15 @@ static int seek(u32 *frequency, int up, int mode)
 		Si4709_dev_wait_flag = SEEK_WAITING;
 		fmSeekStart(up, mode); /* mode 0 is full scan */
 		wait();
+		do {
+			get_int = getIntStatus();
+		} while (!(get_int & STCINT));
 
 		if (Si4709_dev_wait_flag == SEEK_CANCEL) {
 			fmTuneStatus(1, 0);
 			if (ret < 0) {
 				debug("seek i2c_write 2 failed");
+				Si4709_dev.registers[POWERCFG] = powercfg;
 			}
 			if (ret < 0)
 				debug("seek i2c_read 1 failed");
@@ -1700,19 +1715,9 @@ static int seek(u32 *frequency, int up, int mode)
 				*frequency = Freq;
 
 			*frequency = 0;
-
-			Si4709_dev_wait_flag = NO_WAIT;
-
-			return ret;
 		}
 
 		Si4709_dev_wait_flag = NO_WAIT;
-
-		if (!(getIntStatus() & STCINT)) {
-			printk(KERN_INFO "%s seek is failed!\n", __func__);
-			fmTuneStatus(1, 0);
-			return -1;
-		}
 
 		fmTuneStatus(0, 1);
 		if (BLTF != 1)
@@ -1731,8 +1736,9 @@ static int seek(u32 *frequency, int up, int mode)
 static int tune_freq(u32 frequency)
 {
 	int ret = 0;
-
+	u8 get_int = 0;
 	u16 channel = Si4709_dev.registers[CHANNEL];
+	debug("Si4709 tune_freq called\n");
 	mutex_lock(&(Si4709_dev.lock));
 
 	channel = freq_to_channel(frequency);
@@ -1745,13 +1751,10 @@ static int tune_freq(u32 frequency)
 		wait();
 		Si4709_dev_wait_flag = NO_WAIT;
 		debug("Si4709_dev_wait_flag = TUNE_WAITING\n");
-
-		if (!(getIntStatus() & STCINT)) {
-			printk(KERN_INFO "%s tune is failed!\n", __func__);
-			fmTuneStatus(1, 1);
-			mutex_unlock(&(Si4709_dev.lock));
-			return -1;
-		}
+		do {
+			get_int = getIntStatus();
+			msleep(80);
+		} while (!(get_int & STCINT));
 
 		fmTuneStatus(0, 1);
 
@@ -1761,6 +1764,20 @@ static int tune_freq(u32 frequency)
 	mutex_unlock(&(Si4709_dev.lock));
 
 	return ret;
+}
+
+static void get_cur_chan_freq(u32 *frequency, u16 readchan)
+{
+	u16 channel = 0;
+	debug("get_cur_chan_freq called");
+/*
+	channel = READCHAN_GET_CHAN(readchan);
+	debug("read_channel=%x", channel);
+
+	*frequency = channel_to_freq(channel);
+
+	debug("frequency-> %u", *frequency);
+*/
 }
 
 static u16 freq_to_channel(u32 frequency)
@@ -1774,6 +1791,16 @@ static u16 freq_to_channel(u32 frequency)
 		/ Si4709_dev.settings.channel_spacing;
 
 	return channel;
+}
+
+static u32 channel_to_freq(u16 channel)
+{
+	u32 frequency;
+
+	frequency = Si4709_dev.settings.bottom_of_band +
+		Si4709_dev.settings.channel_spacing * channel;
+
+	return frequency;
 }
 
 /* Only one thread will be able to call this, since this function call is
@@ -2039,14 +2066,16 @@ int si47xx_command(u8 cmd_size, u8 *cmd, u8 reply_size, u8 *reply)
 		i2c_read(reply_size, reply);
 
 	if (ret < 0)
-		printk(KERN_INFO "%s i2c_write failed %d\n", __func__, ret);
+		debug("i2c_write failed %d\n", ret);
 
 	return ret;
 }
 
 static int i2c_write(u8 number_bytes, u8 *data_out)
 {
-	int ret = 0;
+	u8 writing_reg = POWERCFG;
+	u8 data[NUM_OF_REGISTERS * 2];
+	int i, msglen = 0, ret = 0;
 
 	ret = i2c_master_send((struct i2c_client *)(Si4709_dev.client),
 			(const char *)data_out, number_bytes);
@@ -2060,12 +2089,11 @@ static int i2c_write(u8 number_bytes, u8 *data_out)
 
 static int i2c_read(u8 number_bytes, u8 *data_in)
 {
+	u8 idx, reading_reg = STATUSRSSI;
+	u8 data[NUM_OF_REGISTERS * 2], data_high, data_low;
 	int ret = 0;
 
 	ret = i2c_master_recv((struct i2c_client *)(Si4709_dev.client), data_in,
 			number_bytes);
-	if (ret < 0)
-		printk(KERN_INFO "%s i2c_read failed %d\n", __func__, ret);
-
 	return ret;
 }

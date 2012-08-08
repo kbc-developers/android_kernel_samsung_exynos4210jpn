@@ -58,7 +58,6 @@ static struct file _file = {
 
 /* From pvtcp_off_io_linux.c */
 extern CommOSAtomic PvtcpOutputAIOSection;
-extern void PvtcpOffLargeDgramBufInit(void);
 
 static const unsigned short portRangeBase = 7000;
 static const unsigned int   portRangeSize = 31;
@@ -932,12 +931,11 @@ PvtcpReleaseSocket(PvtcpSock *pvsk)
 {
    struct socket *sock = SkFromPvsk(pvsk)->sk_socket;
 
-   SOCK_IN_LOCK(pvsk);
    SOCK_OUT_LOCK(pvsk);
-   pvsk->peerSockSet = 0;
+   SOCK_IN_LOCK(pvsk);
    SockReleaseWrapper(sock);
-   SOCK_OUT_UNLOCK(pvsk);
    SOCK_IN_UNLOCK(pvsk);
+   SOCK_OUT_UNLOCK(pvsk);
    CommOS_Debug(("%s: [0x%p].\n", __FUNCTION__, pvsk));
 }
 
@@ -1257,7 +1255,6 @@ Init(void *args)
 
    CommOS_MutexInit(&globalLock);
    CommOS_WriteAtomic(&PvtcpOutputAIOSection, 0);
-   PvtcpOffLargeDgramBufInit();
 
    pvtcpImpl.owner = CommOS_ModuleSelf();
    pvtcpImpl.stateCtor = StateAlloc;

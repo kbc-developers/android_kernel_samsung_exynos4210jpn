@@ -1,5 +1,5 @@
 /*
- * Linux 2.6.32 and later Kernel module for VMware MVP Hypervisor Support
+ * Linux 2.6.32 and later Kernel module for MODULE_PURPOSE
  *
  * Copyright (C) 2010-2012 VMware, Inc. All rights reserved.
  *
@@ -17,6 +17,10 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */
 #line 5
+/* ****************************************************************************
+ * Copyright (C) 2009 VMware, Inc. All rights reserved.
+ * -- VMware Confidential
+ * ***************************************************************************/
 
 /**
  * @file
@@ -40,42 +44,48 @@
 /*
  * MVP Internal Version Numbering
  *
+ * major    =>    Incremented by Marketing
+ * minor    =>    Incremented feature release (requires legal signoff for release)
+ * update   =>    Incremented for official external release
+ * patch    =>    Incremented by engineering upon functional change/bug fix
  *
- * There are 4 different usage areas of version information.
+ * Note that the first 3 digits are present in VMwareReady.apk version string.
  *
- *   Version Name. This is a marketing string that is used to sell the
- *   product. The update of this string has legal consequences, it
- *   should be done infrequently. Currently we use "V1.0" like
- *   terms. Developer builds have E.X.P as Version Name.
+ * Examples:
  *
- *   Android Version Code. This is an integer associated with
- *   com.vmware.mvp.apk on Google Play (a.k.a Android Market). If our
- *   product is multi-apk (that is, we release individual apks for the
- *   different Android versions) then the Android Version Code must
- *   satisfy certain constrains. Typically the Android API level is
- *   the high order 2 digits.
- *
- *   Engineering Version Code. During an update process of one of the
- *   3 components on the handset (MVP, VVP, OEK) compatibility needs
- *   to be verified. The Engineering Version Code is a single number
- *   associated with each of the 4 components and it serves as a basis
- *   of this compatibility test. It reflects time, bigger number is
- *   associated with newer code.
- *
- *   Git Revision. The git hash is a unique identifier of the
- *   source. If picked up from a log, engineers can go to the code
- *   depos and check out the exact code used for the build.  For MVP,
- *   VVP, and OEK this is the main/mvp.git, for HMM it is
- *   main/mdm.git. Note that git hash is not ordered, it cannot be
- *   used to directly determine precedence.
- *
+ * 1.0.0.0    =>    First Official release to OEMs
+ * 1.0.0.x    =>    Internal bug fixes to 1.0.0.0
+ * 1.0.1.0    =>    External release of 1.0.0.x
+ * 1.1.0.0    =>    External release of a 1.0.x.y that contains functional changes (i.e. guest network control)
  */
+#define MVP_VERSION(major, minor, update, patch_level) \
+   ((((major) & 0xFF) << 24) | \
+    (((minor) & 0xFF) << 16) | \
+    (((update) & 0xFF) << 8) | \
+     ((patch_level) & 0xFF))
 
-#define MVP_VERSION_CODE 16800005
-#define MVP_VERSION_CODE_FORMATSTR       "%s_%d"
-#define MVP_VERSION_CODE_FORMATARGSV(V_) MVP_STRINGIFY(1.1.3), (V_)
+#define MVP_VERSION_CODE  MVP_VERSION(1,0,2,15)
+
+#define MVP_VERSION_CODE_MAJORV(V_)  (((V_)>>24) & 0xFF)
+#define MVP_VERSION_CODE_MINORV(V_)  (((V_)>>16) & 0xFF)
+#define MVP_VERSION_CODE_UPDATEV(V_) (((V_)>> 8) & 0xFF)
+#define MVP_VERSION_CODE_PATCHLV(V_) (((V_)    ) & 0xFF)
+
+#define MVP_VERSION_CODE_MAJOR  MVP_VERSION_CODE_MAJORV(MVP_VERSION_CODE)
+#define MVP_VERSION_CODE_MINOR  MVP_VERSION_CODE_MINORV(MVP_VERSION_CODE)
+#define MVP_VERSION_CODE_UPDATE MVP_VERSION_CODE_UPDATEV(MVP_VERSION_CODE)
+#define MVP_VERSION_CODE_PATCHL MVP_VERSION_CODE_PATCHLV(MVP_VERSION_CODE)
+
+
+#define MVP_VERSION_CODE_FORMATSTR "V%d.%d.%d.%d"
+#define MVP_VERSION_CODE_FORMATARGSV(V_)        \
+   MVP_VERSION_CODE_MAJORV(V_),                 \
+   MVP_VERSION_CODE_MINORV(V_),                 \
+   MVP_VERSION_CODE_UPDATEV(V_),                \
+   MVP_VERSION_CODE_PATCHLV(V_)
 #define MVP_VERSION_CODE_FORMATARGS             \
    MVP_VERSION_CODE_FORMATARGSV(MVP_VERSION_CODE)
+
 
 #define MVP_VERSION_FORMATSTR                        \
    MVP_VERSION_CODE_FORMATSTR                        \
@@ -84,33 +94,9 @@
 #define MVP_VERSION_FORMATARGS      \
    MVP_VERSION_CODE_FORMATARGS,     \
    __DATE__,                        \
-   MVP_STRINGIFY(5c995a85564cd060562bdbcd1422709e7a326301),     \
-   MVP_STRINGIFY()
+   MVP_STRINGIFY(master-1f6423d),     \
+   MVP_STRINGIFY(rbenis)
 
-#define MvpVersion_Map(map_, version_)           \
-   ({                                            \
-      uint32 ii_;                                \
-      uint32 versionApi_ = 0;                    \
-      for (ii_ = 0; ii_ < NELEM(map_); ii_++) {  \
-         if (map_[ii_] <= version_) {            \
-            versionApi_ = map_[ii_];             \
-         }                                       \
-      }                                          \
-      versionApi_;                               \
-   })
 
-/*
- * MVP.apk must communicate to VVP and OEK on many of its APIs. To
- * ensure compatibility, it is mandated that any VVP and OEK version
- * younger than the minimums defined below can be serviced on all of
- * the various APIs.
- *
- * During the deprecation process, first a marketing decision is made
- * that the limit below can be raised. After the new minimums are
- * determined, they must be entered here. Then the various APIs can
- * remove code that has been obsoleted before the new minimum versions.
- */
-#define VVP_VERSION_CODE_MIN 0x0100020e
-#define OEK_VERSION_CODE_MIN 0x01000001
 
 #endif /* _MVP_VERSION_H_ */

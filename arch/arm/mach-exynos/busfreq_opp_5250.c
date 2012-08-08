@@ -875,9 +875,6 @@ int exynos5250_init(struct device *dev, struct busfreq_data *data)
         data->busfreq_early_suspend_handler.suspend = &busfreq_early_suspend;
 	data->busfreq_early_suspend_handler.resume = &busfreq_late_resume;
 
-	data->busfreq_early_suspend_handler.suspend = &busfreq_early_suspend;
-	data->busfreq_early_suspend_handler.resume = &busfreq_late_resume;
-
 	/* Request min 300MHz for MIF and 150MHz for  INT*/
 	dev_lock(dev, dev, 300150);
 

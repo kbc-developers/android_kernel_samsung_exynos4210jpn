@@ -286,10 +286,8 @@ int ath6kl_control_tx(void *devt, struct sk_buff *skb,
 	struct ath6kl *ar = devt;
 	int status = 0;
 	struct ath6kl_cookie *cookie = NULL;
-	struct ath6kl_vif *vif;
-	vif = ath6kl_vif_first(ar);
 
-	if (WARN_ON_ONCE(ar->state == ATH6KL_STATE_WOW))
+	if (ar->state == ATH6KL_STATE_WOW)
 		goto fail_ctrl_tx;
 
 	if (!test_bit(WMI_READY, &ar->flag))
@@ -310,7 +308,6 @@ int ath6kl_control_tx(void *devt, struct sk_buff *skb,
 		ath6kl_err("wmi ctrl ep full, dropping pkt : 0x%p, len:%d\n",
 			   skb, skb->len);
 #ifdef CONFIG_MACH_PX
-		cfg80211_priv_event(vif->ndev, "HANG", GFP_ATOMIC);
 		ath6kl_print_ar6k_registers(ar);
 #endif
 	} else
@@ -375,6 +372,8 @@ int ath6kl_data_tx(struct sk_buff *skb, struct net_device *dev)
 	}
 
 	if (WARN_ON_ONCE(ar->state != ATH6KL_STATE_ON)) {
+		set_bit(NETQ_STOPPED, &vif->flags);
+		netif_stop_queue(dev);
 		dev_kfree_skb(skb);
 		return 0;
 	}
@@ -479,8 +478,13 @@ int ath6kl_data_tx(struct sk_buff *skb, struct net_device *dev)
 
 	spin_unlock_bh(&ar->lock);
 
+#ifdef CONFIG_MACH_PX
+	if (false && !IS_ALIGNED((unsigned long) skb->data - HTC_HDR_LENGTH, 4) &&
+	    skb_cloned(skb)) {
+#else
 	if (!IS_ALIGNED((unsigned long) skb->data - HTC_HDR_LENGTH, 4) &&
 	    skb_cloned(skb)) {
+#endif
 		/*
 		 * We will touch (move the buffer data to align it. Since the
 		 * skb buffer is cloned and not only the header is changed, we
@@ -833,10 +837,6 @@ static void ath6kl_deliver_frames_to_nw_stack(struct net_device *dev,
 	}
 
 	skb->protocol = eth_type_trans(skb, skb->dev);
-
-#ifdef CONFIG_MACH_PX
-	skb->len = skb->tail - skb->data;
-#endif
 
 	netif_rx_ni(skb);
 }
@@ -1441,33 +1441,45 @@ void ath6kl_rx(struct htc_target *target, struct htc_packet *packet)
 			if (!(conn->sta_flags & STA_PS_SLEEP)) {
 				struct sk_buff *skbuff = NULL;
 				bool is_apsdq_empty;
-				struct ath6kl_mgmt_buff *mgmt;
-				u8 idx;
+				struct mgmt_buff *mgmt_buf;
 
 				spin_lock_bh(&conn->psq_lock);
 				while (conn->mgmt_psq_len > 0) {
-					mgmt = list_first_entry(
+					mgmt_buf = list_first_entry(
 							&conn->mgmt_psq,
-							struct ath6kl_mgmt_buff,
+							struct mgmt_buff,
 							list);
-					list_del(&mgmt->list);
+					list_del(&mgmt_buf->list);
 					conn->mgmt_psq_len--;
 					spin_unlock_bh(&conn->psq_lock);
-					idx = vif->fw_vif_idx;
-
-					ath6kl_wmi_send_mgmt_cmd(ar->wmi,
-								 idx,
-								 mgmt->id,
-								 mgmt->freq,
-								 mgmt->wait,
-								 mgmt->buf,
-								 mgmt->len,
-								 mgmt->no_cck);
-
-					kfree(mgmt);
+					if (test_bit(ATH6KL_FW_CAPABILITY_STA_P2PDEV_DUPLEX,
+									ar->fw_capabilities)) {
+						/*
+						 * If capable of doing P2P mgmt operations using
+						 * station interface, send additional information like
+						 * supported rates to advertise and xmit rates for
+						 * probe requests
+						 */
+						ath6kl_wmi_send_mgmt_cmd(ar->wmi, vif->fw_vif_idx,
+										mgmt_buf->id,
+										mgmt_buf->freq,
+										mgmt_buf->wait,
+										mgmt_buf->buf,
+										mgmt_buf->len,
+										mgmt_buf->no_cck);
+					} else {
+						ath6kl_wmi_send_action_cmd(ar->wmi, vif->fw_vif_idx,
+										mgmt_buf->id,
+										mgmt_buf->freq,
+										mgmt_buf->wait,
+										mgmt_buf->buf,
+										mgmt_buf->len);
+					}
+					kfree(mgmt_buf);
 					spin_lock_bh(&conn->psq_lock);
 				}
 				conn->mgmt_psq_len = 0;
+
 				while ((skbuff = skb_dequeue(&conn->psq))) {
 					spin_unlock_bh(&conn->psq_lock);
 					ath6kl_data_tx(skbuff, vif->ndev);

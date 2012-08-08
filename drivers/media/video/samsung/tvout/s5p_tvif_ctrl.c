@@ -1420,7 +1420,7 @@ static struct s5p_hdmi_o_params s5p_hdmi_output[] = {
 		{0x00, 0x00, 0x00, 0x00, 0x00},
 	}, {
 		{0x02, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x02, 0x04},
-		{0x40, 0x00, 0x02, 0x40, 0x00},
+		{0x40, 0x00, 0x02, 0x00, 0x00},
 	}, {
 		{0x02, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x02, 0x04},
 		{0x00, 0x00, 0x02, 0x20, 0x00},
@@ -1449,10 +1449,10 @@ static struct s5p_hdmi_ctrl_private_data s5p_hdmi_ctrl_private = {
 
 	.video = {
 		.color_r = {
-			.y_min = 0x10,
-			.y_max = 0xeb,
-			.c_min = 0x10,
-			.c_max = 0xf0,
+			.y_min = 1,
+			.y_max = 254,
+			.c_min = 1,
+			.c_max = 254,
 		},
 		.depth	= HDMI_CD_24,
 		.q_range = HDMI_Q_LIMITED_RANGE,
@@ -2100,10 +2100,10 @@ static void s5p_hdmi_set_avi(
 		avi[0] |= (0x1 << 4);
 		avi[4] |= frame.repetition;
 		if (s5p_tvif_ctrl_private.curr_std == TVOUT_480P_60_4_3) {
-			avi[2] |= HDMI_Q_DEFAULT << 2;
+			avi[2] |= HDMI_Q_FULL_RANGE << 2;
 			avi[4] |= HDMI_AVI_YQ_FULL_RANGE << 6;
 		} else {
-			avi[2] |= HDMI_Q_DEFAULT << 2;
+			avi[2] |= HDMI_Q_LIMITED_RANGE << 2;
 			avi[4] |= HDMI_AVI_YQ_LIMITED_RANGE << 6;
 		}
 	} else {
@@ -2111,11 +2111,11 @@ static void s5p_hdmi_set_avi(
 		avi[4] |= frame.repetition;
 		if (video->q_range == HDMI_Q_FULL_RANGE) {
 			tvout_dbg("Q_Range : %d\n", video->q_range);
-			avi[2] |= HDMI_Q_DEFAULT << 2;
+			avi[2] |= HDMI_Q_FULL_RANGE << 2;
 			avi[4] |= HDMI_AVI_YQ_FULL_RANGE << 6;
 		} else {
 			tvout_dbg("Q_Range : %d\n", video->q_range);
-			avi[2] |= HDMI_Q_DEFAULT << 2;
+			avi[2] |= HDMI_Q_LIMITED_RANGE << 2;
 			avi[4] |= HDMI_AVI_YQ_LIMITED_RANGE << 6;
 		}
 	}
@@ -2144,11 +2144,11 @@ static void s5p_hdmi_set_aui(struct s5p_hdmi_audio *audio, u8 *aui)
 {
 	aui[0] = audio->channel - 1;
 	if (audio->channel == 2) {
-		aui[1] = 0x0;
+		aui[1] = ((audio->type == HDMI_60958_AUDIO) ?
+				0 : audio->freq << 2) | 0;
 		aui[2] = 0;
-		aui[3] = 0x0;
 	} else {
-		aui[1] = 0x0;
+		aui[1] = 0x09;
 		aui[2] = 0;
 		aui[3] = 0x0b;
 	}

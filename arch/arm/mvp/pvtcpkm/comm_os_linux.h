@@ -30,10 +30,6 @@
 #include <linux/types.h>
 #include <linux/version.h>
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
-#error "Kernel versions lower than 2.6.20 are not supported"
-#endif
-
 #include <linux/kernel.h>
 #include <linux/workqueue.h>
 #include <linux/sched.h>
@@ -363,8 +359,7 @@ CommOS_DoWait(CommOSWaitQueue *wq,
    retTimeout = msecs_to_jiffies((unsigned int)(*timeoutMillis));
 
    for (; retTimeout >= 0; ) {
-      prepare_to_wait(wq, &wait,
-                      (interruptible?TASK_INTERRUPTIBLE:TASK_UNINTERRUPTIBLE));
+      prepare_to_wait(wq, &wait, TASK_INTERRUPTIBLE);
       if ((rc = cond(condArg1, condArg2))) {
          break;
       }
@@ -393,8 +388,7 @@ CommOS_DoWait(CommOSWaitQueue *wq,
    timeout = msecs_to_jiffies((unsigned int)(*timeoutMillis));
 
    for (;;) {
-      prepare_to_wait(wq, &wait,
-                      (interruptible?TASK_INTERRUPTIBLE:TASK_UNINTERRUPTIBLE));
+      prepare_to_wait(wq, &wait, TASK_INTERRUPTIBLE);
       if ((rc = cond(condArg1, condArg2)) != 0) {
          break;
       }
@@ -482,7 +476,7 @@ CommOS_WaitUninterruptible(CommOSWaitQueue *wq,
 static inline void
 CommOS_WakeUp(CommOSWaitQueue *wq)
 {
-   wake_up(wq);
+   wake_up_interruptible(wq);
 }
 
 

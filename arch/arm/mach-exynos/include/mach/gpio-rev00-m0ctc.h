@@ -280,7 +280,6 @@ extern void midas_config_sleep_gpio_table(void);
 
 #define GPIO_IPC_SLAVE_WAKEUP	EXYNOS4_GPX1(0)
 #define GPIO_IPC_HOST_WAKEUP	EXYNOS4_GPX1(1)
-#define GPIO_CP_DUMP_INT	EXYNOS4_GPX1(2)
 
 #define GPIO_CP_MSM_PWRON	EXYNOS4_GPL2(5)
  #define GPIO_CP_MSM_RST	EXYNOS4_GPL2(4)

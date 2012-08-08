@@ -16,8 +16,7 @@
 struct mdm_platform_data {
 	char *mdm_version;
 	int ramdump_delay_ms;
-	struct platform_device *peripheral_platform_device_ehci;
-	struct platform_device *peripheral_platform_device_ohci;
+	struct platform_device *peripheral_platform_device;
 };
 
 #endif

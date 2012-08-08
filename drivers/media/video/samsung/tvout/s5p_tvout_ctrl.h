@@ -51,7 +51,6 @@ extern int s5p_mixer_ctrl_scaling(enum s5p_mixer_layer,
 extern int s5p_mixer_ctrl_mux_clk(struct clk *ptr);
 extern void s5p_mixer_ctrl_set_int_enable(bool en);
 extern void s5p_mixer_ctrl_set_vsync_interrupt(bool en);
-extern bool s5p_mixer_ctrl_get_vsync_interrupt(void);
 extern void s5p_mixer_ctrl_clear_pend_all(void);
 extern void s5p_mixer_ctrl_stop(void);
 extern void s5p_mixer_ctrl_internal_start(void);

@@ -422,15 +422,8 @@ static int _call_per_cable(struct notifier_block *nb, unsigned long val,
 
 	if ((val & (1 << obj->cable_index)) !=
 	    (edev->state & (1 << obj->cable_index))) {
-		bool cable_state = true;
-
 		obj->previous_value = val;
-
-		if (val & (1 << obj->cable_index))
-			cable_state = false;
-
-		return obj->user_nb->notifier_call(obj->user_nb,
-				cable_state, ptr);
+		return obj->user_nb->notifier_call(nb, val, ptr);
 	}
 
 	return NOTIFY_OK;
@@ -626,8 +619,8 @@ int extcon_dev_register(struct extcon_dev *edev, struct device *dev)
 	dev_set_name(edev->dev, edev->name ? edev->name : dev_name(dev));
 
 	if (edev->max_supported) {
-		char buf[6 + CABLE_NAME_MAX];
-		char *str, *cable_name;
+		char buf[10];
+		char *str;
 		struct extcon_cable *cable;
 
 		edev->cables = kzalloc(sizeof(struct extcon_cable) *
@@ -638,10 +631,8 @@ int extcon_dev_register(struct extcon_dev *edev, struct device *dev)
 		}
 		for (index = 0; index < edev->max_supported; index++) {
 			cable = &edev->cables[index];
-			cable_name = edev->supported_cable[index];
 
-			snprintf(buf, 6 + CABLE_NAME_MAX, "cable.%s",
-					cable_name);
+			snprintf(buf, 10, "cable.%d", index);
 			str = kzalloc(sizeof(char) * (strlen(buf) + 1),
 				      GFP_KERNEL);
 			if (!str) {

@@ -76,13 +76,13 @@ mali_dvfs_step step[MALI_DVFS_STEPS]={
 };
 
 mali_dvfs_staycount_table mali_dvfs_staycount[MALI_DVFS_STEPS]={
-	/*step 0*/{5},
+	/*step 0*/{0},
 #if (MALI_DVFS_STEPS > 1)
-	/*step 1*/{5},
+	/*step 1*/{0},
 #if (MALI_DVFS_STEPS > 2)
-	/*step 2*/{5},
+	/*step 2*/{0},
 #if (MALI_DVFS_STEPS > 3)
-	/*step 3*/{5}
+	/*step 3*/{0}
 #endif
 #endif
 #endif
@@ -458,9 +458,8 @@ static mali_bool mali_dvfs_status(u32 utilization)
 {
 	unsigned int nextStatus = 0;
 	unsigned int curStatus = 0;
-	static unsigned int tmpStatus;
 	mali_bool boostup = MALI_FALSE;
-	static int stay_count = 5;
+	static int stay_count = 0;
 #ifdef EXYNOS4_ASV_ENABLED
 	static mali_bool asv_applied = MALI_FALSE;
 #endif
@@ -482,32 +481,20 @@ static mali_bool mali_dvfs_status(u32 utilization)
 
 	MALI_DEBUG_PRINT(1, ("= curStatus %d, nextStatus %d, maliDvfsStatus.currentStep %d \n", curStatus, nextStatus, maliDvfsStatus.currentStep));
 
-	if (curStatus < nextStatus) {
-		/* Case 1: clock up directly */
-		boostup = 1;
+	/*if next status is same with current status, don't change anything*/
+	if ((curStatus != nextStatus && stay_count == 0)) {
+		/*check if boost up or not*/
+		if (nextStatus > maliDvfsStatus.currentStep) boostup = 1;
 
-		if (!change_mali_dvfs_status(nextStatus, boostup))
+		/*change mali dvfs status*/
+		if (!change_mali_dvfs_status(nextStatus,boostup)) {
+			MALI_DEBUG_PRINT(1, ("error on change_mali_dvfs_status \n"));
 			return MALI_FALSE;
-
-		stay_count = mali_dvfs_staycount[maliDvfsStatus.currentStep].staycount;
-	} else if (curStatus > nextStatus) {
-		if (stay_count == 0) {
-			/* Case 2: clock down */
-			boostup = 0;
-			nextStatus = tmpStatus;
-
-			if (!change_mali_dvfs_status(nextStatus, boostup))
-				return MALI_FALSE;
-
-			stay_count = mali_dvfs_staycount[maliDvfsStatus.currentStep].staycount;
-		} else {
-			/* Case 3: clock down, wait until staycount is 0 */
-			tmpStatus = nextStatus;
-			stay_count--;
 		}
-	} else {
-		/* Case 4: clock same - reset staycount */
 		stay_count = mali_dvfs_staycount[maliDvfsStatus.currentStep].staycount;
+	} else {
+		if (stay_count > 0)
+			stay_count--;
 	}
 
 	return MALI_TRUE;

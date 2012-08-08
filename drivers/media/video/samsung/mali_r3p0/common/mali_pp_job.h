@@ -29,12 +29,12 @@ struct mali_pp_job
 	struct mali_session_data *session;                 /**< Session which submitted this job */
 	u32 id;                                            /**< identifier for this job in kernel space (sequencial numbering) */
 	u32 user_id;                                       /**< identifier for the job in user space */
-	u32 frame_registers[_MALI_PP_MAX_FRAME_REGISTERS]; /**< core specific registers associated with this job, see ARM DDI0415A */
+	u32 frame_registers[MALI200_NUM_REGS_FRAME];       /**< core specific registers associated with this job, see ARM DDI0415A */
     u32 frame_registers_addr_frame[_MALI_PP_MAX_SUB_JOBS - 1]; /**< ADDR_FRAME registers for sub job 1-7 */
     u32 frame_registers_addr_stack[_MALI_PP_MAX_SUB_JOBS - 1]; /**< ADDR_STACK registers for sub job 1-7 */
-	u32 wb0_registers[_MALI_PP_MAX_WB_REGISTERS];      /**< Write back unit 0 registers */
-	u32 wb1_registers[_MALI_PP_MAX_WB_REGISTERS];      /**< Write back unit 1 registers */
-	u32 wb2_registers[_MALI_PP_MAX_WB_REGISTERS];      /**< Write back unit 2 registers */
+	u32 wb0_registers[MALI200_NUM_REGS_WBx];           /**< Write back unit 0 registers */
+	u32 wb1_registers[MALI200_NUM_REGS_WBx];           /**< Write back unit 1 registers */
+	u32 wb2_registers[MALI200_NUM_REGS_WBx];           /**< Write back unit 2 registers */
 	u32 perf_counter_flag;                             /**< bitmask indicating which performance counters to enable, see \ref _MALI_PERFORMANCE_COUNTER_FLAG_SRC0_ENABLE and related macro definitions */
 	u32 perf_counter_src0;                             /**< Source id for performance counter 0 (see ARM DDI0415A, Table 3-60) */
 	u32 perf_counter_src1;                             /**< Source id for performance counter 1 (see ARM DDI0415A, Table 3-60) */
@@ -44,10 +44,13 @@ struct mali_pp_job
 	u32 sub_jobs_started;                              /**< Total number of sub-jobs started (always started in ascending order) */
 	u32 sub_jobs_completed;                            /**< Number of completed sub-jobs in this superjob */
 	u32 sub_job_errors;                                /**< Bitfield with errors (errors for each single sub-job is or'ed together) */
+
+#if MALI_TIMELINE_PROFILING_ENABLED
 	u32 pid;                                           /**< Process ID of submitting process */
 	u32 tid;                                           /**< Thread ID of submitting thread */
 	u32 frame_builder_id;                              /**< id of the originating frame builder */
 	u32 flush_id;                                      /**< flush id within the originating frame builder */
+#endif
 };
 
 struct mali_pp_job *mali_pp_job_create(struct mali_session_data *session, _mali_uk_pp_start_job_s *args, u32 id);
@@ -67,16 +70,6 @@ MALI_STATIC_INLINE u32 mali_pp_job_get_id(struct mali_pp_job *job)
 MALI_STATIC_INLINE u32 mali_pp_job_get_user_id(struct mali_pp_job *job)
 {
 	return job->user_id;
-}
-
-MALI_STATIC_INLINE u32 mali_pp_job_get_frame_builder_id(struct mali_pp_job *job)
-{
-	return job->frame_builder_id;
-}
-
-MALI_STATIC_INLINE u32 mali_pp_job_get_flush_id(struct mali_pp_job *job)
-{
-	return job->flush_id;
 }
 
 MALI_STATIC_INLINE u32* mali_pp_job_get_frame_registers(struct mali_pp_job *job)
@@ -125,21 +118,6 @@ MALI_STATIC_INLINE u32* mali_pp_job_get_wb1_registers(struct mali_pp_job *job)
 MALI_STATIC_INLINE u32* mali_pp_job_get_wb2_registers(struct mali_pp_job *job)
 {
 	return job->wb2_registers;
-}
-
-MALI_STATIC_INLINE void mali_pp_job_disable_wb0(struct mali_pp_job *job)
-{
-	job->wb0_registers[MALI200_REG_ADDR_WB_SOURCE_SELECT] = 0;
-}
-
-MALI_STATIC_INLINE void mali_pp_job_disable_wb1(struct mali_pp_job *job)
-{
-	job->wb1_registers[MALI200_REG_ADDR_WB_SOURCE_SELECT] = 0;
-}
-
-MALI_STATIC_INLINE void mali_pp_job_disable_wb2(struct mali_pp_job *job)
-{
-	job->wb2_registers[MALI200_REG_ADDR_WB_SOURCE_SELECT] = 0;
 }
 
 MALI_STATIC_INLINE struct mali_session_data *mali_pp_job_get_session(struct mali_pp_job *job)

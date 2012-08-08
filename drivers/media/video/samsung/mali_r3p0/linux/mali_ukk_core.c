@@ -141,6 +141,26 @@ int post_notification_wrapper(struct mali_session_data *session_data, _mali_uk_p
 	return 0;
 }
 
+int get_user_setting_wrapper(struct mali_session_data *session_data, _mali_uk_get_user_setting_s __user *uargs)
+{
+	_mali_uk_get_user_setting_s kargs;
+	_mali_osk_errcode_t err;
+
+	MALI_CHECK_NON_NULL(uargs, -EINVAL);
+
+	kargs.ctx = session_data;
+	err = _mali_ukk_get_user_setting(&kargs);
+	if (_MALI_OSK_ERR_OK != err)
+	{
+		return map_errcode(err);
+	}
+
+	kargs.ctx = NULL; /* prevent kernel address to be returned to user space */
+	if (0 != copy_to_user(uargs, &kargs, sizeof(_mali_uk_get_user_setting_s))) return -EFAULT;
+
+	return 0;
+}
+
 int get_user_settings_wrapper(struct mali_session_data *session_data, _mali_uk_get_user_settings_s __user *uargs)
 {
 	_mali_uk_get_user_settings_s kargs;

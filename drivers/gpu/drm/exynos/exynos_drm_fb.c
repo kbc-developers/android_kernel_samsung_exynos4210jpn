@@ -67,21 +67,10 @@ static int check_fb_gem_memory_type(struct exynos_drm_gem_obj *exynos_gem_obj)
 static void exynos_drm_fb_destroy(struct drm_framebuffer *fb)
 {
 	struct exynos_drm_fb *exynos_fb = to_exynos_fb(fb);
-	unsigned int i;
 
 	DRM_DEBUG_KMS("%s\n", __FILE__);
 
 	drm_framebuffer_cleanup(fb);
-
-	for (i = 0; i < ARRAY_SIZE(exynos_fb->exynos_gem_obj); i++) {
-		struct drm_gem_object *obj;
-
-		if (exynos_fb->exynos_gem_obj[i] == NULL)
-			continue;
-
-		obj = &exynos_fb->exynos_gem_obj[i]->base;
-		drm_gem_object_unreference_unlocked(obj);
-	}
 
 	kfree(exynos_fb);
 	exynos_fb = NULL;
@@ -171,11 +160,11 @@ exynos_user_fb_create(struct drm_device *dev, struct drm_file *file_priv,
 		return ERR_PTR(-ENOENT);
 	}
 
+	drm_gem_object_unreference_unlocked(obj);
+
 	fb = exynos_drm_framebuffer_init(dev, mode_cmd, obj);
-	if (IS_ERR(fb)) {
-		drm_gem_object_unreference_unlocked(obj);
+	if (IS_ERR(fb))
 		return fb;
-	}
 
 	exynos_fb = to_exynos_fb(fb);
 	nr = exynos_drm_format_num_buffers(fb->pixel_format);
@@ -191,6 +180,8 @@ exynos_user_fb_create(struct drm_device *dev, struct drm_file *file_priv,
 			exynos_drm_fb_destroy(fb);
 			return ERR_PTR(-ENOENT);
 		}
+
+		drm_gem_object_unreference_unlocked(obj);
 
 		exynos_gem_obj = to_exynos_gem_obj(obj);
 

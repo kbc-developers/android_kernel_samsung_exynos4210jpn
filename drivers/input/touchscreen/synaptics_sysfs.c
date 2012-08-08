@@ -61,8 +61,7 @@ static int synaptics_ts_load_fw(struct synaptics_drv_data *data)
 	if (0 < fw_size) {
 		u8 *fw_data;
 		fw_data = kzalloc(fw_size, GFP_KERNEL);
-		nread = vfs_read(fp, (char __user *)fw_data,
-			fw_size, &fp->f_pos);
+		nread = vfs_read(fp, (char __user *)fw_data, fw_size, &fp->f_pos);
 		printk(KERN_DEBUG "[TSP] start, file path %s, size %u Bytes\n",
 		       SYNAPTICS_FW, fw_size);
 		if (nread != fw_size) {
@@ -114,7 +113,7 @@ static void set_report_mode(struct synaptics_drv_data *data,
 		synaptics_ts_read_data(data,
 			data->f54.command_base_addr,
 			&buf);
-		if (cnt++ > 150) {
+		if (cnt++ > 100) {
 			printk(KERN_WARNING
 				"[TSP] Fail - cmd : %u, result : %u\n",
 				command, result);
@@ -143,14 +142,13 @@ static void soft_reset(struct synaptics_drv_data *data)
 static void check_all_raw_cap(struct synaptics_drv_data *data)
 {
 	int i;
+	u8 *buff;
 	u16 temp = 0;
 	u16 length = data->x_line * data->y_line * 2;
 
-	if (NULL == data->references)
-		data->references = kzalloc(length, GFP_KERNEL);
-
-	data->refer_min = 0xffff;
-	data->refer_max = 0x0;
+	buff = kzalloc(length, GFP_KERNEL);
+	data->refer_min = FULL_RAW_CAP_UPPER_LIMIT;
+	data->refer_max = FULL_RAW_CAP_LOWER_LIMIT;
 
 	/* set the index */
 	set_report_index(data, 0x0000);
@@ -161,11 +159,10 @@ static void check_all_raw_cap(struct synaptics_drv_data *data)
 	/* read all report data */
 	synaptics_ts_read_block(data,
 		data->f54.data_base_addr + 3,
-		data->references, length);
+		buff, length);
 
 	for (i = 0; i < length; i += 2) {
-		temp = (u16)(data->references[i] |
-			(data->references[i+1] << 8));
+		temp = (u16)(buff[i] | (buff[i+1] << 8));
 		if (data->debug) {
 			if ((temp <= FULL_RAW_CAP_LOWER_LIMIT)
 				|| (temp >= FULL_RAW_CAP_UPPER_LIMIT)) {
@@ -174,6 +171,7 @@ static void check_all_raw_cap(struct synaptics_drv_data *data)
 					i, temp);
 			}
 		}
+		data->references[i / 2] = temp;
 		if (temp < data->refer_min)
 			data->refer_min = temp;
 		if (temp > data->refer_max)
@@ -181,15 +179,17 @@ static void check_all_raw_cap(struct synaptics_drv_data *data)
 	}
 	printk(KERN_DEBUG "[TSP] min : %u, max : %u\n",
 		data->refer_min, data->refer_max);
+
+	kfree(buff);
 }
 
 static void check_tx_to_tx(struct synaptics_drv_data *data)
 {
 	int i = 0;
+	u8 *buff;
 	u8 length = (data->x_line / 8) + 1;
 
-	if (NULL == data->tx_to_tx)
-		data->tx_to_tx = kzalloc(data->x_line, GFP_KERNEL);
+	buff = kzalloc(length, GFP_KERNEL);
 
 	/* set the index */
 	set_report_index(data, 0x0000);
@@ -199,7 +199,7 @@ static void check_tx_to_tx(struct synaptics_drv_data *data)
 
 	synaptics_ts_read_block(data,
 		data->f54.data_base_addr + 3,
-		data->tx_to_tx, length);
+		buff, length);
 
 	/*
 	* Byte-0 houses Tx responses Tx7:Tx0
@@ -208,7 +208,7 @@ static void check_tx_to_tx(struct synaptics_drv_data *data)
 	* Byte-3 houses Tx responses Tx31:Tx24
 	*/
 	for (i = 0; i < data->x_line; i++) {
-		if (data->tx_to_tx[i / 8] & (0x1 << i % 8)) {
+		if (buff[i / 8] & (0x1 << i % 8)) {
 			data->tx_to_tx[i] = 0x1;
 			printk(KERN_WARNING
 				"[TSP] %s %d short\n",
@@ -216,15 +216,16 @@ static void check_tx_to_tx(struct synaptics_drv_data *data)
 		} else
 			data->tx_to_tx[i] = 0x0;
 	}
+	kfree(buff);
 }
 
 static void check_tx_to_gnd(struct synaptics_drv_data *data)
 {
 	int i = 0;
+	u8 *buff;
 	u8 length = (data->x_line / 8) + 1;
 
-	if (NULL == data->tx_to_gnd)
-		data->tx_to_gnd = kzalloc(data->x_line, GFP_KERNEL);
+	buff = kzalloc(length, GFP_KERNEL);
 
 	/* set the index */
 	set_report_index(data, 0x0000);
@@ -234,7 +235,7 @@ static void check_tx_to_gnd(struct synaptics_drv_data *data)
 
 	synaptics_ts_read_block(data,
 		data->f54.data_base_addr + 3,
-		data->tx_to_gnd, length);
+		buff, length);
 
 	/*
 	* Byte-0 houses Tx responses Tx7:Tx0
@@ -243,7 +244,7 @@ static void check_tx_to_gnd(struct synaptics_drv_data *data)
 	* Byte-3 houses Tx responses Tx31:Tx24
 	*/
 	for (i = 0; i < data->x_line; i++) {
-		if (data->tx_to_gnd[i / 8] & (0x1 << i % 8)) {
+		if (buff[i / 8] & (0x1 << i % 8)) {
 			data->tx_to_gnd[i] = 0x1;
 			printk(KERN_WARNING
 				"[TSP] %s %d short\n",
@@ -251,28 +252,23 @@ static void check_tx_to_gnd(struct synaptics_drv_data *data)
 		} else
 			data->tx_to_gnd[i] = 0x0;
 	}
+	kfree(buff);
 }
 
 static void check_rx_to_rx(struct synaptics_drv_data *data)
 {
-	int i = 0, j = 0, k = 0;
+	int i = 0, cnt = 0;
 	u8 *buff;
-	u16 length = data->y_line * data->y_line * 2;
 	u16 temp = 0;
+	u16 length = data->y_line * data->y_line * 2;
 
 	buff = kzalloc(length, GFP_KERNEL);
 
-	/* disable the CBC setting */
-	synaptics_ts_write_data(data,
-		data->f54.control_base_addr + 8,
-		0x00);
-
 	/* noCDM4 */
 	synaptics_ts_write_data(data,
-		data->f54.control_base_addr + 0xa6,
-		0x01);
+		NOISEMITIGATION, 0x01);
 
-	set_report_mode(data, 0x04, 0x00);
+	set_report_mode(data, 0x04, 0x02);
 	set_report_mode(data, 0x02, 0x00);
 
 	/* set the index */
@@ -288,11 +284,9 @@ static void check_rx_to_rx(struct synaptics_drv_data *data)
 		data->f54.data_base_addr + 3,
 		buff, length);
 
-	for (i = 0, k = 0; i < data->x_line; i++) {
-		for (j = 0; j < data->y_line; j++, k += 2) {
-			temp = buff[k] | (buff[k+1] << 8);
-			data->rx_to_rx[i][j] = temp;
-		}
+	for (i = 0; i < length; i += 2) {
+		temp = (u16)(buff[i] | (buff[i+1] << 8));
+		data->rx_to_rx[cnt++] = temp;
 	}
 
 	/* read 2nd rx_to_rx data */
@@ -311,20 +305,9 @@ static void check_rx_to_rx(struct synaptics_drv_data *data)
 		data->f54.data_base_addr + 3,
 		buff, length);
 
-	for (k = 0; i < data->y_line; i++) {
-		for (j = 0; j < data->y_line; j++, k += 2) {
-			temp = buff[k] | (buff[k+1] << 8);
-			data->rx_to_rx[i][j] = temp;
-		}
-	}
-
-	if (data->debug) {
-		for (i = 0; i < data->y_line; i++) {
-			printk("[TSP] line %d :", i);
-			for (j = 0; j < data->y_line; j++)
-				printk(" %d", (s16)(data->rx_to_rx[j][i]));
-			printk("\n");
-		}
+	for (i = 0; i < length; i += 2) {
+		temp = (u16)(buff[i] | (buff[i+1] << 8));
+		data->rx_to_rx[cnt++] = temp;
 	}
 
 	/* to the calibration */
@@ -427,16 +410,12 @@ static u16 get_value(struct synaptics_drv_data *data,
 	u32 pos_x, u32 pos_y)
 {
 	u16 tmp = 0;
+	u16 position = (u16)(data->y_line * pos_x) + pos_y;
 
 	switch (data->cmd_report_type) {
 	case REPORT_TYPE_RAW_CAP:
-	{
-		u16 position = (u16)(data->y_line * pos_x) + pos_y;
-		position *= 2;
-		tmp = (u16)(data->references[position] |
-			(data->references[position+1] << 8));
+		tmp = data->references[position];
 		break;
-	}
 
 	case REPORT_TYPE_TX_TO_TX:
 		tmp = data->tx_to_tx[pos_x];
@@ -446,7 +425,7 @@ static u16 get_value(struct synaptics_drv_data *data,
 		break;
 
 	case REPORT_TYPE_RX_TO_RX:
-		tmp = data->rx_to_rx[pos_x][pos_y];
+		tmp = data->rx_to_rx[position];
 		break;
 
 	default:
@@ -490,9 +469,7 @@ static int sec_sysfs_check_cmd(u8 *buf,
 			printk(KERN_DEBUG
 				"[TSP] param[%u] : %s\n",
 				cnt2, tmp);
-			if (kstrtouint(tmp, 10, &param[cnt2]))
-				cmd = CMD_LIST_MAX;
-			else
+			if (!kstrtouint(tmp, 10, &param[cnt2]))
 				cnt2++;
 			kfree(tmp);
 			start = cnt + 1;
@@ -503,9 +480,22 @@ static int sec_sysfs_check_cmd(u8 *buf,
 	return cmd;
 }
 
-static void sec_sysfs_numstr(s16 data, u8 *str)
+static void sec_sysfs_numstr(u16 data, u8 *str)
 {
-	sprintf(str, "%d", data);
+	int i = 0;
+	u8 buf[MAX_CMD_SIZE];
+	for (i = 0; i < MAX_CMD_SIZE; ++i) {
+		buf[i] = '0' + (data % 10);
+		if (data < 10)
+			break;
+		data /= 10;
+	}
+
+	while (i >= 0) {
+		*str = buf[i];
+		str++;
+		i--;
+	}
 }
 
 static void sec_sysfs_cmd(struct synaptics_drv_data *data,
@@ -608,12 +598,8 @@ static void sec_sysfs_cmd(struct synaptics_drv_data *data,
 		break;
 
 	case CMD_LIST_READ_REF:
-		synaptics_ts_write_data(data,
-			0xf0, 0x01);
 		data->cmd_report_type = REPORT_TYPE_RAW_CAP;
 		check_diagnostics_mode(data);
-		synaptics_ts_write_data(data,
-			0xf0, 0x00);
 		sec_sysfs_numstr(data->refer_min, buf2);
 		tmp_str[cnt++] = buf2;
 		tmp_str[cnt++] = ",";
@@ -637,24 +623,28 @@ static void sec_sysfs_cmd(struct synaptics_drv_data *data,
 		break;
 
 	case CMD_LIST_GET_REF:
+		data->cmd_report_type = REPORT_TYPE_RAW_CAP;
 		temp = get_value(data, param[0], param[1]);
 		sec_sysfs_numstr(temp, buf2);
 		tmp_str[cnt++] = buf2;
 		break;
 
 	case CMD_LIST_GET_RX:
+		data->cmd_report_type = REPORT_TYPE_RX_TO_RX;
 		temp = get_value(data, param[0], param[1]);
 		sec_sysfs_numstr(temp, buf2);
 		tmp_str[cnt++] = buf2;
 		break;
 
 	case CMD_LIST_GET_TX:
+		data->cmd_report_type = REPORT_TYPE_TX_TO_TX;
 		temp = get_value(data, param[0], param[1]);
 		sec_sysfs_numstr(temp, buf2);
 		tmp_str[cnt++] = buf2;
 		break;
 
 	case CMD_LIST_GET_TXG:
+		data->cmd_report_type = REPORT_TYPE_TX_TO_GND;
 		temp = get_value(data, param[0], param[1]);
 		sec_sysfs_numstr(temp, buf2);
 		tmp_str[cnt++] = buf2;
@@ -724,39 +714,6 @@ static ssize_t sec_sysfs_show_cmd_list(struct device *dev,
 			"%s\n", sec_sysfs_cmd_list[i]);
 	return cnt;
 }
-
-void synaptics_ts_drawing_mode(struct synaptics_drv_data *data)
-{
-	u8 val = 0;
-	u16 addr = 0;
-
-	addr = data->f11.control_base_addr;
-	synaptics_ts_read_data(data, addr, &val);
-
-	if (!data->drawing_mode) {
-		val |= ABS_POS_BIT;
-		printk(KERN_DEBUG
-			"[TSP] set normal mode\n");
-	} else {
-		val &= ~(ABS_POS_BIT);
-		printk(KERN_DEBUG
-			"[TSP] set drawing mode\n");
-	}
-	/* set ads pos filter */
-	synaptics_ts_write_data(data, addr, val);
-}
-
-static void set_abs_pos_filter(struct synaptics_drv_data *data,
-	const char *str)
-{
-	u32 buf = 0;
-	sscanf(str, "%u", &buf);
-	data->drawing_mode = !buf;
-	if (data->ready)
-		synaptics_ts_drawing_mode(data);
-}
-
-#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
 static void sec_sysfs_set_debug(struct synaptics_drv_data *data,
 	const char *str)
 {
@@ -764,15 +721,6 @@ static void sec_sysfs_set_debug(struct synaptics_drv_data *data,
 	sscanf(str, "%u", &buf);
 	data->debug = !!buf;
 }
-
-static void set_config(struct synaptics_drv_data *data,
-	const char *str)
-{
-	u32 buf1, buf2 = 0;
-	sscanf(str, "%u %u", &buf1, &buf2);
-	synaptics_ts_write_data(data, buf1, buf2);
-}
-#endif
 
 #define SET_SHOW_FN(name, fn, format, ...)	\
 static ssize_t sec_sysfs_show_##name(struct device *dev,	\
@@ -803,12 +751,7 @@ SET_SHOW_FN(cmd_result,
 	"%s", data->cmd_result);
 
 SET_STORE_FN(cmd, sec_sysfs_cmd);
-SET_STORE_FN(set_jitter, set_abs_pos_filter);
-
-#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
 SET_STORE_FN(set_debug, sec_sysfs_set_debug);
-SET_STORE_FN(set_config, set_config);
-#endif
 
 static DEVICE_ATTR(cmd, S_IWUSR | S_IWGRP,
 	NULL, sec_sysfs_store_cmd);
@@ -818,26 +761,15 @@ static DEVICE_ATTR(cmd_result, S_IRUGO,
 	sec_sysfs_show_cmd_result, NULL);
 static DEVICE_ATTR(cmd_list, S_IRUGO,
 	sec_sysfs_show_cmd_list, NULL);
-static DEVICE_ATTR(set_jitter, S_IWUSR | S_IWGRP,
-	NULL, sec_sysfs_store_set_jitter);
-
-#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
 static DEVICE_ATTR(set_debug, S_IWUSR,
 	NULL, sec_sysfs_store_set_debug);
-static DEVICE_ATTR(set_config, S_IWUSR,
-	NULL, sec_sysfs_store_set_config);
-#endif
 
 static struct attribute *sec_sysfs_attributes[] = {
 	&dev_attr_cmd.attr,
 	&dev_attr_cmd_status.attr,
 	&dev_attr_cmd_result.attr,
 	&dev_attr_cmd_list.attr,
-	&dev_attr_set_jitter.attr,
-#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
 	&dev_attr_set_debug.attr,
-	&dev_attr_set_config.attr,
-#endif
 	NULL,
 };
 
@@ -848,6 +780,12 @@ static struct attribute_group sec_sysfs_attr_group = {
 int set_tsp_sysfs(struct synaptics_drv_data *data)
 {
 	int ret = 0;
+	u16 tmp = 0;
+	tmp = data->x_line * data->y_line;
+	data->references = kzalloc(tmp, GFP_KERNEL);
+	data->rx_to_rx = kzalloc(tmp, GFP_KERNEL);
+	data->tx_to_tx = kzalloc(data->x_line, GFP_KERNEL);
+	data->tx_to_gnd = kzalloc(data->x_line, GFP_KERNEL);
 
 	data->dev = device_create(sec_class, NULL, 0, data, "tsp");
 	if (IS_ERR(data->dev)) {
@@ -865,20 +803,6 @@ int set_tsp_sysfs(struct synaptics_drv_data *data)
 
 err_device_create:
 	return ret;
-}
-
-void remove_tsp_sysfs(struct synaptics_drv_data *data)
-{
-	if (NULL != data->references)
-		kfree(data->references);
-	if (NULL != data->tx_to_tx)
-		kfree(data->tx_to_tx);
-	if (NULL != data->tx_to_gnd)
-		kfree(data->tx_to_gnd);
-
-	sysfs_remove_group(&data->dev->kobj, &sec_sysfs_attr_group);
-	put_device(data->dev);
-	device_unregister(data->dev);
 }
 
 MODULE_AUTHOR("junki671.min@samsung.com");

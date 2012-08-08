@@ -28,11 +28,7 @@ struct melfas_tsi_platform_data {
 	int	gpio_scl;
 	int	(*mux_fw_flash)(bool to_gpios);
 	int	(*power)(int on);
-	u8	*tsp_vendor;
-	u8	*tsp_ic;
-	int	tsp_tx;
-	int	tsp_rx;
-	int	fw_version;
+	const char	*fw_name;
 	const u8	*config_fw_version;
 	void	(*input_event)(void *data);
 	void	(*register_cb)(void *);

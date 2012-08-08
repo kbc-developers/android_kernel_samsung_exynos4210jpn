@@ -291,13 +291,6 @@ int ath6kl_wmi_implicit_create_pstream(struct wmi *wmi, u8 if_idx,
 					layer2_priority);
 		} else
 			usr_pri = layer2_priority & 0x7;
-
-		/*
-		 * Queue the EAPOL frames in the same WMM_AC_VO queue
-		 * as that of management frames.
-		 */
-		if (skb->protocol == cpu_to_be16(ETH_P_PAE))
-			usr_pri = WMI_VOICE_USER_PRIORITY;
 	}
 
 	/*
@@ -731,38 +724,6 @@ int ath6kl_wmi_set_roam_lrssi_cmd(struct wmi *wmi, u8 lrssi)
 
 	return 0;
 }
-
-int ath6kl_wmi_set_roam_lrssi_config_cmd(struct wmi *wmi,
-				struct low_rssi_scan_params *params)
-{
-	struct sk_buff *skb;
-	struct roam_ctrl_cmd *cmd;
-
-	skb = ath6kl_wmi_get_new_buf(sizeof(*cmd));
-	if (!skb)
-		return -ENOMEM;
-
-	cmd = (struct roam_ctrl_cmd *) skb->data;
-	ath6kl_dbg(ATH6KL_DBG_WMI, "lrssi_scan_period %d, lrssi_scan_threshold = %d, "
-			"lrssi_roam_threshold = %d, roam_rssi_floor = %d\n",
-			params->lrssi_scan_period, params->lrssi_scan_threshold,
-			params->lrssi_roam_threshold, params->roam_rssi_floor);
-
-	if (params->lrssi_scan_period == 0)
-		cmd->info.params.lrssi_scan_period = 0xFFFF;
-	else
-		cmd->info.params.lrssi_scan_period = params->lrssi_scan_period;
-	cmd->info.params.lrssi_scan_threshold = params->lrssi_scan_threshold;
-	cmd->info.params.lrssi_roam_threshold = params->lrssi_roam_threshold;
-	cmd->info.params.roam_rssi_floor = params->roam_rssi_floor;
-	cmd->roam_ctrl = WMI_SET_LRSSI_SCAN_PARAMS;
-
-	ath6kl_wmi_cmd_send(wmi, 0, skb, WMI_SET_ROAM_CTRL_CMDID,
-			    NO_SYNC_WMIFLAG);
-
-	return 0;
-}
-
 
 int ath6kl_wmi_force_roam_cmd(struct wmi *wmi, const u8 *bssid)
 {
@@ -2079,28 +2040,6 @@ int ath6kl_wmi_listeninterval_cmd(struct wmi *wmi, u8 if_idx,
 	return ret;
 }
 
-int ath6kl_wmi_mcastrate_cmd(struct wmi *wmi, u8 if_idx,
-				 u16 bitrate)
-{
-	struct sk_buff *skb;
-	struct wmi_set_mcastrate_cmd *cmd;
-	int ret;
-
-	printk(KERN_INFO "\tmcastrate = %d\n", bitrate);
-
-	skb = ath6kl_wmi_get_new_buf(sizeof(*cmd));
-	if (!skb)
-		return -ENOMEM;
-
-	cmd = (struct wmi_set_mcastrate_cmd *) skb->data;
-	cmd->bitrate = bitrate;
-
-	ret = ath6kl_wmi_cmd_send(wmi, if_idx, skb, WMI_SET_MCASTRATE_CMDID,
-				  NO_SYNC_WMIFLAG);
-
-	return ret;
-}
-
 int ath6kl_wmi_bmisstime_cmd(struct wmi *wmi, u8 if_idx,
 				  u16 bmiss_time,
 				  u16 num_beacons)
@@ -2137,8 +2076,7 @@ int ath6kl_wmi_powermode_cmd(struct wmi *wmi, u8 if_idx, u8 pwr_mode)
 	if(wmi->parent_dev->psminfo == 0)
 	{
 		pwr_mode = MAX_PERF_POWER;
-		ath6kl_dbg(ATH6KL_DBG_WMI, "%s() pwr_mode = %d\n",
-						__func__, pwr_mode);
+		printk("AR6K: %s() pwr_mode = %d\n", __func__, pwr_mode);
 	}
 
 	cmd->pwr_mode = pwr_mode;
@@ -3027,61 +2965,6 @@ int ath6kl_wmi_add_del_mcast_filter_cmd(struct wmi *wmi, u8 if_idx,
 	return ret;
 }
 
-int ath6kl_wmi_set_ht_cap_cmd(struct wmi *wmi, u8 if_idx,
-		struct wmi_set_ht_cap_cmd *params)
-{
-	struct sk_buff *skb;
-	struct wmi_set_ht_cap_cmd *cmd;
-	struct ath6kl *ar = wmi->parent_dev;
-	struct ieee80211_supported_band *sband;
-	int ret;
-
-	skb = ath6kl_wmi_get_new_buf(sizeof(*cmd));
-	if (!skb)
-		return -ENOMEM;
-
-	cmd = (struct wmi_set_ht_cap_cmd *) skb->data;
-	ath6kl_dbg(ATH6KL_DBG_WMI, "bands %d, ht_supported = %d, "
-		"chan_width_40m_supported %d, short_gi_20mhz = %d, "
-		"short_gi_40mhz = %d, intolerance_40mhz = %d\n",
-		params->band, params->enable,
-		params->chan_width_40m_supported, params->short_gi_20mhz,
-		params->short_gi_40mhz, params->intolerance_40mhz);
-	memcpy(cmd, params, sizeof(*cmd));
-
-	sband = ar->wiphy->bands[params->band];
-	sband->ht_cap.ht_supported = params->enable;
-	if (params->chan_width_40m_supported)
-		sband->ht_cap.cap |= IEEE80211_HT_CAP_SUP_WIDTH_20_40;
-	else
-		sband->ht_cap.cap &= ~IEEE80211_HT_CAP_SUP_WIDTH_20_40;
-
-	if (params->short_gi_20mhz)
-		sband->ht_cap.cap |= IEEE80211_HT_CAP_SGI_20;
-	else
-		sband->ht_cap.cap &= ~IEEE80211_HT_CAP_SGI_20;
-
-	if (params->short_gi_40mhz)
-		sband->ht_cap.cap |= IEEE80211_HT_CAP_SGI_40;
-	else
-		sband->ht_cap.cap &= ~IEEE80211_HT_CAP_SGI_40;
-
-	if (params->intolerance_40mhz)
-		sband->ht_cap.cap |= IEEE80211_HT_CAP_40MHZ_INTOLERANT;
-	else
-		sband->ht_cap.cap &= ~IEEE80211_HT_CAP_40MHZ_INTOLERANT;
-
-	if (params->max_ampdu_len_exp)
-		sband->ht_cap.cap |= IEEE80211_HT_CAP_MAX_AMSDU;
-	else
-		sband->ht_cap.cap &= ~IEEE80211_HT_CAP_MAX_AMSDU;
-
-	ret = ath6kl_wmi_cmd_send(wmi, if_idx, skb, WMI_SET_HT_CAP_CMDID,
-				  NO_SYNC_WMIFLAG);
-	return ret;
-}
-
-
 s32 ath6kl_wmi_get_rate(s8 rate_index)
 {
 	u32 sgi;
@@ -3182,9 +3065,6 @@ int ath6kl_wmi_ap_set_mlme(struct wmi *wmip, u8 if_idx, u8 cmd, const u8 *mac,
 	memcpy(cm->mac, mac, ETH_ALEN);
 	cm->reason = cpu_to_le16(reason);
 	cm->cmd = cmd;
-
-	ath6kl_dbg(ATH6KL_DBG_WMI, "ap_set_mlme: cmd=%d reason=%d\n", cm->cmd,
-		   cm->reason);
 
 	return ath6kl_wmi_cmd_send(wmip, if_idx, skb, WMI_AP_SET_MLME_CMDID,
 				   NO_SYNC_WMIFLAG);
@@ -3335,29 +3215,6 @@ int ath6kl_wmi_set_appie_cmd(struct wmi *wmi, u8 if_idx, u8 mgmt_frm_type,
 				   NO_SYNC_WMIFLAG);
 }
 
-int ath6kl_wmi_set_ie_cmd(struct wmi *wmi, u8 if_idx, u8 ie_id, u8 ie_field,
-			     const u8 *ie_info, u8 ie_len)
-{
-	struct sk_buff *skb;
-	struct wmi_set_ie_cmd *p;
-
-	skb = ath6kl_wmi_get_new_buf(sizeof(*p) + ie_len);
-	if (!skb)
-		return -ENOMEM;
-
-	ath6kl_dbg(ATH6KL_DBG_WMI, "set_ie_cmd: ie_id=%u ie_ie_field=%u "
-		   "ie_len=%u\n", ie_id, ie_field, ie_len);
-	p = (struct wmi_set_ie_cmd *) skb->data;
-	p->ie_id = ie_id;
-	p->ie_field = ie_field;
-	p->ie_len = ie_len;
-	if (ie_info != NULL && ie_len > 0)
-		memcpy(p->ie_info, ie_info, ie_len);
-
-	return ath6kl_wmi_cmd_send(wmi, if_idx, skb, WMI_SET_IE_CMDID,
-				   NO_SYNC_WMIFLAG);
-}
-
 int ath6kl_wmi_disable_11b_rates_cmd(struct wmi *wmi, bool disable)
 {
 	struct sk_buff *skb;
@@ -3398,9 +3255,8 @@ int ath6kl_wmi_remain_on_chnl_cmd(struct wmi *wmi, u8 if_idx, u32 freq, u32 dur)
  * ath6kl_wmi_send_mgmt_cmd instead. The new function supports P2P
  * mgmt operations using station interface.
  */
-static int ath6kl_wmi_send_action_cmd(struct wmi *wmi, u8 if_idx, u32 id,
-				      u32 freq, u32 wait, const u8 *data,
-				      u16 data_len)
+int ath6kl_wmi_send_action_cmd(struct wmi *wmi, u8 if_idx, u32 id, u32 freq,
+			       u32 wait, const u8 *data, u16 data_len)
 {
 	struct sk_buff *skb;
 	struct wmi_send_action_cmd *p;
@@ -3436,9 +3292,9 @@ static int ath6kl_wmi_send_action_cmd(struct wmi *wmi, u8 if_idx, u32 id,
 				   NO_SYNC_WMIFLAG);
 }
 
-static int __ath6kl_wmi_send_mgmt_cmd(struct wmi *wmi, u8 if_idx, u32 id,
-				      u32 freq, u32 wait, const u8 *data,
-				      u16 data_len, u32 no_cck)
+int ath6kl_wmi_send_mgmt_cmd(struct wmi *wmi, u8 if_idx, u32 id, u32 freq,
+			       u32 wait, const u8 *data, u16 data_len,
+			       u32 no_cck)
 {
 	struct sk_buff *skb;
 	struct wmi_send_mgmt_cmd *p;
@@ -3473,32 +3329,6 @@ static int __ath6kl_wmi_send_mgmt_cmd(struct wmi *wmi, u8 if_idx, u32 id,
 	memcpy(p->data, data, data_len);
 	return ath6kl_wmi_cmd_send(wmi, if_idx, skb, WMI_SEND_MGMT_CMDID,
 				   NO_SYNC_WMIFLAG);
-}
-
-int ath6kl_wmi_send_mgmt_cmd(struct wmi *wmi, u8 if_idx, u32 id, u32 freq,
-				u32 wait, const u8 *data, u16 data_len,
-				u32 no_cck)
-{
-	int status;
-	struct ath6kl *ar = wmi->parent_dev;
-
-	if (test_bit(ATH6KL_FW_CAPABILITY_STA_P2PDEV_DUPLEX,
-		     ar->fw_capabilities)) {
-		/*
-		 * If capable of doing P2P mgmt operations using
-		 * station interface, send additional information like
-		 * supported rates to advertise and xmit rates for
-		 * probe requests
-		 */
-		status = __ath6kl_wmi_send_mgmt_cmd(ar->wmi, if_idx, id, freq,
-						    wait, data, data_len,
-						    no_cck);
-	} else {
-		status = ath6kl_wmi_send_action_cmd(ar->wmi, if_idx, id, freq,
-						    wait, data, data_len);
-	}
-
-	return status;
 }
 
 int ath6kl_wmi_send_probe_response_cmd(struct wmi *wmi, u8 if_idx, u32 freq,

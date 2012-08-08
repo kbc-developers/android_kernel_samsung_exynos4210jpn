@@ -37,10 +37,9 @@
 #if defined(CONFIG_SEC_TOUCHSCREEN_DVFS_LOCK)
 #include <mach/cpufreq.h>
 #include <mach/dev.h>
-#define SEC_DVFS_LOCK_TIMEOUT	200
+#define SEC_DVFS_LOCK_TIMEOUT	100
 #define SEC_DVFS_LOCK_FREQ		800000
 #define SEC_BUS_LOCK_FREQ		267160
-#define SEC_BUS_LOCK_FREQ2	400200
 #endif
 
 #define MAX_TOUCH_NUM			10
@@ -164,9 +163,7 @@ struct synaptics_drv_data {
 	bool dvfs_lock_status;
 #endif
 	bool ready;
-	bool input_open;
 	bool charger_connection;
-	bool drawing_mode;
 	bool suspend;
 	bool debug;
 	int gpio;
@@ -177,20 +174,19 @@ struct synaptics_drv_data {
 	u8 firm_version[4];
 	u8 firm_config[13];
 	u8 *cmd_temp;
-	u8 *references;
 	u8 *tx_to_tx;
 	u8 *tx_to_gnd;
 	u16 x_line;
 	u16 y_line;
 	u16 refer_max;
 	u16 refer_min;
-	u16 rx_to_rx[42][42];
+	u16 *references;
+	u16 *rx_to_rx;
 	unsigned long func_bit[BITS_TO_LONGS(MAX_FUNC+1)];
 };
 
 extern struct class *sec_class;
 extern int set_tsp_sysfs(struct synaptics_drv_data *data);
-extern void remove_tsp_sysfs(struct synaptics_drv_data *data);
 extern int synaptics_fw_updater(struct synaptics_drv_data *data,
 	u8 *fw_data);
 extern void forced_fw_upload(struct synaptics_drv_data *data);
@@ -203,6 +199,5 @@ extern int synaptics_ts_write_block(struct synaptics_drv_data *data,
 extern int synaptics_ts_read_block(struct synaptics_drv_data *data,
 	u16 addr, u8 *buf, u16 count);
 extern void forced_fw_update(struct synaptics_drv_data *data);
-extern void synaptics_ts_drawing_mode(struct synaptics_drv_data *data);
 
 #endif	/* _LINUX_SYNAPTICS_TS_H_ */

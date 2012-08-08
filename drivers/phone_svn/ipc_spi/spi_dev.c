@@ -118,7 +118,7 @@ void spi_dev_destroy(void)
 
 /**********************************************************
 
-Prototype		int spi_dev_send
+Prototype       int spi_dev_send
 
 Type		function
 
@@ -133,11 +133,11 @@ Return value	0 : success
 
 ***********************************************************/
 
-int spi_dev_send(void *buf, unsigned int length)
+int spi_dev_send(void *buf, void * sync_buf, unsigned int length)
 {
 	int result = 0;
 
-	result = ipc_spi_tx_rx_sync(buf, 0, length);
+	result = ipc_spi_tx_rx_sync(buf, sync_buf, length);
 
 	return result;
 }
@@ -160,11 +160,11 @@ Return value	0 : success
 
 ***********************************************************/
 
-int spi_dev_receive(void *buf, unsigned int length)
+int spi_dev_receive(void *sync_buf, void *buf, unsigned int length)
 {
 	int value = 0;
 
-	value = ipc_spi_tx_rx_sync(0, buf, length);
+	value = ipc_spi_tx_rx_sync(sync_buf, buf, length);
 
 	return value;
 }

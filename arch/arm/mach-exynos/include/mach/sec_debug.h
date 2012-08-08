@@ -83,34 +83,22 @@ extern void __sec_debug_work_log(struct worker *worker,
 
 static inline void sec_debug_task_log(int cpu, struct task_struct *task)
 {
-	if (unlikely(sec_debug_level.en.kernel_fault))
+	if (sec_debug_level.en.kernel_fault)
 		__sec_debug_task_log(cpu, task);
 }
 
 static inline void sec_debug_irq_log(unsigned int irq, void *fn, int en)
 {
-	if (unlikely(sec_debug_level.en.kernel_fault))
+	if (sec_debug_level.en.kernel_fault)
 		__sec_debug_irq_log(irq, fn, en);
 }
 
 static inline void sec_debug_work_log(struct worker *worker,
 				      struct work_struct *work, work_func_t f)
 {
-	if (unlikely(sec_debug_level.en.kernel_fault))
+	if (sec_debug_level.en.kernel_fault)
 		__sec_debug_work_log(worker, work, f);
 }
-
-#ifdef CONFIG_SEC_DEBUG_SOFTIRQ_LOG
-static inline void sec_debug_softirq_log(unsigned int irq, void *fn, int en)
-{
-	if (unlikely(sec_debug_level.en.kernel_fault))
-		__sec_debug_irq_log(irq, fn, en);
-}
-#else
-static inline void sec_debug_softirq_log(unsigned int irq, void *fn, int en)
-{
-}
-#endif
 #else
 static inline void sec_debug_task_log(int cpu, struct task_struct *task)
 {
@@ -122,10 +110,6 @@ static inline void sec_debug_irq_log(unsigned int irq, void *fn, int en)
 
 static inline void sec_debug_work_log(struct worker *worker,
 				      struct work_struct *work, work_func_t f)
-{
-}
-
-static inline void sec_debug_softirq_log(unsigned int irq, void *fn, int en)
 {
 }
 #endif
@@ -181,8 +165,6 @@ static inline void debug_rwsemaphore_up_log(struct rw_semaphore *sem)
 
 enum sec_debug_aux_log_idx {
 	SEC_DEBUG_AUXLOG_CPU_BUS_CLOCK_CHANGE,
-	SEC_DEBUG_AUXLOG_LOGBUF_LOCK_CHANGE,
-	SEC_DEBUG_AUXLOG_DVFS_LOCK_CHANGE,
 	SEC_DEBUG_AUXLOG_ITEM_MAX,
 };
 
@@ -191,11 +173,5 @@ extern void sec_debug_aux_log(int idx, char *fmt, ...);
 #else
 #define sec_debug_aux_log(idx, ...) do { } while (0)
 #endif
-
-#if defined(CONFIG_MACH_Q1_BD)
-extern int sec_debug_panic_handler_safe(void *buf);
-#endif
-
-extern void read_lcd_register(void);
 
 #endif				/* SEC_DEBUG_H */

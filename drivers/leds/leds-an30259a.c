@@ -77,7 +77,6 @@
 #define LED_R_CURRENT		0x28
 #define LED_G_CURRENT		0x28
 #define LED_B_CURRENT		0x28
-#define LED_MAX_CURRENT		0xFF
 #define LED_OFF				0x00
 
 #define	MAX_NUM_LEDS	3
@@ -86,17 +85,17 @@ static struct an30259_led_conf led_conf[] = {
 	{
 		.name = "led_r",
 		.brightness = LED_OFF,
-		.max_brightness = LED_R_CURRENT,
+		.max_brightness = 0x3C,
 		.flags = 0,
 	}, {
 		.name = "led_g",
 		.brightness = LED_OFF,
-		.max_brightness = LED_G_CURRENT,
+		.max_brightness = 0x3C,
 		.flags = 0,
 	}, {
 		.name = "led_b",
 		.brightness = LED_OFF,
-		.max_brightness = LED_B_CURRENT,
+		.max_brightness = 0x3C,
 		.flags = 0,
 	}
 };
@@ -301,6 +300,7 @@ static void an30259a_reset_register_work(struct work_struct *work)
 {
 	int retval;
 	struct i2c_client *client;
+	struct an30259a_data *data = i2c_get_clientdata(b_client);
 	client = b_client;
 
 	leds_on(LED_R, false, false, 0);
@@ -317,6 +317,7 @@ static void an30259a_start_led_pattern(int mode)
 	int retval;
 
 	struct i2c_client *client;
+	struct an30259a_data *data = i2c_get_clientdata(b_client);
 	struct work_struct *reset = 0;
 	client = b_client;
 
@@ -345,10 +346,12 @@ static void an30259a_start_led_pattern(int mode)
 		break;
 
 	case MISSED_NOTI:
-		leds_on(LED_R, false, false, LED_OFF);
-		leds_on(LED_G, false, false, LED_OFF);
-		leds_on(LED_B, true, true, LED_B_CURRENT);
-		leds_set_slope_mode(client, LED_B,
+		leds_on(LED_R, true, true, LED_R_CURRENT);
+		leds_on(LED_G, true, true, 9);
+		leds_on(LED_B, false, false, LED_OFF);
+		leds_set_slope_mode(client, LED_R,
+					10, 15, 15, 0, 1, 10, 0, 0, 0, 0);
+		leds_set_slope_mode(client, LED_G,
 					10, 15, 15, 0, 1, 10, 0, 0, 0, 0);
 		break;
 
@@ -361,9 +364,9 @@ static void an30259a_start_led_pattern(int mode)
 		break;
 
 	case FULLY_CHARGED:
-		leds_on(LED_R, false, false, LED_OFF);
+		leds_on(LED_R, true, false, 5);
 		leds_on(LED_G, true, false, LED_G_CURRENT);
-		leds_on(LED_B, false, false, LED_OFF);
+		leds_on(LED_B, true, false, 2);
 		break;
 
 	case POWERING:
@@ -393,20 +396,8 @@ static void an30259a_set_led_blink(enum an30259a_led_enum led,
 	struct i2c_client *client;
 	client = b_client;
 
-	if (brightness == LED_OFF) {
-		leds_on(led, false, false, brightness);
-		return;
-	}
-
-	if (brightness > LED_MAX_CURRENT)
-		brightness = LED_MAX_CURRENT;
-
-	/* In user case, LED current is restricted to less than 2mA */
-	brightness = (brightness * LED_R_CURRENT) / LED_MAX_CURRENT + 1;
-
 	if (delay_on_time > SLPTT_MAX_VALUE)
 		delay_on_time = SLPTT_MAX_VALUE;
-
 	if (delay_off_time > SLPTT_MAX_VALUE)
 		delay_off_time = SLPTT_MAX_VALUE;
 
@@ -414,6 +405,9 @@ static void an30259a_set_led_blink(enum an30259a_led_enum led,
 		leds_on(led, true, false, brightness);
 		if (brightness == LED_OFF)
 			leds_on(led, false, false, brightness);
+		return;
+	} else if (brightness == LED_OFF) {
+		leds_on(led, false, false, brightness);
 		return;
 	} else
 		leds_on(led, true, true, brightness);
@@ -462,7 +456,6 @@ static ssize_t store_an30259a_led_pattern(struct device *dev,
 	}
 
 	an30259a_start_led_pattern(mode);
-	printk(KERN_DEBUG "led pattern : %lu is activated\n", mode);
 
 	return count;
 }
@@ -505,8 +498,6 @@ static ssize_t store_an30259a_led_blink(struct device *dev,
 				delay_off_time, led_b_brightness);
 
 	leds_i2c_write_all(data->client);
-
-	printk(KERN_DEBUG "led_blink is called\n");
 
 	return count;
 }

@@ -8,8 +8,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#include "mali_gp_scheduler.h"
 #include "mali_kernel_common.h"
+#include "mali_kernel_core.h"
 #include "mali_osk.h"
 #include "mali_osk_list.h"
 #include "mali_scheduler.h"
@@ -41,13 +41,12 @@ static _MALI_OSK_LIST_HEAD(job_queue);                          /* List of jobs 
 static struct mali_gp_slot slot;
 
 /* Variables to allow safe pausing of the scheduler */
-static _mali_osk_wait_queue_t *gp_scheduler_working_wait_queue = NULL;
+static _mali_osk_lock_t *gp_scheduler_working_lock = NULL;
 static u32 pause_count = 0;
-
-static mali_bool mali_gp_scheduler_is_suspended(void);
 
 static _mali_osk_lock_t *gp_scheduler_lock = NULL;
 /* Contains tid of thread that locked the scheduler or 0, if not locked */
+MALI_DEBUG_CODE(static u32 gp_scheduler_lock_owner = 0);
 
 _mali_osk_errcode_t mali_gp_scheduler_initialize(void)
 {
@@ -56,16 +55,10 @@ _mali_osk_errcode_t mali_gp_scheduler_initialize(void)
 	_MALI_OSK_INIT_LIST_HEAD(&job_queue);
 
 	gp_scheduler_lock = _mali_osk_lock_init(_MALI_OSK_LOCKFLAG_ORDERED | _MALI_OSK_LOCKFLAG_NONINTERRUPTABLE, 0, _MALI_OSK_LOCK_ORDER_SCHEDULER);
-	gp_scheduler_working_wait_queue = _mali_osk_wait_queue_init();
+	gp_scheduler_working_lock = _mali_osk_lock_init(_MALI_OSK_LOCKFLAG_NONINTERRUPTABLE, 0, 0); /* This lock is not ordered. */
 
 	if (NULL == gp_scheduler_lock)
 	{
-		return _MALI_OSK_ERR_NOMEM;
-	}
-
-	if (NULL == gp_scheduler_working_wait_queue)
-	{
-		_mali_osk_lock_term(gp_scheduler_lock);
 		return _MALI_OSK_ERR_NOMEM;
 	}
 
@@ -73,7 +66,7 @@ _mali_osk_errcode_t mali_gp_scheduler_initialize(void)
 	for (i = 0; i < mali_cluster_get_glob_num_clusters(); i++)
 	{
 		u32 group_id = 0;
-		struct mali_cluster *curr_cluster = mali_cluster_get_global_cluster(i);
+		struct mali_cluster *curr_cluster = mali_cluster_get_global_cluster(i); /*mali_kernel_core_get_cluster(i);*/
 		struct mali_group *group = mali_cluster_get_group(curr_cluster, group_id);
 		while (NULL != group)
 		{
@@ -99,7 +92,7 @@ _mali_osk_errcode_t mali_gp_scheduler_initialize(void)
 
 void mali_gp_scheduler_terminate(void)
 {
-	_mali_osk_wait_queue_term(gp_scheduler_working_wait_queue);
+	_mali_osk_lock_term(gp_scheduler_working_lock);
 	_mali_osk_lock_term(gp_scheduler_lock);
 }
 
@@ -111,23 +104,39 @@ MALI_STATIC_INLINE void mali_gp_scheduler_lock(void)
 		MALI_DEBUG_ASSERT(0);
 	}
 	MALI_DEBUG_PRINT(5, ("Mali GP scheduler: GP scheduler lock taken\n"));
+	MALI_DEBUG_ASSERT(0 == gp_scheduler_lock_owner);
+	MALI_DEBUG_CODE(gp_scheduler_lock_owner = _mali_osk_get_tid());
 }
 
 MALI_STATIC_INLINE void mali_gp_scheduler_unlock(void)
 {
 	MALI_DEBUG_PRINT(5, ("Mali GP scheduler: Releasing GP scheduler lock\n"));
+	MALI_DEBUG_ASSERT(_mali_osk_get_tid() == gp_scheduler_lock_owner);
+	MALI_DEBUG_CODE(gp_scheduler_lock_owner = 0);
 	_mali_osk_lock_signal(gp_scheduler_lock, _MALI_OSK_LOCKMODE_RW);
 }
 
 #ifdef DEBUG
 MALI_STATIC_INLINE void mali_gp_scheduler_assert_locked(void)
 {
-	MALI_DEBUG_ASSERT_LOCK_HELD(gp_scheduler_lock);
+	MALI_DEBUG_ASSERT(_mali_osk_get_tid() == gp_scheduler_lock_owner);
 }
 #define MALI_ASSERT_GP_SCHEDULER_LOCKED() mali_gp_scheduler_assert_locked()
 #else
 #define MALI_ASSERT_GP_SCHEDULER_LOCKED()
 #endif
+
+MALI_STATIC_INLINE void mali_gp_scheduler_working_lock(void)
+{
+	_mali_osk_lock_wait(gp_scheduler_working_lock, _MALI_OSK_LOCKMODE_RW);
+	MALI_DEBUG_PRINT(5, ("Mali GP scheduler: GP scheduler working lock taken\n"));
+}
+
+MALI_STATIC_INLINE void mali_gp_scheduler_working_unlock(void)
+{
+	MALI_DEBUG_PRINT(5, ("Mali GP scheduler: Releasing GP scheduler working lock\n"));
+	_mali_osk_lock_signal(gp_scheduler_working_lock, _MALI_OSK_LOCKMODE_RW);
+}
 
 static void mali_gp_scheduler_schedule(void)
 {
@@ -149,6 +158,9 @@ static void mali_gp_scheduler_schedule(void)
 	{
 		/* Mark slot as busy */
 		slot.state = MALI_GP_SLOT_STATE_WORKING;
+
+		/* Hold the working lock as long as we are working */
+		mali_gp_scheduler_working_lock();
 
 		/* Remove from queue of unscheduled jobs */
 		_mali_osk_list_del(&job->list);
@@ -209,15 +221,10 @@ void mali_gp_scheduler_job_done(struct mali_group *group, struct mali_gp_job *jo
 	/* Mark slot as idle again */
 	slot.state = MALI_GP_SLOT_STATE_IDLE;
 
-	/* If paused, then this was the last job, so wake up sleeping workers */
-	if (pause_count > 0)
-	{
-		_mali_osk_wait_queue_wake_up(gp_scheduler_working_wait_queue);
-	}
-	else
-	{
-		mali_gp_scheduler_schedule();
-	}
+	/* We are not working any more, so release the working lock */
+	mali_gp_scheduler_working_unlock();
+
+	mali_gp_scheduler_schedule();
 
 	mali_gp_scheduler_unlock();
 
@@ -261,7 +268,9 @@ void mali_gp_scheduler_suspend(void)
 	pause_count++; /* Increment the pause_count so that no more jobs will be scheduled */
 	mali_gp_scheduler_unlock();
 
-	_mali_osk_wait_queue_wait_event(gp_scheduler_working_wait_queue, mali_gp_scheduler_is_suspended);
+	mali_gp_scheduler_working_lock();
+	/* We have now aquired the working lock, which means that we have successfully paused the scheduler */
+	mali_gp_scheduler_working_unlock();
 }
 
 void mali_gp_scheduler_resume(void)
@@ -408,18 +417,6 @@ void mali_gp_scheduler_abort_session(struct mali_session_data *session)
 	 * from user space. */
 	mali_group_abort_session(slot.group, session);
 }
-
-static mali_bool mali_gp_scheduler_is_suspended(void)
-{
-	mali_bool ret;
-
-	mali_gp_scheduler_lock();
-	ret = pause_count > 0 && slot.state == MALI_GP_SLOT_STATE_IDLE;
-	mali_gp_scheduler_unlock();
-
-	return ret;
-}
-
 
 #if MALI_STATE_TRACKING
 u32 mali_gp_scheduler_dump_state(char *buf, u32 size)

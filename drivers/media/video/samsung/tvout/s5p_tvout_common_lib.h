@@ -53,6 +53,8 @@ do {								\
 
 #define HDMI_START_NUM 0x1000
 
+#define	CONFIG_SAMSUNG_WORKAROUND_HPD_GLANCE
+
 enum s5p_tvout_disp_mode {
 	TVOUT_NTSC_M = 0,
 	TVOUT_PAL_BDGHI,

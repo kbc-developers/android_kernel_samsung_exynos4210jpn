@@ -25,18 +25,14 @@
 #include <linux/uaccess.h>
 
 #include <linux/i2c/fm34_we395.h>
-#include <linux/i2c/voice_processor.h>
 
 #include "fm34_we395.h"
-
-static struct class *fm34_class;
-static struct device *fm34_dev;
 
 struct fm34_data {
 	struct fm34_platform_data	*pdata;
 	struct device	*dev;
 	struct i2c_client	*client;
-	enum voice_processing_mode	curr_mode;
+	enum fm34_we395_mode	curr_mode;
 };
 
 static void fm34_reset_parameter(struct fm34_data *fm34)
@@ -50,8 +46,7 @@ static void fm34_reset_parameter(struct fm34_data *fm34)
 	msleep(50);
 }
 
-static int fm34_set_mode(struct fm34_data *fm34,
-					enum voice_processing_mode mode)
+static int fm34_set_mode(struct fm34_data *fm34, enum fm34_we395_mode mode)
 {
 	int ret = 0;
 	unsigned char *i2c_cmd;
@@ -65,19 +60,19 @@ static int fm34_set_mode(struct fm34_data *fm34,
 	}
 
 	switch (mode) {
-	case VOICE_NS_BYPASS_MODE:
+	case fm34_bypass_mode:
 		usleep_range(20000, 20000);
 		gpio_set_value(fm34->pdata->gpio_pwdn, 0);
 		return ret;
-	case VOICE_NS_HANDSET_MODE:
+	case fm34_handset_mode:
 		i2c_cmd = handset_ns_cmd;
 		size = sizeof(handset_ns_cmd);
 		break;
-	case VOICE_NS_LOUD_MODE:
+	case fm34_loud_mode:
 		i2c_cmd = loud_ns_cmd;
 		size = sizeof(loud_ns_cmd);
 		break;
-	case VOICE_NS_FTM_LOOPBACK_MODE:
+	case fm34_ftm_loopback_mode:
 		i2c_cmd = ftm_loopback_cmd;
 		size = sizeof(ftm_loopback_cmd);
 		break;
@@ -99,34 +94,6 @@ static int fm34_set_mode(struct fm34_data *fm34,
 	return ret;
 }
 
-static ssize_t fm34_mode_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	struct fm34_data *fm34 = dev_get_drvdata(dev);
-
-	return snprintf(buf, PAGE_SIZE, "%d\n", fm34->curr_mode);
-}
-
-static ssize_t fm34_mode_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t size)
-{
-	struct fm34_data *fm34 = dev_get_drvdata(dev);
-	long mode;
-	ssize_t status;
-
-	status = strict_strtol(buf, 0, &mode);
-	if (status == 0) {
-		dev_info(fm34->dev, "%s mode = %ld\n", __func__, mode);
-		fm34_set_mode(fm34, mode);
-	} else
-		dev_err(fm34->dev, "%s : operation is not valid\n", __func__);
-
-	return status ? : size;
-}
-
-static DEVICE_ATTR(mode, S_IRUGO | S_IWUSR | S_IWGRP,
-		fm34_mode_show, fm34_mode_store);
-
 static int fm34_init_parameter(struct fm34_data *fm34)
 {
 	int ret = 0;
@@ -144,7 +111,7 @@ static int fm34_init_parameter(struct fm34_data *fm34)
 		return ret;
 	}
 
-	fm34->curr_mode = VOICE_NS_BYPASS_MODE;
+	fm34->curr_mode = fm34_bypass_mode;
 
 	usleep_range(20000, 20000);
 	gpio_set_value(fm34->pdata->gpio_pwdn, 0);
@@ -204,25 +171,6 @@ static int __devinit fm34_probe(
 	if (ret < 0)
 		dev_err(fm34->dev, "fm34_init_parameter failed %d\n", ret);
 
-	fm34_class = class_create(THIS_MODULE, "voice_processor");
-	if (IS_ERR(fm34_class)) {
-		dev_err(fm34->dev, "Failed to create class(voice_processor) %ld\n",
-				IS_ERR(fm34_class));
-		goto err_class_create;
-	}
-
-	fm34_dev = device_create(fm34_class, NULL, 0, fm34, "2mic");
-	if (IS_ERR(fm34_dev)) {
-		dev_err(fm34->dev, "Failed to create device(2mic) %ld\n",
-				IS_ERR(fm34_dev));
-		goto err_device_create;
-	}
-
-	ret = device_create_file(fm34_dev, &dev_attr_mode);
-	if (ret < 0)
-		dev_err(fm34->dev, "Failed to create device file (%s) %d\n",
-					dev_attr_mode.attr.name, ret);
-
 	return 0;
 
 err_gpio_bp:
@@ -232,8 +180,6 @@ err_gpio_pwdn:
 err_gpio_reset:
 	kfree(fm34);
 err_kzalloc:
-err_class_create:
-err_device_create:
 	return ret;
 }
 

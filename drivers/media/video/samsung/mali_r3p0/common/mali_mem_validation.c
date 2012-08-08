@@ -52,10 +52,10 @@ _mali_osk_errcode_t mali_mem_validation_check(u32 phys_addr, u32 size)
 	if ((0 == ( phys_addr & (~_MALI_OSK_CPU_PAGE_MASK))) &&
 	    (0 == ( size & (~_MALI_OSK_CPU_PAGE_MASK))))
 	{
-		if ((phys_addr          >= mali_mem_validator.phys_base) &&
-		    ((phys_addr + (size - 1)) >= mali_mem_validator.phys_base) &&
-		    (phys_addr          <= (mali_mem_validator.phys_base + (mali_mem_validator.size - 1))) &&
-		    ((phys_addr + (size - 1)) <= (mali_mem_validator.phys_base + (mali_mem_validator.size - 1))) )
+		if ((phys_addr          >= mali_mem_validator.phys_base) && 
+		    ((phys_addr + size) >= mali_mem_validator.phys_base) &&
+		    (phys_addr          <= (mali_mem_validator.phys_base + mali_mem_validator.size)) &&
+		    ((phys_addr + size) <= (mali_mem_validator.phys_base + mali_mem_validator.size)) )
 		{
 			return _MALI_OSK_ERR_OK;
 		}

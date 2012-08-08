@@ -200,7 +200,7 @@ typedef enum
 #define MALI200_GP_PRODUCT_ID 0xA07
 #define MALI300_GP_PRODUCT_ID 0xC07
 #define MALI400_GP_PRODUCT_ID 0xB07
-#define MALI450_GP_PRODUCT_ID 0xD07
+#define MALI450_GP_PRODUCT_ID 0xC07
 
 /**
  * The different sources for instrumented on the geometry processor.

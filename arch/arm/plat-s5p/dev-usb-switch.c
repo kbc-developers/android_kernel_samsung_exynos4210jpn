@@ -59,7 +59,7 @@ void __init s5p_usbswitch_set_platdata(struct s5p_usbswitch_platdata *pd)
 #ifdef CONFIG_USB_S3C_OTGD
 	npd->s3c_udc_dev = &s3c_device_usbgadget.dev;
 #endif
-#ifdef CONFIG_USB_EXYNOS_SS_UDC
+#ifdef CONFIG_EXYNOS_DEV_SS_UDC
 	npd->exynos_udc_dev = &exynos_device_ss_udc.dev;
 #endif
 }

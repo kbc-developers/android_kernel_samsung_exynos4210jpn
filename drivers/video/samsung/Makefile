@@ -21,7 +21,6 @@ obj-$(CONFIG_FB_S5P_DUMMY_MIPI_LCD)	+= s3cfb_dummymipilcd.o
 obj-$(CONFIG_FB_S5P_S6E8AA0)	+= s3cfb_s6e8aa0.o smart_dimming.o
 obj-$(CONFIG_FB_S5P_S6E8AB0)	+= s3cfb_s6e8ab0.o smart_dimming_s6e8ab0.o
 obj-$(CONFIG_FB_S5P_S6E39A0)	+= s3cfb_s6e39a0.o smart_dimming.o
-obj-$(CONFIG_FB_S5P_S6E63M0)	+= s3cfb_s6e63m0.o smart_dimming.o
 obj-$(CONFIG_FB_S5P_S6D6AA1)	+= s6d6aa1.o
 obj-$(CONFIG_FB_S5P_MIPI_DSIM)	+= s5p_dsim_lowlevel.o
 obj-$(CONFIG_FB_S5P_MIPI_DSIM)	+= s5p-dsim.o

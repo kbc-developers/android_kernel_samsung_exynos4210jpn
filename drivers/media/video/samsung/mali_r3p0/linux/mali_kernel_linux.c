@@ -15,22 +15,26 @@
 #include <linux/module.h>   /* kernel module definitions */
 #include <linux/fs.h>       /* file system operations */
 #include <linux/cdev.h>     /* character device definitions */
-#include <linux/mm.h>       /* memory manager definitions */
-#include <linux/mali/mali_utgard_ioctl.h>
+#include <linux/mm.h>       /* memory mananger definitions */
+#include <linux/device.h>
 #include "mali_kernel_common.h"
 #include "mali_session.h"
 #include "mali_kernel_core.h"
 #include "mali_osk.h"
 #include "mali_kernel_linux.h"
 #include "mali_ukk.h"
+#include "mali_kernel_ioctl.h"
 #include "mali_ukk_wrappers.h"
 #include "mali_kernel_pm.h"
 #include "mali_kernel_sysfs.h"
 #include "mali_platform.h"
 #include "mali_kernel_license.h"
+#if KERNEL_BUILTIN
+#include "mali_platform.h"
+#endif
 
 /* Streamline support for the Mali driver */
-#if defined(CONFIG_TRACEPOINTS) && MALI_TIMELINE_PROFILING_ENABLED
+#if defined(CONFIG_TRACEPOINTS)
 /* Ask Linux to create the tracepoints */
 #define CREATE_TRACE_POINTS
 #include "mali_linux_trace.h"
@@ -50,8 +54,12 @@ module_param(mali_debug_level, int, S_IRUSR | S_IWUSR | S_IWGRP | S_IRGRP | S_IR
 MODULE_PARM_DESC(mali_debug_level, "Higher number, more dmesg output");
 
 /* By default the module uses any available major, but it's possible to set it at load time to a specific number */
+#if KERNEL_BUILTIN
 #if MALI_MAJOR_PREDEFINE
 int mali_major = 244;
+#else
+int mali_major = 0;
+#endif
 #else
 int mali_major = 0;
 #endif
@@ -459,6 +467,10 @@ static int mali_ioctl(struct inode *inode, struct file *filp, unsigned int cmd, 
 			err = post_notification_wrapper(session_data, (_mali_uk_post_notification_s __user *)arg);
 			break;
 
+		case MALI_IOC_GET_USER_SETTING:
+			err = get_user_setting_wrapper(session_data, (_mali_uk_get_user_setting_s __user *)arg);
+			break;
+
 		case MALI_IOC_GET_USER_SETTINGS:
 			err = get_user_settings_wrapper(session_data, (_mali_uk_get_user_settings_s __user *)arg);
 			break;
@@ -487,10 +499,6 @@ static int mali_ioctl(struct inode *inode, struct file *filp, unsigned int cmd, 
 		case MALI_IOC_PROFILING_GET_CONFIG:
 			/* Deprecated: still compatible with get_user_settings */
 			err = get_user_settings_wrapper(session_data, (_mali_uk_get_user_settings_s __user *)arg);
-			break;
-
-		case MALI_IOC_PROFILING_REPORT_SW_COUNTERS:
-			err = profiling_report_sw_counters_wrapper(session_data, (_mali_uk_sw_counters_report_s __user *)arg);
 			break;
 #endif
 
@@ -547,10 +555,6 @@ static int mali_ioctl(struct inode *inode, struct file *filp, unsigned int cmd, 
 
 		case MALI_IOC_PP_CORE_VERSION_GET:
 			err = pp_get_core_version_wrapper(session_data, (_mali_uk_get_pp_core_version_s __user *)arg);
-			break;
-
-		case MALI_IOC_PP_DISABLE_WB:
-			err = pp_disable_wb_wrapper(session_data, (_mali_uk_pp_disable_wb_s __user *)arg);
 			break;
 
 		case MALI_IOC_GP2_START_JOB:

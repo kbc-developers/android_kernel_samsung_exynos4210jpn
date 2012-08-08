@@ -36,10 +36,6 @@ struct s5p_mixer_video_layer_info {
 	bool layer_blend;
 	u32 alpha;
 	u32 priority;
-	u32 y_min;
-	u32 y_max;
-	u32 c_min;
-	u32 c_max;
 
 	bool use_video_layer;
 };
@@ -111,24 +107,20 @@ static struct s5p_mixer_ctrl_private_data s5p_mixer_ctrl_private = {
 
 	.burst = MIXER_BURST_16,
 	.endian = TVOUT_LITTLE_ENDIAN,
-	.bg_color[0].color_y = 16,
+	.bg_color[0].color_y = 0,
 	.bg_color[0].color_cb = 128,
 	.bg_color[0].color_cr = 128,
-	.bg_color[1].color_y = 16,
+	.bg_color[1].color_y = 0,
 	.bg_color[1].color_cb = 128,
 	.bg_color[1].color_cr = 128,
-	.bg_color[2].color_y = 16,
+	.bg_color[2].color_y = 0,
 	.bg_color[2].color_cb = 128,
 	.bg_color[2].color_cr = 128,
 
 	.v_layer = {
 		.layer_blend = false,
 		.alpha = 0xff,
-		.priority = 10,
-		.y_min = 0x10,
-		.y_max = 0xeb,
-		.c_min = 0x10,
-		.c_max = 0xf0,
+		.priority = 10
 	},
 	.layer[MIXER_GPR0_LAYER] = {
 		.pixel_blend = false,
@@ -823,11 +815,6 @@ void s5p_mixer_ctrl_set_vsync_interrupt(bool en)
 		s5p_mixer_set_vsync_interrupt(en);
 }
 
-bool s5p_mixer_ctrl_get_vsync_interrupt()
-{
-	return s5p_mixer_ctrl_private.vsync_interrupt_enable;
-}
-
 void s5p_mixer_ctrl_clear_pend_all(void)
 {
 	if (s5p_mixer_ctrl_private.running)
@@ -874,11 +861,9 @@ int s5p_mixer_ctrl_start(
 	int i;
 
 	int csc = MIXER_RGB601_16_235;
-	int csc_for_coeff = MIXER_RGB601_0_255;
 	enum s5p_mixer_burst_mode burst = s5p_mixer_ctrl_private.burst;
 	enum s5p_tvout_endian endian = s5p_mixer_ctrl_private.endian;
 	struct clk *sclk_mixer = s5p_mixer_ctrl_private.clk[MUX].ptr;
-	bool mixer_video_limiter = true;
 
 	/*
 	 * Getting mega struct member variable will be replaced another tvout
@@ -902,7 +887,6 @@ int s5p_mixer_ctrl_start(
 		}
 
 		csc = MIXER_RGB601_0_255;
-		csc_for_coeff = MIXER_RGB601_0_255;
 		break;
 
 	case TVOUT_HDMI_RGB:
@@ -932,7 +916,6 @@ int s5p_mixer_ctrl_start(
 				csc = MIXER_RGB601_0_255;
 			else
 				csc = MIXER_RGB601_16_235;
-			csc_for_coeff = MIXER_RGB601_0_255;
 			break;
 		case TVOUT_480P_60_16_9:
 		case TVOUT_480P_59:
@@ -942,7 +925,6 @@ int s5p_mixer_ctrl_start(
 				csc = MIXER_RGB601_0_255;
 			else
 				csc = MIXER_RGB601_16_235;
-			csc_for_coeff = MIXER_RGB601_0_255;
 			break;
 		case TVOUT_720P_60:
 		case TVOUT_720P_50:
@@ -958,7 +940,6 @@ int s5p_mixer_ctrl_start(
 				csc = MIXER_RGB709_16_235;
 			else
 				csc = MIXER_RGB709_0_255;
-			csc_for_coeff = MIXER_RGB709_0_255;
 			break;
 #ifdef CONFIG_HDMI_14A_3D
 		case TVOUT_720P_60_SBS_HALF:
@@ -970,7 +951,6 @@ int s5p_mixer_ctrl_start(
 				csc = MIXER_RGB709_16_235;
 			else
 				csc = MIXER_RGB709_0_255;
-			csc_for_coeff = MIXER_RGB709_0_255;
 			break;
 
 #endif
@@ -1003,19 +983,8 @@ int s5p_mixer_ctrl_start(
 	/* error handling will be implemented */
 	tvout_dbg(KERN_INFO "Color range mode set : %d\n",
 		s5p_tvif_get_q_range());
-	s5p_mixer_init_csc_coef_default(csc_for_coeff);
+	s5p_mixer_init_csc_coef_default(csc);
 	s5p_mixer_init_display_mode(disp, out, csc);
-
-	if (!s5p_tvif_get_q_range() || out == TVOUT_HDMI_RGB)
-		mixer_video_limiter = true;
-	else
-		mixer_video_limiter = false;
-
-	s5p_mixer_set_video_limiter(s5p_mixer_ctrl_private.v_layer.y_min,
-			s5p_mixer_ctrl_private.v_layer.y_max,
-			s5p_mixer_ctrl_private.v_layer.c_min,
-			s5p_mixer_ctrl_private.v_layer.c_max,
-			mixer_video_limiter);
 
 	for (i = MIXER_BG_COLOR_0; i <= MIXER_BG_COLOR_2; i++) {
 		s5p_mixer_set_bg_color(i,

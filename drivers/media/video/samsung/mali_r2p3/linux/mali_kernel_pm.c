@@ -182,12 +182,10 @@ static const struct dev_pm_ops mali_dev_pm_ops = {
 	.resume = mali_pm_os_resume,
 #endif /* MALI_PMM_RUNTIME_JOB_CONTROL_ON */
 #endif /* CONFIG_PM_RUNTIME */
-#ifndef CONFIG_SLP_WIP
 	.freeze = mali_pm_os_suspend_on_hibernation,
 	.poweroff = mali_pm_os_suspend_on_hibernation,
 	.thaw = mali_pm_os_resume_on_hibernation,
 	.restore = mali_pm_os_resume_on_hibernation,
-#endif
 };
 #endif
 
@@ -344,14 +342,10 @@ static int mali_pwr_suspend_notifier(struct notifier_block *nb,unsigned long eve
 	switch (event)
 	{
 		case PM_SUSPEND_PREPARE:
-		case PM_HIBERNATION_PREPARE:
-		case PM_RESTORE_PREPARE:
 			err = mali_pm_suspend(NULL);
 		break;
 
 		case PM_POST_SUSPEND:
-		case PM_POST_HIBERNATION:
-		case PM_POST_RESTORE:
 			err = mali_pm_resume(NULL);
 		break;
 		default:

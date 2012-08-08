@@ -1665,13 +1665,7 @@ int fimc_reqbufs_output(void *fh, struct v4l2_requestbuffers *b)
 	if (b->count == 0) {
 		ctrl->mem.curr = ctrl->mem.base;
 		ctx->status = FIMC_STREAMOFF;
-#ifdef CONFIG_VIDEO_SAMSUNG_USE_DMA_MEM
-		if (ctrl->mem.base && b->memory == V4L2_MEMORY_MMAP) {
-			cma_free(ctrl->mem.base);
-			ctrl->mem.base = 0;
-			ctrl->mem.size = 0;
-		}
-#endif
+
 		switch (ctx->overlay.mode) {
 		case FIMC_OVLY_DMA_AUTO:	/* fall through */
 		case FIMC_OVLY_DMA_MANUAL:
@@ -1798,8 +1792,11 @@ int fimc_g_ctrl_output(void *fh, struct v4l2_control *c)
 		break;
 
 	case V4L2_CID_RESERVED_MEM_SIZE:
-		/* return KB size */
-		c->value = (ctrl->mem.size) / 1024;
+#ifdef	CONFIG_VIDEO_SAMSUNG_MEMSIZE_FIMC1
+		c->value = CONFIG_VIDEO_SAMSUNG_MEMSIZE_FIMC1;
+#else
+		c->value = 0;
+#endif
 		break;
 
 	case V4L2_CID_FIMC_VERSION:
@@ -2831,7 +2828,6 @@ int fimc_dqbuf_output(void *fh, struct v4l2_buffer *b)
 	int idx = -1, ret = -1;
 
 	ctx = &ctrl->out->ctx[ctx_id];
-
 	ret = fimc_pop_outq(ctrl, ctx, &idx);
 	if (ret < 0) {
 		ret = wait_event_timeout(ctrl->wq, (ctx->outq[0] != -1),

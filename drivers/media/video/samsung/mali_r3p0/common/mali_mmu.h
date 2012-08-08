@@ -29,7 +29,6 @@ void mali_mmu_delete(struct mali_mmu_core *mmu);
 
 _mali_osk_errcode_t mali_mmu_reset(struct mali_mmu_core *mmu);
 void mali_mmu_zap_tlb(struct mali_mmu_core *mmu);
-void mali_mmu_invalidate_page(struct mali_mmu_core *mmu, u32 mali_address);
 
 void mali_mmu_activate_page_directory(struct mali_mmu_core* mmu, struct mali_page_directory *pagedir);
 void mali_mmu_activate_empty_page_directory(struct mali_mmu_core* mmu);

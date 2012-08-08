@@ -63,13 +63,10 @@ static bool midas_snd_mclk_enabled;
 #define SET_PLATDATA_CODEC(i2c_pd)	s3c_i2c4_set_platdata(i2c_pd)
 #endif
 
-static DEFINE_SPINLOCK(midas_snd_spinlock);
 
 void midas_snd_set_mclk(bool on, bool forced)
 {
 	static int use_cnt;
-
-	spin_lock(&midas_snd_spinlock);
 
 	midas_snd_mclk_enabled = on;
 
@@ -98,8 +95,6 @@ void midas_snd_set_mclk(bool on, bool forced)
 			use_cnt = 0;
 		}
 	}
-
-	spin_unlock(&midas_snd_spinlock);
 
 	printk(KERN_INFO "Sound: state: %d, use_cnt: %d\n",
 					midas_snd_mclk_enabled, use_cnt);
@@ -178,26 +173,6 @@ static struct wm8994_drc_cfg drc_value[] = {
 		.regs[3] = 0x0210,
 		.regs[4] = 0x0000,
 	},
-#if defined(CONFIG_MACH_C1_KOR_LGT)
-	{
-		.name = "voice call DRC",
-		.regs[0] = 0x008c,
-		.regs[1] = 0x0253,
-		.regs[2] = 0x0028,
-		.regs[3] = 0x028c,
-		.regs[4] = 0x0000,
-	},
-#endif
-#if defined(CONFIG_MACH_P4NOTE)
-{
-		.name = "cam rec DRC",
-		.regs[0] = 0x019B,
-		.regs[1] = 0x0844,
-		.regs[2] = 0x0408,
-		.regs[3] = 0x0108,
-		.regs[4] = 0x0120,
-	},
-#endif
 };
 
 static struct wm8994_pdata wm1811_pdata = {
@@ -232,11 +207,7 @@ static struct wm8994_pdata wm1811_pdata = {
 	.jd_ext_cap = 1,
 
 	/* Regulated mode at highest output voltage */
-#ifdef CONFIG_TARGET_LOCALE_KOR
-	.micbias = {0x22, 0x22},
-#else
-	.micbias = {0x2f, 0x27},
-#endif
+	.micbias = {0x2f, 0x2f},
 
 	.micd_lvl_sel = 0xFF,
 
@@ -252,8 +223,7 @@ static struct wm8994_pdata wm1811_pdata = {
 #endif
 #if defined(CONFIG_MACH_M0) || defined(CONFIG_MACH_C1_KOR_SKT) || \
 	defined(CONFIG_MACH_C1_KOR_KT) || defined(CONFIG_MACH_C1_KOR_LGT) || \
-	defined(CONFIG_MACH_P4NOTE) || defined(CONFIG_MACH_GC1) || \
-	defined(CONFIG_MACH_C1_USA_ATT)
+	defined(CONFIG_MACH_P4NOTE) || defined(CONFIG_MACH_GC1)
 	.lineout2fb = 0,
 #else
 	.lineout2fb = 1,
@@ -292,7 +262,7 @@ static struct i2c_board_info i2c_2mic[] __initdata = {
 	},
 };
 
-#if defined(CONFIG_MACH_C1_KOR_LGT) || defined(CONFIG_MACH_C1VZW) || defined(CONFIG_MACH_C2)
+#if defined(CONFIG_MACH_C1_KOR_LGT) || defined(CONFIG_MACH_C1VZW)
 static struct i2c_gpio_platform_data gpio_i2c_fm34 = {
 	.sda_pin = GPIO_FM34_SDA,
 	.scl_pin = GPIO_FM34_SCL,
@@ -322,10 +292,8 @@ static struct i2c_board_info i2c_2mic[] __initdata = {
 #endif
 
 static struct platform_device *midas_sound_devices[] __initdata = {
-#if defined(CONFIG_MACH_C1_KOR_LGT) || defined(CONFIG_MACH_C1VZW) || defined(CONFIG_MACH_C2)
-#ifdef CONFIG_FM34_WE395
+#if defined(CONFIG_MACH_C1_KOR_LGT) || defined(CONFIG_MACH_C1VZW)
 	&s3c_device_fm34,
-#endif
 #endif
 };
 

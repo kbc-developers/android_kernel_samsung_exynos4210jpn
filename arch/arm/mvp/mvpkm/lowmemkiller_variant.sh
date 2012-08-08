@@ -1,22 +1,10 @@
 #!/bin/bash
-#
-# Linux 2.6.32 and later Kernel module for VMware MVP Hypervisor Support
-#
-# Copyright (C) 2010-2012 VMware, Inc. All rights reserved.
-#
-# This program is free software; you can redistribute it and/or modify it
-# under the terms of the GNU General Public License version 2 as published by
-# the Free Software Foundation.
-#
-# This program is distributed in the hope that it will be useful, but WITHOUT
-# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
-# more details.
-#
-# You should have received a copy of the GNU General Public License along with
-# this program; see the file COPYING.  If not, write to the Free Software
-# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
-#
+
+# ********************************************************************
+# Copyright (C) 2011 VMware, Inc. All rights reserved.
+# -- VMware Confidential
+# ********************************************************************
+
 # @brief Script providing the variant of the low memory killer implementation
 #        to assist in mvpkm's export of the other_file calculation.
 
@@ -34,7 +22,7 @@ fi
 # file) - in the cases we've seen this is OK with the balloon policy, since the
 # free term isn't really significant when we get into low memory states anyway.
 
-tmp_file="lmk_md5sum_$RANDOM"
+tmp_file="lmk_md5sum_$2"
 
 cat $1 | tr -d '\ \t\n\r' > $tmp_file
 sed -i -e 's/.*\(intother_file.*other_file<\).*/;\1/' \

@@ -35,8 +35,8 @@
 static int lowlevel_buffer_allocate(struct drm_device *dev,
 		unsigned int flags, struct exynos_drm_gem_buf *buf)
 {
-	dma_addr_t start_addr;
-	unsigned int npages, i = 0;
+	dma_addr_t start_addr, end_addr;
+	unsigned int npages, page_size, i = 0;
 	struct scatterlist *sgl;
 	int ret = 0;
 
@@ -54,13 +54,13 @@ static int lowlevel_buffer_allocate(struct drm_device *dev,
 
 	if (buf->size >= SZ_1M) {
 		npages = buf->size >> SECTION_SHIFT;
-		buf->page_size = SECTION_SIZE;
+		page_size = SECTION_SIZE;
 	} else if (buf->size >= SZ_64K) {
 		npages = buf->size >> 16;
-		buf->page_size = SZ_64K;
+		page_size = SZ_64K;
 	} else {
 		npages = buf->size >> PAGE_SHIFT;
-		buf->page_size = PAGE_SIZE;
+		page_size = PAGE_SIZE;
 	}
 
 	buf->sgt = kzalloc(sizeof(struct sg_table), GFP_KERNEL);
@@ -79,7 +79,7 @@ static int lowlevel_buffer_allocate(struct drm_device *dev,
 
 #ifdef CONFIG_CMA
 	buf->dma_addr = cma_alloc(dev->dev, "drm", buf->size,
-					buf->page_size);
+					page_size);
 	if (IS_ERR((void *)buf->dma_addr)) {
 		DRM_DEBUG_KMS("cma_alloc of size %ld failed\n",
 				buf->size);
@@ -99,6 +99,9 @@ static int lowlevel_buffer_allocate(struct drm_device *dev,
 		goto err1;
 	}
 #endif
+	start_addr = buf->dma_addr;
+	end_addr = buf->dma_addr + buf->size;
+
 	buf->pages = kzalloc(sizeof(struct page) * npages, GFP_KERNEL);
 	if (!buf->pages) {
 		DRM_ERROR("failed to allocate pages.\n");
@@ -107,16 +110,19 @@ static int lowlevel_buffer_allocate(struct drm_device *dev,
 	}
 
 	sgl = buf->sgt->sgl;
-	start_addr = buf->dma_addr;
 
 	while (i < npages) {
 		buf->pages[i] = phys_to_page(start_addr);
-		sg_set_page(sgl, buf->pages[i], buf->page_size, 0);
+		sg_set_page(sgl, buf->pages[i], page_size, 0);
 		sg_dma_address(sgl) = start_addr;
-		start_addr += buf->page_size;
+		start_addr += page_size;
+		if (end_addr - start_addr < page_size)
+			break;
 		sgl = sg_next(sgl);
 		i++;
 	}
+
+	buf->pages[i] = phys_to_page(start_addr);
 
 	DRM_INFO("vaddr(0x%lx), dma_addr(0x%lx), size(0x%lx)\n",
 			(unsigned long)buf->kvaddr,

@@ -7,7 +7,8 @@
  *
  */
 
-#include <linux/io.h>
+#include <asm/io.h>
+
 #include <linux/err.h>
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
@@ -24,8 +25,6 @@
 #include "board-mobile.h"
 
 #define S5P_WAKEUP_STAT_WKSRC_MASK	0x000ffe3f
-#define ADC_SAMPLING_CNT 7
-#define SDI_2100MA_BATT	4350000
 
 /* Temperatures in milli-centigrade */
 #define SECBATTSPEC_TEMP_HIGH		(65 * 1000)
@@ -59,37 +58,13 @@ int __init adc_ntc_init(int port)
 
 static int read_thermistor_uV(void)
 {
-	int val, i;
-	int adc_min = 0;
-	int adc_max = 0;
-	int adc_total = 0;
-
+	int val;
 	s64 converted;
 
 	WARN(ntc_adc == NULL || ntc_adc_num < 0,
 	     "NTC-ADC is not initialized for %s.\n", __func__);
 
-	for (i = 0; i < ADC_SAMPLING_CNT; i++) {
-		val = s3c_adc_read(ntc_adc, ntc_adc_num);
-		if (val <  0) {
-			pr_err("%s : read failed.(%d).\n", __func__, val);
-			return -EAGAIN;
-		}
-
-		if (i != 0) {
-			if (val > adc_max)
-				adc_max = val;
-			else if (val < adc_min)
-				adc_min = val;
-		} else {
-			adc_max = val;
-			adc_min = val;
-		}
-
-		adc_total += val;
-	}
-
-	val = (adc_total - (adc_max + adc_min)) / (ADC_SAMPLING_CNT - 2);
+	val = s3c_adc_read(ntc_adc, ntc_adc_num);
 
 	/* Multiplied by maximum input voltage */
 	converted = 1800000LL * (s64) val;
@@ -197,29 +172,8 @@ static char *midas_charger_stats[] = {
 #endif
 	NULL };
 
-struct charger_cable charger_cable_vinchg1[] = {
-	{
-		.extcon_name	= "max77693-muic",
-		.name		= "USB",
-		.min_uA		= 475000,
-		.max_uA		= 475000 + 25000,
-	}, {
-		.extcon_name	= "max77693-muic",
-		.name		= "TA",
-		.min_uA		= 650000,
-		.max_uA		= 650000 + 25000,
-	}, {
-		.extcon_name	= "max77693-muic",
-		.name		= "MHL",
-	},
-};
-
-static struct charger_regulator midas_regulators[] = {
-	{
-		.regulator_name	= "vinchg1",
-		.cables		= charger_cable_vinchg1,
-		.num_cables	= ARRAY_SIZE(charger_cable_vinchg1),
-	},
+static struct regulator_bulk_data midas_chargers[] = {
+	{ .supply = "vinchg1", },
 };
 
 static struct charger_desc midas_charger_desc = {
@@ -231,14 +185,13 @@ static struct charger_desc midas_charger_desc = {
 	.fullbatt_uV		= 4200000,
 	.battery_present	= CM_CHARGER_STAT,
 	.psy_charger_stat	= midas_charger_stats,
+	.charger_regulators	= midas_chargers,
+	.num_charger_regulators	= ARRAY_SIZE(midas_chargers),
 	.psy_fuel_gauge		= "max17047-fuelgauge",
 	.is_temperature_error	= midas_thermistor_ck,
 	.measure_ambient_temp	= true,
 	.measure_battery_temp	= false,
 	.soc_margin		= 0,
-
-	.charger_regulators	= midas_regulators,
-	.num_charger_regulators	= ARRAY_SIZE(midas_regulators),
 };
 
 struct charger_global_desc midas_charger_g_desc = {
@@ -262,10 +215,4 @@ struct platform_device midas_ncp15wb473_thermistor = {
 	},
 };
 #endif
-
-void cm_change_fullbatt_uV(void)
-{
-	midas_charger_desc.fullbatt_uV =  SDI_2100MA_BATT;
-}
-EXPORT_SYMBOL(cm_change_fullbatt_uV);
 

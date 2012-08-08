@@ -71,9 +71,6 @@ struct battery_info {
 	struct wake_lock monitor_wake_lock;
 	struct wake_lock emer_wake_lock;
 
-	/* is_suspended */
-	bool	is_suspended;
-
 	/* charge state */
 	unsigned int charge_real_state;
 	unsigned int charge_virt_state;
@@ -117,17 +114,9 @@ struct battery_info {
 	unsigned int siop_charge_current;
 	unsigned int led_state;
 
-	/* ambiguous state */
-	unsigned int ambiguous_state;
-
-	/* event sceanario */
-	unsigned int event_state;
-	unsigned int event_type;
-
 	/* time management */
 	unsigned int charge_start_time;
-	struct alarm	monitor_alarm;
-	struct alarm	event_alarm;
+	struct alarm	alarm;
 	bool		slow_poll;
 	ktime_t		last_poll;
 
@@ -137,18 +126,17 @@ struct battery_info {
 	unsigned int battery_test_mode;
 	unsigned int battery_error_test;
 
-	/* factory mode */
-	bool factory_mode;
-
 #if defined(CONFIG_TARGET_LOCALE_KOR) || defined(CONFIG_MACH_M0_CTC)
 	bool is_unspec_phase;
 	bool is_unspec_recovery;
+#if !defined(CONFIG_MACH_M0_CTC)
 	int battery_full_soc;
 	unsigned int prev_cable_type;
 	unsigned int prev_battery_health;
 	unsigned int prev_charge_virt_state;
 	unsigned int prev_battery_soc;
 	struct wake_lock update_wake_lock;
+#endif
 #endif
 };
 
@@ -179,7 +167,7 @@ enum voltage_type {
 enum soc_type {
 	SOC_TYPE_ADJUSTED	= 0,
 	SOC_TYPE_RAW		= 1,
-#if defined(CONFIG_TARGET_LOCALE_KOR) || defined(CONFIG_MACH_M0_CTC)
+#if defined(CONFIG_TARGET_LOCALE_KOR)
 	SOC_TYPE_FULL		= 2,
 #endif
 };
@@ -204,14 +192,6 @@ enum soc_type {
 /* adc error retry */
 #define ADC_ERR_CNT	5
 #define ADC_ERR_DELAY	200
-
-/* voltage diff for recharge voltage calculation */
-#if defined(CONFIG_TARGET_LOCALE_KOR) || defined(CONFIG_MACH_M0_CTC)
-/* KOR model spec : max-voltage minus 60mV */
-#define RECHG_DROP_VALUE	60000
-#else
-#define RECHG_DROP_VALUE	50000	/* 4300mV */
-#endif
 
 enum {
 	CHARGE_DISABLE = 0,
@@ -285,31 +265,6 @@ enum led_pattern {
 	BATT_LED_PATT_NOT_CHG,
 };
 
-/* event case */
-enum event_type {
-	EVENT_TYPE_WCDMA_CALL = 0,
-	EVENT_TYPE_GSM_CALL,
-	EVENT_TYPE_CALL,
-	EVENT_TYPE_VIDEO,
-	EVENT_TYPE_MUSIC,
-	EVENT_TYPE_BROWSER,
-	EVENT_TYPE_HOTSPOT,
-	EVENT_TYPE_CAMERA,
-	EVENT_TYPE_DATA_CALL,
-	EVENT_TYPE_GPS,
-	EVENT_TYPE_LTE,
-	EVENT_TYPE_WIFI,
-	EVENT_TYPE_USE,
-
-	EVENT_TYPE_MAX,
-};
-
-enum event_state {
-	EVENT_STATE_CLEAR = 0,
-	EVENT_STATE_IN_TIMER,
-	EVENT_STATE_SET,
-};
-
 /**
  * struct sec_bat_plaform_data - init data for sec batter driver
  * @fuel_gauge_name: power supply name of fuel gauge
@@ -345,7 +300,6 @@ struct samsung_battery_platform_data {
 	/* Recharge sceanario */
 	unsigned int recharge_voltage;
 	unsigned int abstimer_charge_duration;
-	unsigned int abstimer_charge_duration_wpc;
 	unsigned int abstimer_recharge_duration;
 
 	/* cable detect */
@@ -358,22 +312,6 @@ struct samsung_battery_platform_data {
 	int overheat_recovery_temp;
 	int freeze_stop_temp;
 	int freeze_recovery_temp;
-
-	/* CTIA spec */
-	bool ctia_spec;
-
-	/* event sceanario */
-	unsigned int event_time;
-
-	/* CTIA temperature */
-	int event_overheat_stop_temp;
-	int event_overheat_recovery_temp;
-	int event_freeze_stop_temp;
-	int event_freeze_recovery_temp;
-	int lpm_overheat_stop_temp;
-	int lpm_overheat_recovery_temp;
-	int lpm_freeze_stop_temp;
-	int lpm_freeze_recovery_temp;
 
 	/* Temperature source 0: fuelgauge, 1: ap adc, 2: ex. adc */
 	int temper_src;

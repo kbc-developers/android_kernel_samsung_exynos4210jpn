@@ -10,6 +10,7 @@
 
 #include "mali_kernel_common.h"
 #include "mali_osk.h"
+#include "mali_osk_mali.h"
 #include "mali_ukk.h"
 
 #if MALI_TIMELINE_PROFILING_ENABLED
@@ -21,7 +22,7 @@ _mali_osk_errcode_t _mali_ukk_vsync_event_report(_mali_uk_vsync_event_report_s *
 	_mali_uk_vsync_event event = (_mali_uk_vsync_event)args->event;
 	MALI_IGNORE(event); /* event is not used for release code, and that is OK */
 
-#if MALI_TIMELINE_PROFILING_ENABLED
+#if MALI_TIMELINE_PROFILING_ENABLED_NOT
 	/*
 	 * Manually generate user space events in kernel space.
 	 * This saves user space from calling kernel space twice in this case.
@@ -43,6 +44,13 @@ _mali_osk_errcode_t _mali_ukk_vsync_event_report(_mali_uk_vsync_event_report_s *
 		                              MALI_PROFILING_EVENT_REASON_SUSPEND_RESUME_SW_VSYNC,
 		                              _mali_osk_get_pid(), _mali_osk_get_tid(), 0, 0, 0);
 	}
+#endif
+//PANDU
+#if MALI_TIMELINE_PROFILING_ENABLED
+	_mali_osk_profiling_add_event( MALI_PROFILING_EVENT_TYPE_SINGLE |
+                               MALI_PROFILING_EVENT_CHANNEL_SOFTWARE |
+                              MALI_PROFILING_EVENT_REASON_SINGLE_SW_VBLANK_VSYNC,
+                               _mali_osk_get_pid(), _mali_osk_get_tid(), 0, 0, 0);
 #endif
 
 	MALI_DEBUG_PRINT(4, ("Received VSYNC event: %d\n", event));

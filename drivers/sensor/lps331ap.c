@@ -5,7 +5,7 @@
 *
 * Copyright (C) 2010 STMicroelectronics- MSH - Motion Mems BU - Application Team
 * Matteo Dameno (matteo.dameno@st.com)
-*
+* Carmine Iascone (carmine.iascone@st.com)
 *
 * Both authors are willing to be considered the contact and update points for
 * the driver.
@@ -63,11 +63,6 @@
 	format to get them; reduces minimum polling period define;
 	enables by default DELTA_EN bit1 on CTRL_REG1
 	corrects bug on TSH acquisition
- Revision 1.0.6 2012/Mar/30:
-	introduces one more compansation param and extends sysfs file content
-	format to get it.
- Revision 1.0.6.1 2012/Apr/12:
-	changes Resolution settings for 25Hz to TEMP AVG=128 and PRES AVG=384.
 ******************************************************************************/
 
 #include <linux/err.h>
@@ -134,8 +129,6 @@
 #define	DELTAREG_3	0x3E		/*	deltaPressure reg3	 */
 #define	DELTA_T1	0x3B		/*	deltaTemp1 reg		 */
 #define	DELTA_T2T3	0x3F		/*	deltaTemp2, deltaTemp3 reg */
-#define	CALIB_SETUP	0x1E		/*	calibrationSetup reg */
-#define	CALIB_STP_MASK	0x80		/*	mask to catch calibSetup info */
 
 /* REGISTERS ALIASES */
 #define	P_REF_INDATA_REG	REF_P_XL
@@ -166,17 +159,15 @@
 #define	LPS331AP_PRS_DELTA_EN_ON	0x02	/* En Delta Press registers */
 #define	LPS331AP_PRS_RES_AVGTEMP_064	0x60
 #define	LPS331AP_PRS_RES_AVGTEMP_128	0x70
+#define	LPS331AP_PRS_RES_AVGPRES_256	0x09
 #define	LPS331AP_PRS_RES_AVGPRES_512	0x0A
-#define	LPS331AP_PRS_RES_AVGPRES_384	0x09
 
 #define	LPS331AP_PRS_RES_MAX		(LPS331AP_PRS_RES_AVGTEMP_128  | \
 						LPS331AP_PRS_RES_AVGPRES_512)
 						/* Max Resol. for 1/7/12,5Hz */
-
-#define	LPS331AP_PRS_RES_25HZ		(LPS331AP_PRS_RES_AVGTEMP_128  | \
-						LPS331AP_PRS_RES_AVGPRES_384)
+#define LPS331AP_PRS_RES_25HZ		(LPS331AP_PRS_RES_AVGTEMP_128  | \
+						LPS331AP_PRS_RES_AVGPRES_256)
 						/* Max Resol. for 25Hz */
-
 #define	FUZZ			0
 #define	FLAT			0
 
@@ -195,7 +186,7 @@
 #define	LPS331AP_RES_INT_CFG_REG	9
 #define	LPS331AP_RES_THS_P_L		10
 #define	LPS331AP_RES_THS_P_H		11
-#define	RESUME_ENTRIES			12
+#define	RESUME_ENTRIES				12
 /* end RESUME STATE INDICES */
 
 /* Pressure Sensor Operating Mode */
@@ -205,8 +196,8 @@
 #define	LPS331AP_PRS_AUTOZ_DISABLE	0
 
 /* poll delays */
-#define DELAY_DEFAULT			200
-#define DELAY_MINIMUM			40
+#define DELAY_DEFAULT	(200)
+#define DELAY_MINIMUM	(40)
 /* calibration file path */
 #define CALIBRATION_FILE_PATH		"/efs/FactoryApp/baro_delta"
 
@@ -247,7 +238,6 @@ struct lps331ap_prs_data {
 	u32 digGain;
 	s8 deltaT1, deltaT2, deltaT3;
 	s32 pressure_cal;
-	u8 testVer;
 };
 
 struct outputdata {
@@ -277,7 +267,7 @@ static int lps331ap_prs_i2c_read(struct lps331ap_prs_data *prs,
 
 	err = i2c_transfer(prs->client->adapter, msgs, 2);
 	if (err != 2) {
-		dev_err(&prs->client->dev, "read transfer error = %d\n", err);
+		dev_err(&prs->client->dev, "read transfer error\n");
 		err = -EIO;
 	}
 	return 0;
@@ -722,7 +712,7 @@ static int lps331ap_prs_acquire_compensation_data(struct lps331ap_prs_data *prs)
 	u8 gain_data[3];
 	u8 delta_data[2];
 	u8 dT1, dT23;
-	u8 calSetup;
+
 	int regToRead = 10;
 
 	compens_data[0] = (I2C_AUTO_INCREMENT | COMPENS_L);
@@ -750,19 +740,7 @@ static int lps331ap_prs_acquire_compensation_data(struct lps331ap_prs_data *prs)
 		return err;
 	dT23 = delta_data[0];
 
-	regToRead = 1;
-	delta_data[0] = (CALIB_SETUP);
-	err = lps331ap_prs_i2c_read(prs, delta_data, regToRead);
-	if (err < 0)
-		return err;
-	calSetup = delta_data[0];
-
 #ifdef LPS331_DEBUG
-	/* dT1  = 0xD1;
-	dT23 = 0x20;
-	calSetup = 0x80;
-	dev_info(&prs_client->dev, "forced registers 0x3b, 0x3f, 0x1e"
-		" values for debug\n"); */
 	dev_info(&prs->client->dev, "reg\n 0x30 = 0x%02x\n 0x31 = 0x%02x\n "
 			"0x32 = 0x%02x\n 0x33 = 0x%02x\n 0x34 = 0x%02x\n "
 			"0x35 = 0x%02x\n 0x36 = 0x%02x\n 0x37 = 0x%02x\n "
@@ -787,10 +765,9 @@ static int lps331ap_prs_acquire_compensation_data(struct lps331ap_prs_data *prs)
 		);
 
 	dev_info(&prs->client->dev,
-			"reg\n 0x3b = 0x%02x\n 0x3f = 0x%02x\n 0x1e = 0x%02x\n",
+			"reg\n 0x3b = 0x%02x\n 0x3f = 0x%02x\n",
 			dT1,
-			dT23,
-			calSetup
+			dT23
 		);
 
 #endif
@@ -846,8 +823,6 @@ static int lps331ap_prs_acquire_compensation_data(struct lps331ap_prs_data *prs)
 	prs->deltaT3 = (((s8)((dT23 & 0x0F) << 4)) >> 4);
 #ifdef LPS331_DEBUG
 	dev_info(&prs->client->dev, "test deltaT3 = 0x%08x\n", prs->deltaT3);
-	/* calSetup = 0xe0; */
-	dev_info(&prs->client->dev, "test calSetup = 0x%08x\n", calSetup);
 #endif
 #ifdef LPS331_DEBUG
 	dev_info(&prs->client->dev, "reg TSL = %d, TSH = %d,"
@@ -855,8 +830,7 @@ static int lps331ap_prs_acquire_compensation_data(struct lps331ap_prs_data *prs)
 			" TCS1 = %d, TCS2 = %d, TCS3 = %d,"
 			" DGAIN = %d,"
 			" deltaT1 = %d, deltaT2 = %d,"
-			" deltaT3 = %d,"
-			" testVer = %d\n",
+			" deltaT3 = %d\n",
 			prs->TSL,
 			prs->TSH,
 			prs->TCV1,
@@ -868,8 +842,7 @@ static int lps331ap_prs_acquire_compensation_data(struct lps331ap_prs_data *prs)
 			prs->digGain,
 			prs->deltaT1,
 			prs->deltaT2,
-			prs->deltaT3,
-			prs->testVer
+			prs->deltaT3
 		);
 #endif
 
@@ -997,8 +970,7 @@ static ssize_t lps331ap_get_compensation_param(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
 	struct lps331ap_prs_data *prs = dev_get_drvdata(dev);
-	return sprintf(buf,
-			"%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n",
+	return sprintf(buf, "%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n",
 			prs->TSL,
 			prs->TSH,
 			prs->TCV1,
@@ -1010,8 +982,7 @@ static ssize_t lps331ap_get_compensation_param(struct device *dev,
 			prs->digGain,
 			prs->deltaT1,
 			prs->deltaT2,
-			prs->deltaT3,
-			prs->testVer
+			prs->deltaT3
 	);
 }
 
@@ -1041,25 +1012,15 @@ static ssize_t lps331ap_reg_get(struct device *dev,\
 {
 	ssize_t ret;
 	struct lps331ap_prs_data *prs = dev_get_drvdata(dev);
-	int rc, i;
+	int rc;
 	u8 data;
-	u8 data_all[64] = {0,};
 
 	mutex_lock(&prs->lock);
 	data = prs->reg_addr;
 	mutex_unlock(&prs->lock);
 	rc = lps331ap_prs_i2c_read(prs, &data, 1);
 	if (rc < 0)
-		return rc;
-
-	data_all[0] = (I2C_AUTO_INCREMENT | 0x00);
-	rc = lps331ap_prs_i2c_read(prs, data_all, 64);
-	if (rc < 0)
-		return rc;
-	for (i = 0; i < 64; i++)
-		pr_info("%s, Register[0x%02x] = 0x%02x\n", __func__,
-			i, data_all[i]);
-
+			return rc;
 	ret = sprintf(buf, "0x%02x\n", data);
 	return ret;
 }

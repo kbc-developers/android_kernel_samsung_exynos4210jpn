@@ -28,7 +28,7 @@
 
 #include <drm/exynos_drm.h>
 
-#include <plat/s5p-iovmm.h>
+#include <plat/iovmm.h>
 
 #include "exynos_drm_drv.h"
 #include "exynos_drm_gem.h"
@@ -54,48 +54,72 @@ static const struct exynos_iommu_ops iommu_ops = {
 	.map		= iovmm_map,
 	.unmap		= iovmm_unmap
 };
-bool is_iommu_gem_already_mapped(struct list_head *iommu_list,
-					void *gem_obj,
-					dma_addr_t *dma_addr)
-{
-	struct iommu_info_node *im;
 
-	list_for_each_entry(im, iommu_list, list) {
+static bool check_iommu_map_params(struct iommu_gem_map_params *params)
+{
+	if (!params) {
+		DRM_ERROR("params is null.\n");
+		return false;
+	}
+
+	if (!params->dev || !params->drm_dev || !params->file) {
+		DRM_ERROR("invalid params.\n");
+		return false;
+	}
+
+	return true;
+}
+
+void exynos_drm_remove_iommu_list(struct list_head *iommu_list,
+					void *gem_obj)
+{
+	struct iommu_info_node *im, *t_im;
+
+	list_for_each_entry_safe(im, t_im, iommu_list, list) {
 		if (im->gem_obj == gem_obj) {
-			*dma_addr = im->dma_addr;
-			return true;
+			list_del(&im->list);
+			kfree(im);
+			im = NULL;
+			break;
 		}
 	}
 
-	*dma_addr = 0;
-	return false;
 }
 
-dma_addr_t exynos_drm_iommu_map_gem(struct exynos_drm_subdrv *subdrv,
-				struct drm_file *filp,
-				struct list_head *iommu_list,
-				struct exynos_iommu_gem_data *gem_data)
+dma_addr_t exynos_drm_iommu_map_gem(struct iommu_gem_map_params *params,
+					struct list_head *iommu_list,
+					unsigned int gem_handle,
+					enum iommu_types type)
 {
 	struct sg_table *sgt;
 	struct iommu_info_node *node;
 	struct exynos_drm_gem_obj *obj;
 	dma_addr_t dma_addr;
 
-	mutex_lock(&iommu_mutex);
-
-	/* get gem object from specific gem framework. */
-	obj = exynos_drm_gem_get_obj(subdrv->drm_dev,
-					gem_data->gem_handle_in, filp);
-	if (IS_ERR(obj)) {
-		mutex_unlock(&iommu_mutex);
+	if (!is_iommu_type_valid(type)) {
+		DRM_ERROR("invalid iommu type.\n");
 		return 0;
 	}
 
-	/* check if already mapped. */
-	if (is_iommu_gem_already_mapped(iommu_list, obj,
-					&dma_addr) == true) {
+	if (!check_iommu_map_params(params))
+		return 0;
+
+	/* get gem object from specific gem framework. */
+	obj = exynos_drm_gem_get_obj(params->drm_dev, gem_handle,
+					params->file);
+	if (IS_ERR(obj))
+		return 0;
+
+	mutex_lock(&iommu_mutex);
+
+	/*
+	 * if this gem object had already been mapped to iommu then
+	 * return dma address mapped before this time.
+	 */
+	if (obj->iommu_info.mapped & (1 << type)) {
+		DRM_DEBUG_KMS("already mapped to iommu");
 		mutex_unlock(&iommu_mutex);
-		return dma_addr;
+		return obj->iommu_info.dma_addrs[type];
 	}
 
 	sgt = obj->buffer->sgt;
@@ -108,17 +132,31 @@ dma_addr_t exynos_drm_iommu_map_gem(struct exynos_drm_subdrv *subdrv,
 		mutex_unlock(&iommu_mutex);
 		return sg_dma_address(&sgt->sgl[0]);
 	}
+	mutex_unlock(&iommu_mutex);
 
 	/*
 	 * allocate device address space for this driver and then
 	 * map all pages contained in sg list to iommu table.
 	 */
-	dma_addr = iommu_ops.map(subdrv->dev, sgt->sgl, (off_t)0,
+	dma_addr = iommu_ops.map(params->dev, sgt->sgl, (off_t)0,
 					(size_t)obj->size);
 	if (!dma_addr) {
 		mutex_unlock(&iommu_mutex);
 		return dma_addr;
 	}
+
+	mutex_lock(&iommu_mutex);
+
+	/*
+	 * check map flag bit and device address mapped to iommu.
+	 * this data would be used to avoid duplicated mapping.
+	 */
+	obj->iommu_info.mapped |= (1 << type);
+	obj->iommu_info.dma_addrs[type] = dma_addr;
+	obj->iommu_info.devs[type] = params->dev;
+	obj->iommu_info.iommu_lists[type] = iommu_list;
+
+	params->gem_obj = obj;
 
 	/*
 	 * this gem object is referenced by this driver so
@@ -134,7 +172,6 @@ dma_addr_t exynos_drm_iommu_map_gem(struct exynos_drm_subdrv *subdrv,
 	}
 
 	node->gem_obj = obj;
-	gem_data->gem_obj_out = obj;
 	node->dma_addr = dma_addr;
 	mutex_unlock(&iommu_mutex);
 
@@ -143,30 +180,51 @@ dma_addr_t exynos_drm_iommu_map_gem(struct exynos_drm_subdrv *subdrv,
 	return dma_addr;
 err:
 	mutex_unlock(&iommu_mutex);
-	iommu_ops.unmap(subdrv->dev, dma_addr);
+	iommu_ops.unmap(params->dev, dma_addr);
 	return dma_addr;
 }
 
-void exynos_drm_iommu_unmap_gem(struct exynos_drm_subdrv *subdrv,
-				struct drm_file *filp,
-				void  *obj, dma_addr_t dma_addr)
+void exynos_drm_iommu_unmap_gem(struct iommu_gem_map_params *params,
+				dma_addr_t dma_addr,
+				enum iommu_types type)
 {
-	struct exynos_drm_gem_obj *gem_obj;
+	struct exynos_drm_gem_obj *obj;
 
-	if (!iommu_ops.unmap || !dma_addr || !obj)
+	if (!iommu_ops.unmap)
 		return;
 
-	gem_obj = obj;
+	if (!is_iommu_type_valid(type)) {
+		DRM_ERROR("invalid iommu type.\n");
+		return;
+	}
+
+	if (!check_iommu_map_params(params))
+		return;
+
+	if (!params->gem_obj)
+		return;
+
+	obj = (struct exynos_drm_gem_obj *)params->gem_obj;
 
 	mutex_lock(&iommu_mutex);
-	iommu_ops.unmap(subdrv->dev, dma_addr);
+	if (!(obj->iommu_info.mapped & (1 << type))) {
+		DRM_DEBUG_KMS("not already mapped to iommu so just return\n");
+		mutex_unlock(&iommu_mutex);
+		return;
+	}
+
+	/* uncheck map flag bit. */
+	obj->iommu_info.mapped &= ~(1 << type);
+	obj->iommu_info.dma_addrs[type] = 0;
 	mutex_unlock(&iommu_mutex);
+
+	iommu_ops.unmap(params->dev, dma_addr);
 
 	/*
 	 * drop this gem object refcount to release allocated buffer
 	 * and resources.
 	 */
-	drm_gem_object_unreference_unlocked(&gem_obj->base);
+	drm_gem_object_unreference_unlocked(&obj->base);
 }
 
 dma_addr_t exynos_drm_iommu_map(struct device *dev, dma_addr_t paddr,

@@ -416,40 +416,6 @@ static int ion_exynos_contig_heap_allocate(struct ion_heap *heap,
 {
 	buffer->priv_phys = cma_alloc(exynos_ion_dev, NULL, len, align);
 
-	if (0) {
-		/* Print debug MSG */
-		struct cma_info mem_info;
-		struct rb_node *n=NULL;
-		int err;
-		int buffer_cnt = 0;
-		int size = 0;
-		unsigned int curr_phy = buffer->priv_phys;
-		unsigned int curr_size = len;
-
-		err = cma_info(&mem_info, exynos_ion_dev, 0);
-		if (err) {
-			pr_err("%s: get cma info failed\n", __func__);
-			return (int)buffer->priv_phys;
-		}
-		printk("[ION_EXYNOS_CONTIG_HEAP] addr: %x ~ %x, total size: 0x%x, free size: 0x%x\n",
-			mem_info.lower_bound, mem_info.upper_bound,
-			mem_info.total_size, mem_info.free_size);
-		for(n = rb_first(&ion_exynos->buffers); n; n = rb_next(n)) {
-			struct ion_buffer *buffer = rb_entry(n, struct ion_buffer, node);
-			if (buffer->heap->type == ION_HEAP_TYPE_EXYNOS_CONTIG) {
-				printk("[%d] 0x%x ~ 0x%x, size:0x%x\n",
-					buffer_cnt, (unsigned int)buffer->priv_phys,
-					(unsigned int)buffer->priv_phys+buffer->size, buffer->size);
-				size += buffer->size;
-				buffer_cnt++;
-			}
-		}
-		printk("[%d] 0x%x ~ 0x%x, size:0x%x\n",
-				buffer_cnt, (unsigned int)curr_phy,
-				(unsigned int)curr_phy+curr_size, curr_size);
-		printk("usage size: 0x%x\n", size);
-	}
-
 	if (IS_ERR_VALUE(buffer->priv_phys)) {
 		struct cma_info mem_info;
 		struct rb_node *n=NULL;
@@ -488,9 +454,6 @@ static int ion_exynos_contig_heap_allocate(struct ion_heap *heap,
 
 static void ion_exynos_contig_heap_free(struct ion_buffer *buffer)
 {
-	if (0)
-		printk("free addr: 0x%x\n", (unsigned int)buffer->priv_phys);
-
 	cma_free(buffer->priv_phys);
 }
 

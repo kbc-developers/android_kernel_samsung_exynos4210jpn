@@ -33,12 +33,9 @@ unsigned int debug_mask = ATH6KL_DBG_WMI | ATH6KL_DBG_BOOT |
 			ATH6KL_DBG_TRC;
 static unsigned int testmode;
 #ifdef CONFIG_MACH_PX
-/* WoW2 (deepsleep), Suspend (WoW) */
-static unsigned int suspend_mode = WLAN_POWER_STATE_WOW;
-static unsigned int wow_mode = WLAN_POWER_STATE_DEEP_SLEEP;
+static unsigned int suspend_mode = 0x23; /* WoW2 (deepsleep), Suspend (WoW) */
 #else
 static unsigned int suspend_mode;
-static unsigned int wow_mode;
 #endif
 static unsigned int uart_debug;
 #ifdef CONFIG_MACH_PX
@@ -54,7 +51,6 @@ static unsigned short en_ani = 1;
 module_param(debug_mask, uint, 0644);
 module_param(testmode, uint, 0644);
 module_param(suspend_mode, uint, 0644);
-module_param(wow_mode, uint, 0644);
 module_param(uart_debug, uint, 0644);
 module_param(ar6k_clock, uint, 0644);
 module_param(reg_domain, ushort, 0644);
@@ -597,6 +593,13 @@ int ath6kl_configure_target(struct ath6kl *ar)
 	u32 param, ram_reserved_size;
 	u8 fw_iftype, fw_mode = 0, fw_submode = 0;
 	int i, status;
+
+	param = uart_debug;
+	if (ath6kl_bmi_write(ar, ath6kl_get_hi_item_addr(ar,
+			     HI_ITEM(hi_serial_enable)), (u8 *)&param, 4)) {
+		ath6kl_err("bmi_write_memory for uart debug failed\n");
+		return -EIO;
+	}
 
 	param = uart_debug;
 	if (ath6kl_bmi_write(ar, ath6kl_get_hi_item_addr(ar,
@@ -1897,6 +1900,7 @@ int ath6kl_core_init(struct ath6kl *ar)
 {
 	struct ath6kl_bmi_target_info targ_info;
 	struct net_device *ndev;
+	u16 pri_suspend_mode, wow2_suspend_mode;
 	int ret = 0, i;
 
 	ar->ath6kl_wq = create_singlethread_workqueue("ath6kl");
@@ -2001,19 +2005,29 @@ int ath6kl_core_init(struct ath6kl *ar)
 	ar->conf_flags = ATH6KL_CONF_IGNORE_ERP_BARKER |
 			 ATH6KL_CONF_ENABLE_11N | ATH6KL_CONF_ENABLE_TX_BURST;
 
-	if (suspend_mode &&
-	     suspend_mode >= WLAN_POWER_STATE_CUT_PWR &&
-	     suspend_mode <= WLAN_POWER_STATE_WOW)
-		ar->suspend_mode = suspend_mode;
+	/*
+	 * Usage of module parameter 'suspend_mode':
+	 * Bit 3 to 0 - Primary suspend mode (deep sleep/cur pwr/wow).
+	 * Bit 7 to 4 - Suspend mode to use if the primary suspend mode
+	 *		is set to WoW and the device is not connected at
+	 *		the time of suspend.
+	 */
+	pri_suspend_mode = suspend_mode & 0xF;
+	wow2_suspend_mode = (suspend_mode >> 4) & 0xF;
+
+	if (pri_suspend_mode &&
+	    pri_suspend_mode >= WLAN_POWER_STATE_CUT_PWR &&
+	    pri_suspend_mode <= WLAN_POWER_STATE_WOW)
+		ar->suspend_mode = pri_suspend_mode;
 	else
 		ar->suspend_mode = 0;
 
-	if (suspend_mode == WLAN_POWER_STATE_WOW &&
-	    (wow_mode == WLAN_POWER_STATE_CUT_PWR ||
-	     wow_mode == WLAN_POWER_STATE_DEEP_SLEEP))
-		ar->wow_suspend_mode = wow_mode;
+	if (pri_suspend_mode == WLAN_POWER_STATE_WOW &&
+	    (wow2_suspend_mode == WLAN_POWER_STATE_CUT_PWR ||
+	     wow2_suspend_mode == WLAN_POWER_STATE_DEEP_SLEEP))
+		ar->wow2_suspend_mode = wow2_suspend_mode;
 	else
-		ar->wow_suspend_mode = 0;
+		ar->wow2_suspend_mode = 0;
 
 	ar->wiphy->flags |= WIPHY_FLAG_SUPPORTS_FW_ROAM |
 			    WIPHY_FLAG_HAVE_AP_SME |

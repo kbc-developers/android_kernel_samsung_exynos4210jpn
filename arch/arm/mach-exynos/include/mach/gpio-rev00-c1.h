@@ -76,7 +76,7 @@ extern void midas_config_sleep_gpio_table(void);
 #define GPIO_BSENSE_SDA_18V	EXYNOS4_GPY2(2)
 #define GPIO_BARO_INT		EXYNOS4_GPF0(5)
 
-#define GPIO_TF_EN		EXYNOS4_GPY2(0)
+#define GPIO_TF_EN		EXYNOS4_GPY0(1)
 
 #define GPIO_NFC_SCL_18V	EXYNOS4_GPD1(1)
 #define GPIO_NFC_SDA_18V	EXYNOS4_GPD1(0)

@@ -365,7 +365,7 @@ int fimc_is_s_power(struct v4l2_subdev *sd, int on)
 	struct device *dev = &is_dev->pdev->dev;
 	int ret = 0;
 
-	printk(KERN_INFO "%s++ %d\n", __func__, on);
+	dbg("fimc_is_s_power\n");
 	if (on) {
 		if (test_bit(IS_PWR_ST_POWERON, &is_dev->power)) {
 			err("FIMC-IS was already power on state!!\n");
@@ -379,46 +379,22 @@ int fimc_is_s_power(struct v4l2_subdev *sd, int on)
 		ret = pm_runtime_get_sync(dev);
 		set_bit(IS_ST_A5_PWR_ON, &is_dev->state);
 	} else {
-		if (test_bit(IS_PWR_ST_POWEROFF, &is_dev->power)) {
-			err("FIMC-IS was already power off state!!\n");
-			err("Close sensor - %d\n", is_dev->sensor.id);
-			fimc_is_hw_close_sensor(is_dev, 0);
-			printk(KERN_INFO "%s Wait close sensor interrupt\n", __func__);
-			ret = wait_event_timeout(is_dev->irq_queue1,
-				!test_bit(IS_ST_OPEN_SENSOR,
-				&is_dev->power), FIMC_IS_SHUTDOWN_TIMEOUT);
-			if (!ret) {
-				err("Timeout-close sensor:%s\n", __func__);
-				fimc_is_hw_set_low_poweroff(is_dev, true);
-			} else {
-				is_dev->p_region_index1 = 0;
-				is_dev->p_region_index2 = 0;
-				atomic_set(&is_dev->p_region_num, 0);
-				printk(KERN_INFO "%s already power off return\n", __func__);
-				return ret;
-			}
-		}
-
-		printk(KERN_INFO "%s sub ip power off ++\n", __func__);
-
 		if (!test_bit(IS_PWR_SUB_IP_POWER_OFF, &is_dev->power)) {
-			printk(KERN_INFO "%s Sub ip is alive\n", __func__);
 			fimc_is_hw_subip_poweroff(is_dev);
-			printk(KERN_INFO "%s Wait Sub ip power off\n", __func__);
 			ret = wait_event_timeout(is_dev->irq_queue1,
 				test_bit(IS_PWR_SUB_IP_POWER_OFF,
 				&is_dev->power), FIMC_IS_SHUTDOWN_TIMEOUT);
 			if (!ret) {
-				err("%s wait timeout\n", __func__);
+				err("wait timeout : %s\n", __func__);
 				fimc_is_hw_set_low_poweroff(is_dev, true);
 			}
-		} else
-			printk(KERN_INFO "%s sub ip was already power off state!!\n", __func__);
-
-		printk(KERN_INFO "%s sub ip power off --\n", __func__);
-
+		}
+		if (test_bit(IS_PWR_ST_POWEROFF, &is_dev->power)) {
+			err("FIMC-IS was already power off state!!\n");
+			return ret;
+		}
 		fimc_is_hw_a5_power(is_dev, 0);
-		printk(KERN_INFO "A5 power off\n");
+		dbg("A5 power off\n");
 		ret = pm_runtime_put_sync(dev);
 
 		is_dev->sensor.id = 0;
@@ -433,8 +409,6 @@ int fimc_is_s_power(struct v4l2_subdev *sd, int on)
 		is_dev->af.mode = IS_FOCUS_MODE_IDLE;
 		set_bit(IS_PWR_ST_POWEROFF, &is_dev->power);
 	}
-	printk(KERN_INFO "%s --\n", __func__);
-
 	return ret;
 }
 
@@ -2248,15 +2222,7 @@ static int fimc_is_v4l2_isp_effect_legacy(struct fimc_is_dev *dev, int value)
 		IS_INC_PARAM_NUM(dev);
 		fimc_is_mem_cache_clean((void *)dev->is_p_region,
 			IS_PARAM_SIZE);
-		clear_bit(IS_ST_BLOCK_CMD_CLEARED, &dev->state);
 		fimc_is_hw_set_param(dev);
-		ret = wait_event_timeout(dev->irq_queue1,
-			test_bit(IS_ST_BLOCK_CMD_CLEARED, &dev->state),
-					FIMC_IS_SHUTDOWN_TIMEOUT_SENSOR);
-		if (!ret) {
-			err("wait timeout : %s\n", __func__);
-			return 0;
-		}
 	}
 	return ret;
 }
@@ -2367,15 +2333,7 @@ static int fimc_is_v4l2_awb_mode_legacy(struct fimc_is_dev *dev, int value)
 		IS_INC_PARAM_NUM(dev);
 		fimc_is_mem_cache_clean((void *)dev->is_p_region,
 			IS_PARAM_SIZE);
-		clear_bit(IS_ST_BLOCK_CMD_CLEARED, &dev->state);
 		fimc_is_hw_set_param(dev);
-		ret = wait_event_timeout(dev->irq_queue1,
-			test_bit(IS_ST_BLOCK_CMD_CLEARED, &dev->state),
-					FIMC_IS_SHUTDOWN_TIMEOUT_SENSOR);
-		if (!ret) {
-			err("wait timeout : %s\n", __func__);
-			return 0;
-		}
 	}
 	return ret;
 }
@@ -4148,7 +4106,7 @@ static int fimc_is_g_ext_ctrls(struct v4l2_subdev *sd,
 
 	spin_lock_irqsave(&dev->slock, flags);
 	ctrl = ctrls->controls;
-	if (ctrls->ctrl_class != V4L2_CTRL_CLASS_CAMERA)
+	if (!ctrls->ctrl_class == V4L2_CTRL_CLASS_CAMERA)
 		return -EINVAL;
 
 	fimc_is_mem_cache_inv((void *)IS_FACE,
@@ -4229,7 +4187,7 @@ static int fimc_is_s_ext_ctrls(struct v4l2_subdev *sd,
 	int i, ret = 0;
 
 	dbg("S_EXT_CTRLS - %d\n", ctrls->count);
-	if (ctrls->ctrl_class != V4L2_CTRL_CLASS_CAMERA)
+	if (!ctrls->ctrl_class == V4L2_CTRL_CLASS_CAMERA)
 		return -EINVAL;
 
 	dev->h2i_cmd.cmd_type = 0;

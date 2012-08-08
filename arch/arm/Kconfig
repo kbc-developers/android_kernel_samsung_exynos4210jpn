@@ -110,6 +110,7 @@ config STACKTRACE_SUPPORT
 
 config HAVE_LATENCYTOP_SUPPORT
 	bool
+	depends on !SMP
 	default y
 
 config LOCKDEP_SUPPORT
@@ -211,9 +212,6 @@ config ARM_PATCH_PHYS_VIRT_16BIT
 	  This option extends the physical to virtual translation patching
 	  to allow physical memory down to a theoretical minimum of 64K
 	  boundaries.
-
-config ARCH_HIBERNATION_POSSIBLE
-	def_bool y
 
 source "init/Kconfig"
 

@@ -70,8 +70,6 @@ _mali_osk_errcode_t mali_mmu_pagedir_unmap(struct mali_page_directory *pagedir, 
 /* Back virtual address space with actual pages. Assumes input is contiguous and 4k aligned. */
 void mali_mmu_pagedir_update(struct mali_page_directory *pagedir, u32 mali_address, u32 phys_address, u32 size);
 
-u32 mali_page_directory_get_phys_address(struct mali_page_directory *pagedir, u32 index);
-
 u32 mali_allocate_empty_page(void);
 void mali_free_empty_page(u32 address);
 _mali_osk_errcode_t mali_create_fault_flush_pages(u32 *page_directory, u32 *page_table, u32 *data_page);

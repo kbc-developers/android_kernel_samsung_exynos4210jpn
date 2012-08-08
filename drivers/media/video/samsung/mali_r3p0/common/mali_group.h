@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2012 ARM Limited. All rights reserved.
+ * This confidential and proprietary software may be used only as
  * 
  * This program is free software and is provided to you under the terms of the GNU General Public License version 2
  * as published by the Free Software Foundation, and any use by you of this program is subject to the terms of such GNU licence.
@@ -129,8 +129,6 @@ enum mali_group_core_state mali_group_pp_state(struct mali_group *group);
  */
 void mali_group_bottom_half(struct mali_group *group, enum mali_group_event_t event);
 
-struct mali_mmu_core *mali_group_get_mmu(struct mali_group *group);
-struct mali_session_data *mali_group_get_session(struct mali_group *group);
 struct mali_group *mali_group_get_glob_group(u32 index);
 u32 mali_group_get_glob_num_groups(void);
 

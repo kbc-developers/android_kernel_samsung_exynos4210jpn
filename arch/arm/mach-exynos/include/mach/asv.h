@@ -114,6 +114,7 @@ extern int exynos4210_asv_init(struct samsung_asv *asv_info);
 extern int exynos4x12_asv_init(struct samsung_asv *asv_info);
 extern int exynos5250_asv_init(struct samsung_asv *asv_info);
 void exynos4x12_set_abb_member(enum exynos4x12_abb_member abb_target, unsigned int abb_mode_value);
+extern int exynos4x12_compensate_temp(unsigned int *voltage);
 
 #else
 

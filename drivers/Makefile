@@ -131,13 +131,9 @@ obj-$(CONFIG_PM_DEVFREQ)	+= devfreq/
 obj-$(CONFIG_SAMSUNG_PHONE_SVNET) += svnet/
 obj-$(CONFIG_PHONE_IPC_SPI) += phone_svn/
 obj-$(CONFIG_ACCESSORY)		+= accessory/
-obj-$(CONFIG_IR_REMOCON)	+= irda/
+obj-$(CONFIG_IR_REMOCON)		+= irda/
 obj-$(CONFIG_EXTCON)		+= extcon/
 # Secure OS Mobicore
 obj-$(CONFIG_MOBICORE_SUPPORT)	+= gud/
 
 obj-$(CONFIG_IOMMU_SUPPORT)	+= iommu/
-
-ifeq (1, $(shell if [ -d ./drivers/exfat ]; then echo 1; fi))
-obj-y	+= exfat/
-endif

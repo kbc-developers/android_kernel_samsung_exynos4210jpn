@@ -117,7 +117,7 @@ struct s3cfb_extdsp_lcd {
 #endif
 
 #include <plat/fimg2d.h>
-#include <plat/s5p-sysmmu.h>
+#include <plat/sysmmu.h>
 
 #include <mach/sec_debug.h>
 
@@ -179,10 +179,6 @@ bool is_usb_lpm_enter;
 				 S5PV210_UFCON_TXTRIG4 |	\
 				 S5PV210_UFCON_RXTRIG4)
 
-#define SMDK4212_UFCON_GPS	(S3C2410_UFCON_FIFOMODE |	\
-				S5PV210_UFCON_TXTRIG8 |  \
-				S5PV210_UFCON_RXTRIG32)
-
 static struct s3c2410_uartcfg smdk4212_uartcfgs[] __initdata = {
 	[0] = {
 		.hwport		= 0,
@@ -196,7 +192,7 @@ static struct s3c2410_uartcfg smdk4212_uartcfgs[] __initdata = {
 		.flags		= 0,
 		.ucon		= SMDK4212_UCON_DEFAULT,
 		.ulcon		= SMDK4212_ULCON_DEFAULT,
-		.ufcon		= SMDK4212_UFCON_GPS,
+		.ufcon		= SMDK4212_UFCON_DEFAULT,
 		.set_runstate	= set_gps_uart_op,
 	},
 	[2] = {
@@ -860,13 +856,10 @@ struct platform_device s3c_device_i2c14 = {
 static struct max17042_platform_data max17042_pdata = {
 	.sdi_capacity = 0x3730,
 	.sdi_vfcapacity = 0x4996,
-	.sdi_low_bat_comp_start_vol = 3600,
 	.atl_capacity = 0x3022,
 	.atl_vfcapacity = 0x4024,
+	.sdi_low_bat_comp_start_vol = 3600,
 	.atl_low_bat_comp_start_vol = 3450,
-	.byd_capacity = 0x36B0,
-	.byd_vfcapacity = 0x48EA,
-	.byd_low_bat_comp_start_vol = 3600,
 	.fuel_alert_line = GPIO_FUEL_ALERT,
 	.check_jig_status = check_jig_on
 };
@@ -1172,19 +1165,14 @@ static struct sec_battery_platform_data sec_battery_platform = {
 
 #if defined(CONFIG_TARGET_LOCALE_USA)
 	.temp_high_threshold = 50000,	/* 50c */
-	.temp_high_recovery = 42000,	/* 42c */
-	.temp_low_recovery = 0,			/* 0c */
-	.temp_low_threshold = -5000,	/* -5c */
-#elif defined(CONFIG_TARGET_LOCALE_KOR)
-	.temp_high_threshold = 61400,	/* 65c */
-	.temp_high_recovery = 43500,	/* 42c */
-	.temp_low_recovery = 0,			/* 0c */
-	.temp_low_threshold = -5000,	/* -5c */
+	.temp_high_recovery = 47000,	/* 47c */
+	.temp_low_recovery = 0,		/* 0c */
+	.temp_low_threshold = -2000,	/* -2c */
 #else
 	.temp_high_threshold = 50000,	/* 50c */
 	.temp_high_recovery = 42000,	/* 42c */
-	.temp_low_recovery = 0,			/* 0c */
-	.temp_low_threshold = -5000,	/* -5c */
+	.temp_low_recovery = 2000,		/* 2c */
+	.temp_low_threshold = 0,		/* 0c */
 #endif
 	.recharge_voltage = 4150,	/*4.15V */
 
@@ -1538,7 +1526,7 @@ static struct platform_device s3c_device_i2c11 = {
 #endif
 
 /* IR_LED */
-#ifdef CONFIG_IR_REMOCON_GPIO
+#ifdef CONFIG_IR_REMOCON
 
 static struct platform_device ir_remote_device = {
 	.name = "ir_rc",
@@ -1557,17 +1545,7 @@ static void ir_rc_init_hw(void)
 #endif
 /* IR_LED */
 
-#ifdef CONFIG_SEC_WATCHDOG_RESET
-static struct platform_device watchdog_reset_device = {
-	.name = "watchdog-reset",
-	.id = -1,
-};
-#endif
-
 static struct platform_device *midas_devices[] __initdata = {
-#ifdef CONFIG_SEC_WATCHDOG_RESET
-	&watchdog_reset_device,
-#endif
 #ifdef CONFIG_ANDROID_RAM_CONSOLE
 	&ram_console_device,
 #endif
@@ -1807,7 +1785,7 @@ static struct platform_device *midas_devices[] __initdata = {
 	&sec_keyboard,
 #endif
 #endif
-#if defined(CONFIG_IR_REMOCON_GPIO)
+#if defined(CONFIG_IR_REMOCON)
 /* IR_LED */
 	&ir_remote_device,
 /* IR_LED */
@@ -1827,17 +1805,10 @@ struct s5p_platform_tmu midas_tmu_data __initdata = {
 		.start_emergency    = 120, /* To protect chip,forcely kernel panic */
 		.stop_mem_throttle  = 80,
 		.start_mem_throttle = 85,
-		.stop_tc  = 13,
-		.start_tc = 10,
 	},
 	.cpufreq = {
 		.limit_1st_throttle  = 800000, /* 800MHz in KHz order */
 		.limit_2nd_throttle  = 200000, /* 200MHz in KHz order */
-	},
-	.temp_compensate = {
-		.arm_volt = 925000, /* vdd_arm in uV for temp compensation */
-		.bus_volt = 900000, /* vdd_bus in uV for temp compensation */
-		.g3d_volt = 900000, /* vdd_g3d in uV for temp compensation */
 	},
 };
 #endif
@@ -1884,9 +1855,6 @@ static void __init exynos4_reserve_mem(void)
 		{
 			.name = "fimd",
 			.size = CONFIG_VIDEO_SAMSUNG_MEMSIZE_FIMD * SZ_1K,
-			{
-				.alignment = 1 << 20,
-			},
 			.start = 0
 		},
 #endif
@@ -2369,7 +2337,7 @@ static void __init midas_machine_init(void)
 #ifdef CONFIG_EXYNOS_DEV_PD
 	s5p_device_mfc.dev.parent = &exynos4_device_pd[PD_MFC].dev;
 #endif
-	exynos4_mfc_setup_clock(&s5p_device_mfc.dev, 200 * MHZ);
+	exynos4_mfc_setup_clock(&s5p_device_mfc.dev, 267 * MHZ);
 #endif
 
 #if defined(CONFIG_VIDEO_SAMSUNG_S5P_MFC)
@@ -2527,7 +2495,7 @@ static void __init midas_machine_init(void)
 	__raw_writel((__raw_readl(EXYNOS4_CLKDIV_FSYS1) & 0xfff0fff0)
 		     | 0x80008, EXYNOS4_CLKDIV_FSYS1);
 
-#if defined(CONFIG_IR_REMOCON_GPIO)
+#if defined(CONFIG_IR_REMOCON)
 /* IR_LED */
 	ir_rc_init_hw();
 /* IR_LED */

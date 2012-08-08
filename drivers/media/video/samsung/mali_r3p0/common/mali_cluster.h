@@ -32,9 +32,9 @@ struct mali_group *mali_cluster_get_group(struct mali_cluster *cluster, u32 inde
 
 struct mali_cluster *mali_cluster_get_global_cluster(u32 index);
 u32 mali_cluster_get_glob_num_clusters(void);
+void mali_cluster_set_glob_num_clusters(u32 num);
 
 void mali_cluster_l2_cache_invalidate_all(struct mali_cluster *cluster, u32 id);
 void mali_cluster_l2_cache_invalidate_all_force(struct mali_cluster *cluster);
-void mali_cluster_invalidate_pages(u32 *pages, u32 num_pages);
 
 #endif /* __MALI_CLUSTER_H__ */

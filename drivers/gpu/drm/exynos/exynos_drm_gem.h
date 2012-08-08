@@ -61,10 +61,10 @@ struct exynos_drm_iommu_info {
  * exynos drm gem buffer structure.
  *
  * @kvaddr: kernel virtual address to allocated memory region.
- * *userptr: user space address.
  * @dma_addr: bus address(accessed by dma) to allocated memory region.
  *	- this address could be physical address without IOMMU and
  *	device address with IOMMU.
+ * @userptr: user space address to the buffer allocated by malloc.
  * @write: whether pages will be written to by the caller.
  * @sgt: sg table to transfer page data.
  * @pages: contain all pages to allocated memory region.
@@ -73,14 +73,12 @@ struct exynos_drm_iommu_info {
  * @shared: indicate shared mfc memory region.
  *	(temporarily used and it should be removed later.)
  * @shared_refcount: a reference count for this buffer being shared with others.
- * @pfnmap: indicate whether memory region from userptr is mmaped with
- *	VM_PFNMAP or not.
  */
 struct exynos_drm_gem_buf {
 	struct device		*dev;
 	void __iomem		*kvaddr;
-	unsigned long		userptr;
 	dma_addr_t		dma_addr;
+	unsigned long		userptr;
 	unsigned int		write;
 	struct sg_table		*sgt;
 	struct page		**pages;
@@ -88,7 +86,6 @@ struct exynos_drm_gem_buf {
 	unsigned long		size;
 	bool			shared;
 	atomic_t		shared_refcount;
-	bool			pfnmap;
 };
 
 /*
@@ -133,9 +130,6 @@ int register_buf_to_priv_mgr(struct exynos_drm_gem_obj *obj,
 		unsigned int *priv_handle, unsigned int *priv_id);
 
 struct page **exynos_gem_get_pages(struct drm_gem_object *obj, gfp_t gfpmask);
-
-int exynos_drm_gem_user_limit_ioctl(struct drm_device *dev, void *data,
-				      struct drm_file *filp);
 
 /* destroy a buffer with gem object */
 void exynos_drm_gem_destroy(struct exynos_drm_gem_obj *exynos_gem_obj);
@@ -188,10 +182,6 @@ int exynos_drm_gem_mmap_ioctl(struct drm_device *dev, void *data,
 
 /* map user space allocated by malloc to pages. */
 int exynos_drm_gem_userptr_ioctl(struct drm_device *dev, void *data,
-				      struct drm_file *file_priv);
-
-/* get buffer information to memory region allocated by gem. */
-int exynos_drm_gem_get_ioctl(struct drm_device *dev, void *data,
 				      struct drm_file *file_priv);
 
 /* initialize gem object. */

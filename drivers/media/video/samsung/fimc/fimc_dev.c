@@ -703,8 +703,6 @@ static struct fimc_control *fimc_register_controller(struct platform_device *pde
 
 #ifdef CONFIG_VIDEO_SAMSUNG_USE_DMA_MEM
 	sprintf(ctrl->cma_name, "%s", FIMC_CMA_NAME);
-	ctrl->mem.size = 0;
-	ctrl->mem.base = 0;
 #else
 	/* CMA */
 #ifdef CONFIG_ION_EXYNOS
@@ -1986,12 +1984,8 @@ static inline int fimc_suspend_out(struct fimc_control *ctrl)
 static inline int fimc_suspend_cap(struct fimc_control *ctrl)
 {
 	struct fimc_global *fimc = get_fimc_dev();
-#if (defined(CONFIG_EXYNOS_DEV_PD) && defined(CONFIG_PM_RUNTIME))
-	struct platform_device *pdev = to_platform_device(ctrl->dev);
-	printk(KERN_INFO "%s\n", __func__);
-	if (ctrl->power_status == FIMC_POWER_ON)
-		pm_runtime_put_sync(&pdev->dev);
-#endif
+
+	fimc_dbg("%s\n", __func__);
 
 	if (ctrl->cam->id == CAMERA_WB || ctrl->cam->id == CAMERA_WB_B)	{
 		fimc_dbg("%s\n", __func__);
@@ -2002,23 +1996,18 @@ static inline int fimc_suspend_cap(struct fimc_control *ctrl)
 	} else {
 		if (ctrl->id == FIMC0 && ctrl->cam->initialized) {
 			ctrl->cam->initialized = 0;
-			if (ctrl->cam->use_isp) {
-				printk(KERN_INFO "%s use_isp s_power down\n", __func__);
-				v4l2_subdev_call(ctrl->is.sd, core, s_power, 0);
-			} else
-				v4l2_subdev_call(ctrl->cam->sd, core, s_power, 0);
 
-			if (fimc->mclk_status == CAM_MCLK_ON) {
-				if (ctrl->cam->cam_power)
-					ctrl->cam->cam_power(0);
-				/* shutdown the MCLK */
-				clk_disable(ctrl->cam->clk);
-				fimc->mclk_status = CAM_MCLK_OFF;
-			}
+			v4l2_subdev_call(ctrl->cam->sd, core, s_power, 0);
+
+			if (ctrl->cam->cam_power)
+				ctrl->cam->cam_power(0);
+
+			/* shutdown the MCLK */
+			clk_disable(ctrl->cam->clk);
+			fimc->mclk_status = CAM_MCLK_OFF;
 		}
 	}
 	ctrl->power_status = FIMC_POWER_OFF;
-	printk(KERN_INFO "%s--\n", __func__);
 
 	return 0;
 }
@@ -2033,7 +2022,6 @@ int fimc_suspend(struct platform_device *pdev, pm_message_t state)
 	ctrl = get_fimc_ctrl(id);
 	pdata = to_fimc_plat(ctrl->dev);
 
-	printk(KERN_INFO "%s\n", __func__);
 	if (ctrl->out)
 		fimc_suspend_out(ctrl);
 
@@ -2047,7 +2035,6 @@ int fimc_suspend(struct platform_device *pdev, pm_message_t state)
 		pdata->clk_off(pdev, &ctrl->clk);
 #endif
 
-	printk(KERN_INFO "%s--\n", __func__);
 	return 0;
 }
 
@@ -2096,19 +2083,14 @@ static inline int fimc_resume_cap(struct fimc_control *ctrl)
 	struct fimc_global *fimc = get_fimc_dev();
 	int tmp;
 	u32 timeout;
-#if (defined(CONFIG_EXYNOS_DEV_PD) && defined(CONFIG_PM_RUNTIME))
-	struct platform_device *pdev = to_platform_device(ctrl->dev);
-#endif
-	printk(KERN_INFO "%s\n", __func__);
-#if (defined(CONFIG_EXYNOS_DEV_PD) && defined(CONFIG_PM_RUNTIME))
-	if (ctrl->power_status == FIMC_POWER_OFF)
-		pm_runtime_get_sync(&pdev->dev);
-#endif
+
+	fimc_dbg("%s\n", __func__);
+
 	__raw_writel(S5P_INT_LOCAL_PWR_EN, S5P_PMU_CAM_CONF);
 	/*  Wait max 1ms */
 	timeout = 10;
 	while ((__raw_readl(S5P_PMU_CAM_CONF + 0x4) & S5P_INT_LOCAL_PWR_EN)
-	       != S5P_INT_LOCAL_PWR_EN) {
+			!= S5P_INT_LOCAL_PWR_EN) {
 		if (timeout == 0) {
 			printk(KERN_ERR "Power domain CAM enable failed.\n");
 			break;
@@ -2119,33 +2101,30 @@ static inline int fimc_resume_cap(struct fimc_control *ctrl)
 
 	if (ctrl->cam->id == CAMERA_WB || ctrl->cam->id == CAMERA_WB_B) {
 		fimc_info1("%s : framecnt_seq : %d\n",
-			   __func__, ctrl->suspend_framecnt);
+				__func__, ctrl->suspend_framecnt);
 		fimc_hwset_output_buf_sequence_all(ctrl,
-						   ctrl->suspend_framecnt);
+				ctrl->suspend_framecnt);
 		tmp = fimc_hwget_output_buf_sequence(ctrl);
 		fimc_info1("%s : real framecnt_seq : %d\n", __func__, tmp);
 
 		fimc_streamon_capture((void *)ctrl);
 	} else {
 		if (ctrl->id == FIMC0 && ctrl->cam->initialized == 0) {
-			if (!ctrl->cam->use_isp) {
-				clk_set_rate(ctrl->cam->clk, ctrl->cam->clk_rate);
-				clk_enable(ctrl->cam->clk);
-				fimc->mclk_status = CAM_MCLK_ON;
-				fimc_info1("clock for camera: %d\n", ctrl->cam->clk_rate);
+			clk_set_rate(ctrl->cam->clk, ctrl->cam->clk_rate);
+			clk_enable(ctrl->cam->clk);
+			fimc->mclk_status = CAM_MCLK_ON;
+			fimc_info1("clock for camera: %d\n", ctrl->cam->clk_rate);
 
-				if (ctrl->cam->cam_power)
-					ctrl->cam->cam_power(1);
+			if (ctrl->cam->cam_power)
+				ctrl->cam->cam_power(1);
 
-				v4l2_subdev_call(ctrl->cam->sd, core, s_power, 1);
-				ctrl->cam->initialized = 1;
-			}
+			v4l2_subdev_call(ctrl->cam->sd, core, s_power, 1);
 
+			ctrl->cam->initialized = 1;
 		}
 	}
 	/* fimc_streamon_capture((void *)ctrl); */
 	ctrl->power_status = FIMC_POWER_ON;
-	printk(KERN_INFO "%s--\n", __func__);
 
 	return 0;
 }
@@ -2158,7 +2137,7 @@ int fimc_resume(struct platform_device *pdev)
 
 	ctrl = get_fimc_ctrl(id);
 	pdata = to_fimc_plat(ctrl->dev);
-	printk(KERN_INFO "%s", __func__);
+
 	if (atomic_read(&ctrl->in_use) && pdata->clk_on)
 		pdata->clk_on(pdev, &ctrl->clk);
 
@@ -2170,7 +2149,6 @@ int fimc_resume(struct platform_device *pdev)
 	else
 		ctrl->status = FIMC_STREAMOFF;
 
-	printk(KERN_INFO "%s--", __func__);
 	return 0;
 }
 
@@ -2196,7 +2174,7 @@ static int fimc_runtime_suspend_cap(struct fimc_control *ctrl)
 {
 	struct platform_device *pdev = to_platform_device(ctrl->dev);
 	struct clk *pxl_async = NULL;
-	printk(KERN_INFO "%s FIMC%d\n", __func__, ctrl->id);
+	fimc_dbg("%s FIMC%d\n", __func__, ctrl->id);
 
 	ctrl->power_status = FIMC_POWER_SUSPEND;
 
@@ -2232,7 +2210,6 @@ static int fimc_runtime_suspend_cap(struct fimc_control *ctrl)
 		clk_disable(pxl_async);
 		clk_put(pxl_async);
 	}
-	printk(KERN_INFO "%s FIMC%d --\n", __func__, ctrl->id);
 
 	return 0;
 }
@@ -2249,6 +2226,8 @@ static int fimc_runtime_suspend(struct device *dev)
 	ctrl = get_fimc_ctrl(id);
 	pdata = to_fimc_plat(ctrl->dev);
 
+	fimc_dbg("%s FIMC%d\n", __func__, ctrl->id);
+
 	if (ctrl->out) {
 		fimc_info1("%s: fimc m2m\n", __func__);
 	} else if (ctrl->cap) {
@@ -2263,6 +2242,12 @@ static int fimc_runtime_suspend(struct device *dev)
 			ctrl->power_status = FIMC_POWER_OFF;
 	}
 
+	if (pdata->clk_off) {
+		ret = pdata->clk_off(pdev, &ctrl->clk);
+		if (ret == 0)
+			ctrl->power_status = FIMC_POWER_OFF;
+	}
+
 	return 0;
 }
 
@@ -2270,7 +2255,7 @@ static int fimc_runtime_resume_cap(struct fimc_control *ctrl)
 {
 	struct platform_device *pdev = to_platform_device(ctrl->dev);
 	struct clk *pxl_async = NULL;
-	printk(KERN_INFO "%s FIMC%d\n", __func__, ctrl->id);
+	fimc_dbg("%s\n", __func__);
 
 	if (!ctrl->cam) {
 		fimc_err("%s: No capture device.\n", __func__);
@@ -2298,7 +2283,7 @@ static int fimc_runtime_resume_cap(struct fimc_control *ctrl)
 		clk_enable(pxl_async);
 		clk_put(pxl_async);
 	}
-	printk(KERN_INFO "%s FIMC%d --\n", __func__, ctrl->id);
+
 	return 0;
 }
 static int fimc_runtime_resume(struct device *dev)
@@ -2311,6 +2296,8 @@ static int fimc_runtime_resume(struct device *dev)
 	pdev = to_platform_device(dev);
 	id = pdev->id;
 	ctrl = get_fimc_ctrl(id);
+
+	fimc_dbg("%s\n", __func__);
 
 	pdata = to_fimc_plat(ctrl->dev);
 	if (pdata->clk_on) {

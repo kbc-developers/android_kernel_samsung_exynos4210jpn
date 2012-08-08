@@ -62,9 +62,6 @@ struct hpd_struct {
 #ifdef CONFIG_HDMI_SWITCH_HPD
 	struct switch_dev hpd_switch;
 #endif
-#ifdef CONFIG_HDMI_CONTROLLED_BY_EXT_IC
-	void (*ext_ic_control) (bool ic_on);
-#endif
 };
 
 static struct hpd_struct hpd_struct;
@@ -138,10 +135,6 @@ static void s5p_hpd_kobject_uevent(void)
 	hpd_state = atomic_read(&hpd_struct.state);
 	if (hpd_state) {
 		if (last_uevent_state == -1 || last_uevent_state == HPD_LO) {
-#ifdef CONFIG_HDMI_CONTROLLED_BY_EXT_IC
-			hpd_struct.ext_ic_control(true);
-			msleep(20);
-#endif
 #ifdef CONFIG_HDMI_SWITCH_HPD
 			hpd_struct.hpd_switch.state = 0;
 			switch_set_state(&hpd_struct.hpd_switch, 1);
@@ -177,9 +170,6 @@ static void s5p_hpd_kobject_uevent(void)
 #endif
 			HPDPRINTK("[HDMI] HPD event -disconnet!!!\n");
 			on_stop_process = true;
-#ifdef CONFIG_HDMI_CONTROLLED_BY_EXT_IC
-			hpd_struct.ext_ic_control(false);
-#endif
 		}
 		last_uevent_state = HPD_LO;
 	}
@@ -556,10 +546,7 @@ static int __devinit s5p_hpd_probe(struct platform_device *pdev)
 		    (void (*)(void))pdata->int_src_ext_hpd;
 	if (pdata->read_gpio)
 		hpd_struct.read_gpio = (int (*)(void))pdata->read_gpio;
-#ifdef CONFIG_HDMI_CONTROLLED_BY_EXT_IC
-	if (pdata->ext_ic_control)
-		hpd_struct.ext_ic_control = pdata->ext_ic_control;
-#endif
+
 	hpd_struct.irq_n = platform_get_irq(pdev, 0);
 
 	hpd_struct.int_src_ext_hpd();

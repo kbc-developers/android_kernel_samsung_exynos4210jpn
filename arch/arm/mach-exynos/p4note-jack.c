@@ -44,7 +44,7 @@ static struct sec_jack_zone sec_jack_zones[] = {
 		.jack_type = SEC_HEADSET_3POLE,
 	},
 	{
-		/* 1200 < adc <= 2600, unstable zone, default to 4pole if it
+		/* 950 < adc <= 2600, unstable zone, default to 4pole if it
 		 * stays in this range for 800ms (10ms delays, 80 samples)
 		 */
 		.adc_high = 2600,
@@ -75,22 +75,22 @@ static struct sec_jack_zone sec_jack_zones[] = {
 /* To support 3-buttons earjack */
 static struct sec_jack_buttons_zone sec_jack_buttons_zones[] = {
 	{
-		/* 0 <= adc <=190, stable zone */
+		/* 0 <= adc <=170, stable zone */
 		.code = KEY_MEDIA,
 		.adc_low = 0,
-		.adc_high = 190,
+		.adc_high = 170,
 	},
 	{
-		/* 191 <= adc <= 420, stable zone */
+		/* 171 <= adc <= 370, stable zone */
 		.code = KEY_VOLUMEUP,
-		.adc_low = 191,
-		.adc_high = 420,
+		.adc_low = 171,
+		.adc_high = 370,
 	},
 	{
-		/* 421 <= adc <= 860, stable zone */
+		/* 371 <= adc <= 850, stable zone */
 		.code = KEY_VOLUMEDOWN,
-		.adc_low = 421,
-		.adc_high = 860,
+		.adc_low = 371,
+		.adc_high = 850,
 	},
 };
 

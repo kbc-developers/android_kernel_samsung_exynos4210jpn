@@ -35,7 +35,7 @@ u32 mali_l2_cache_core_get_max_num_l2_cores(void);
 _mali_osk_errcode_t mali_l2_cache_reset(struct mali_l2_cache_core *cache);
 
 _mali_osk_errcode_t mali_l2_cache_invalidate_all(struct mali_l2_cache_core *cache);
-_mali_osk_errcode_t mali_l2_cache_invalidate_pages(struct mali_l2_cache_core *cache, u32 *pages, u32 num_pages);
+_mali_osk_errcode_t mali_l2_cache_invalidate_page(struct mali_l2_cache_core *cache, u32 page);
 
 mali_bool mali_l2_cache_lock_power_state(struct mali_l2_cache_core *cache);
 void mali_l2_cache_unlock_power_state(struct mali_l2_cache_core *cache);

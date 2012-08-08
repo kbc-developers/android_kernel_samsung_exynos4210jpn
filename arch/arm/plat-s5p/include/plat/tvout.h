@@ -19,9 +19,6 @@ struct s5p_platform_hpd {
 	void	(*int_src_hdmi_hpd)(struct platform_device *pdev);
 	void	(*int_src_ext_hpd)(struct platform_device *pdev);
 	int	(*read_gpio)(struct platform_device *pdev);
-#ifdef CONFIG_HDMI_CONTROLLED_BY_EXT_IC
-	void	(*ext_ic_control)(bool ic_on);
-#endif
 };
 
 extern void s5p_hdmi_hpd_set_platdata(struct s5p_platform_hpd *pd);

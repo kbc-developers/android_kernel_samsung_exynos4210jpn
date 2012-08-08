@@ -24,6 +24,7 @@
 #endif
 #include "mali_osk.h"
 #include "mali_uk_types.h"
+#include "mali_ukk.h"
 #include "mali_kernel_common.h"
 #include "mali_kernel_license.h"
 #include "mali_linux_pm.h"

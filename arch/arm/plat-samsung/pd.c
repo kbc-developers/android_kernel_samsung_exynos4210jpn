@@ -29,7 +29,6 @@ static int samsung_pd_probe(struct platform_device *pdev)
 		return -ENOENT;
 	}
 
-	pdata->id = pdev->id;
 	if (pdata->init) {
 		ret = pdata->init(dev);
 		if (ret) {
@@ -98,6 +97,9 @@ static int samsung_pd_runtime_resume(struct device *dev)
 
 	if (pdata->enable)
 		ret = pdata->enable(dev);
+
+	if (pdata->set_bts)
+		pdata->set_bts();
 
 	dev_dbg(dev, "runtime resumed\n");
 	return ret;

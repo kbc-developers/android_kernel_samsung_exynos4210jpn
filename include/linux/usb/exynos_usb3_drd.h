@@ -278,13 +278,10 @@
 #define EXYNOS_USB3_DEPEVT_EPNUM(_x)			((_x) << 1)
 
 /* Event Buffer Content for Device-Specific Events (DEVT) */
-#define EXYNOS_USB3_DEVT_EvtInfo_MASK			(0xf << 16)
-#define EXYNOS_USB3_DEVT_EvtInfo_SHIFT			16
-#define EXYNOS_USB3_DEVT_EvtInfo(_x)			((_x) << 16)
-#define EXYNOS_USB3_DEVT_EvtInfo_SS			(1 << 20)
-#define EXYNOS_USB3_DEVT_EvtInfo_U3			(0x3 << 16)
-#define EXYNOS_USB3_DEVT_EvtInfo_SS_DIS			(0x4 << 16)
-#define EXYNOS_USB3_DEVT_EvtInfo_Suspend		(0x3 << 16)
+#define EXYNOS_USB3_DEVT_EventParam_MASK		(0xf << 16)
+#define EXYNOS_USB3_DEVT_EventParam_SHIFT		16
+#define EXYNOS_USB3_DEVT_EventParam_SS			(1 << 20)
+#define EXYNOS_USB3_DEVT_EventParam(_x)			((_x) << 16)
 #define EXYNOS_USB3_DEVT_EVENT_MASK			(0xf << 8)
 #define EXYNOS_USB3_DEVT_EVENT_SHIFT			8
 #define EXYNOS_USB3_DEVT_EVENT_VndrDevTstRcved		(12 << 8)

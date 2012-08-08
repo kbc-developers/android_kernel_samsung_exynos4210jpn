@@ -153,10 +153,6 @@ enum mali200_wb_unit {
     MALI200_REG_ADDR_WB2 = 0x0300
 };
 
-enum mali200_wb_unit_regs {
-	MALI200_REG_ADDR_WB_SOURCE_SELECT = 0x0000,
-};
-
 /** The number of registers in one single writeback unit */
 #ifndef MALI200_NUM_REGS_WBx
 #define MALI200_NUM_REGS_WBx ((0x02C/4)+1)
@@ -166,7 +162,7 @@ enum mali200_wb_unit_regs {
 #define MALI200_PP_PRODUCT_ID 0xC807
 #define MALI300_PP_PRODUCT_ID 0xCE07
 #define MALI400_PP_PRODUCT_ID 0xCD07
-#define MALI450_PP_PRODUCT_ID 0xCF07
+#define MALI450_PP_PRODUCT_ID 0xD007
 
 
 #endif /* _MALI200_REGS_H_ */

@@ -251,7 +251,7 @@ other_file_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
     * provide a new entry above and variant number, with the appropriate
     * other_file calculation and update lowmemkiller-variant.sh accordingly.
     */
-//#warning "Unknown lowmemorykiller variant in hosted/module/mvpkm_main.c, falling back on default (see other_file_show for the remedy)"
+   /*#warning "Unknown lowmemorykiller variant in hosted/module/mvpkm_main.c, falling back on default (see other_file_show for the remedy)"*/
    /*
     * Fall back on default - this may bias strangely for/against the host, but
     * nothing catastrophic should result.
@@ -1397,18 +1397,27 @@ MvpkmUnlockedIoctl(struct file  *filp,
 
       case MVPKM_MAP_WSPHKVA: {
          MvpkmMapHKVA mvpkmMapInfo;
-         HkvaMapInfo mapInfo[WSP_PAGE_COUNT];
+         HkvaMapInfo *mapInfo;
+         uint32 pageCount;
 
          if (copy_from_user(&mvpkmMapInfo, (void *)arg, sizeof mvpkmMapInfo)) {
             return -EFAULT;
          }
 
-         if (copy_from_user(mapInfo, (void *)mvpkmMapInfo.mapInfo, sizeof mapInfo)) {
+         pageCount = WSP_PAGE_COUNT;
+         mapInfo = kmalloc((sizeof(HkvaMapInfo) * pageCount), GFP_TEMPORARY);
+         if (!mapInfo) {
+            return -ENOMEM;
+         }
+
+         if (copy_from_user(mapInfo, (void *)mvpkmMapInfo.mapInfo, (sizeof(HkvaMapInfo) * pageCount))) {
+            kfree(mapInfo);
             return -EFAULT;
          }
 
          mvpkmMapInfo.hkva = MapWSPHKVA(vm, mapInfo);
          BUG_ON(mvpkmMapInfo.hkva == 0);
+         kfree(mapInfo);
 
          if (mvpkmMapInfo.forRegion == MEMREGION_WSP) {
             vm->wsp = (WorldSwitchPage *) mvpkmMapInfo.hkva;
@@ -2085,10 +2094,10 @@ SetupMonitor(MvpkmVM *vm)
          (0x4 << 8 * MVA_DEVICE);
 
       /*
-       * See B4.1.74 ARM DDI 0406C-2c for the HTCR magic.
+       * See 4.3.3.1 ARM PRD03-GENC-008469 13.0 for the HTCR magic.
        */
       uint32 htcr =
-         0x80000000 |
+         0x80800000 |
          (wsp->memAttr.innerCache << 8) |
          (wsp->memAttr.outerCache << 10) |
          (wsp->memAttr.share << 12);

@@ -31,7 +31,6 @@
 #endif
 
 #ifdef CONFIG_VIDEO_SAMSUNG_V4L2
-#include <linux/videodev2_exynos_media.h>
 #include <linux/videodev2_exynos_camera.h>
 #endif
 
@@ -73,7 +72,14 @@ static struct pm_qos_request_list entry = {};
 #else /* CONFIG_VIDEO_SLP_S5C73M3 */
 
 /* For Android */
+#ifdef CONFIG_MACH_MIDAS_02_BD
+#define S5C73M3_FW_PATH		"/sdcard/SlimISP_OA.bin"
+#define S5C73M3_FW_OD_PATH		"/sdcard/SlimISP_OD.bin"
+#define S5C73M3_FW_SC_PATH		"/sdcard/SlimISP_SC.bin"
+#define S5C73M3_FW_SD_PATH		"/sdcard/SlimISP_SD.bin"
+#else
 #define S5C73M3_FW_PATH		"/sdcard/SlimISP.bin"
+#endif
 
 #endif /* CONFIG_VIDEO_SLP_S5C73M3 */
 
@@ -3134,8 +3140,10 @@ static int s5c73m3_init(struct v4l2_subdev *sd, u32 val)
 
 	memset(&state->focus, 0, sizeof(state->focus));
 
+#ifndef CONFIG_MACH_MIDAS_02_BD
 	if (!state->pdata->is_vdd_core_set())
 		s5c73m3_read_vdd_core(sd);
+#endif
 
 #ifdef S5C73M3_FROM_BOOTING
 	err = s5c73m3_FROM_booting(sd);

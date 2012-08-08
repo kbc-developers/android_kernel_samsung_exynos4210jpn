@@ -17,7 +17,8 @@
 #include "mali_linux_trace.h"
 #endif /* CONFIG_TRACEPOINTS && !MALI_INTERNAL_TIMELINE_PROFILING_ENABLED */
 
-#include "mali_profiling_events.h"
+#include "mali_osk.h"
+#include "mali_cinstr_profiling_events_m200.h"
 
 #define MALI_PROFILING_MAX_BUFFER_ENTRIES 1048576
 
@@ -81,13 +82,6 @@ void _mali_osk_profiling_add_event(u32 event_id, u32 data0, u32 data1, u32 data2
 /* Internal profiling is handled like a plain function call */
 void _mali_osk_profiling_report_hw_counter(u32 counter_id, u32 value);
 #endif
-
-/**
- * Report SW counters
- *
- * @param counters array of counter values
- */
-void _mali_osk_profiling_report_sw_counters(u32 *counters);
 
 /**
  * Stop recording profiling data

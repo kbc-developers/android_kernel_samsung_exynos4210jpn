@@ -2557,13 +2557,25 @@ static struct regulator_consumer_supply ldo10_supply[] = {
 };
 #endif
 
+#if defined(CONFIG_MACH_U1CAMERA_BD)
+static struct regulator_consumer_supply ldo11_supply[] = {
+	REGULATOR_SUPPLY("top_3.3v", NULL),
+};
+#else
 static struct regulator_consumer_supply ldo11_supply[] = {
 	REGULATOR_SUPPLY("touch", NULL),
 };
+#endif
 
+#if defined(CONFIG_MACH_U1CAMERA_BD)
+static struct regulator_consumer_supply ldo12_supply[] = {
+	REGULATOR_SUPPLY("vlcd_1.8v", NULL),
+};
+#else
 static struct regulator_consumer_supply ldo12_supply[] = {
 	REGULATOR_SUPPLY("vt_cam_1.8v", NULL),
 };
+#endif
 
 static struct regulator_consumer_supply ldo13_supply[] = {
 	REGULATOR_SUPPLY("vlcd_3.0v", NULL),
@@ -2579,21 +2591,39 @@ static struct regulator_consumer_supply ldo14_supply[] = {
 };
 #endif
 
+#if defined(CONFIG_MACH_U1CAMERA_BD)
+static struct regulator_consumer_supply ldo15_supply[] = {
+	REGULATOR_SUPPLY("ois_1.5v", NULL),
+};
+#else
 static struct regulator_consumer_supply ldo15_supply[] = {
 	REGULATOR_SUPPLY("vled", NULL),
 };
+#endif
 
+#if defined(CONFIG_MACH_U1CAMERA_BD)
+static struct regulator_consumer_supply ldo16_supply[] = {
+	REGULATOR_SUPPLY("cis_1.8v", NULL),
+};
+#else
 static struct regulator_consumer_supply ldo16_supply[] = {
 	REGULATOR_SUPPLY("cam_sensor_io", NULL),
 };
+#endif
 
 static struct regulator_consumer_supply ldo17_supply[] = {
 	REGULATOR_SUPPLY("vtf_2.8v", NULL),
 };
 
+#if defined(CONFIG_MACH_U1CAMERA_BD)
+static struct regulator_consumer_supply ldo18_supply[] = {
+	REGULATOR_SUPPLY("cis_2.8v", NULL),
+};
+#else
 static struct regulator_consumer_supply ldo18_supply[] = {
 	REGULATOR_SUPPLY("touch_led", NULL),
 };
+#endif
 
 
 static struct regulator_consumer_supply ldo21_supply[] = {
@@ -2688,10 +2718,20 @@ REGULATOR_INIT(ldo10, "VPLL_1.2V", 1200000, 1200000, 1,
 REGULATOR_INIT(ldo10, "VPLL_1.1V", 1100000, 1100000, 1,
 		REGULATOR_CHANGE_STATUS, 1);
 #endif
+#if defined(CONFIG_MACH_U1CAMERA_BD)
+REGULATOR_INIT(ldo11, "TOP_3.3V", 3300000, 3300000, 0,
+		REGULATOR_CHANGE_STATUS, 1);
+#else
 REGULATOR_INIT(ldo11, "TOUCH_2.8V", 2800000, 2800000, 0,
 		REGULATOR_CHANGE_STATUS, 1);
+#endif
+#if defined(CONFIG_MACH_U1CAMERA_BD)
+REGULATOR_INIT(ldo12, "VLCD_1.8V", 1800000, 1800000, 1,
+		REGULATOR_CHANGE_STATUS, 1);
+#else
 REGULATOR_INIT(ldo12, "VT_CAM_1.8V", 1800000, 1800000, 0,
 		REGULATOR_CHANGE_STATUS, 1);
+#endif
 #if defined(CONFIG_MACH_Q1_BD)
 REGULATOR_INIT(ldo13, "VCC_3.0V_LCD", 3100000, 3100000, 1,
 		REGULATOR_CHANGE_STATUS, 1);
@@ -2702,17 +2742,33 @@ REGULATOR_INIT(ldo13, "VCC_3.0V_LCD", 3000000, 3000000, 1,
 #if defined(CONFIG_MACH_Q1_BD)
 REGULATOR_INIT(ldo14, "VCC_2.2V_LCD", 2200000, 2200000, 1,
 		REGULATOR_CHANGE_STATUS, 1);
+#elif defined(CONFIG_MACH_U1CAMERA_BD)
+REGULATOR_INIT(ldo14, "MOT_3.3V", 3300000, 3300000, 0,
+		REGULATOR_CHANGE_STATUS, 1);
 #else
 REGULATOR_INIT(ldo14, "VCC_2.8V_MOTOR", 2800000, 2800000, 0,
 		REGULATOR_CHANGE_STATUS, 1);
 #endif
+#if defined(CONFIG_MACH_U1CAMERA_BD)
+REGULATOR_INIT(ldo15, "OIS_1.5V", 1500000, 1500000, 0,
+		REGULATOR_CHANGE_STATUS, 1);
+#else
 REGULATOR_INIT(ldo15, "LED_A_2.8V", 2800000, 2800000, 0,
 		REGULATOR_CHANGE_STATUS, -1);
+#endif
+#if defined(CONFIG_MACH_U1CAMERA_BD)
+REGULATOR_INIT(ldo16, "CIS_1.8V", 1800000, 1800000, 0,
+		REGULATOR_CHANGE_STATUS, 1);
+#else
 REGULATOR_INIT(ldo16, "CAM_SENSOR_IO_1.8V", 1800000, 1800000, 0,
 		REGULATOR_CHANGE_STATUS, 1);
+#endif
 REGULATOR_INIT(ldo17, "VTF_2.8V", 2800000, 2800000, 0,
 		REGULATOR_CHANGE_STATUS, 1);
-#if defined(CONFIG_MACH_Q1_BD)
+#if defined(CONFIG_MACH_U1CAMERA_BD)
+REGULATOR_INIT(ldo18, "CIS_2.8V", 2800000, 2800000, 0,
+		REGULATOR_CHANGE_STATUS, 1);
+#elif defined(CONFIG_MACH_Q1_BD)
 REGULATOR_INIT(ldo18, "TOUCH_LED_3.3V", 3300000, 3300000, 0,
 		REGULATOR_CHANGE_STATUS, 1);
 #else
@@ -3245,9 +3301,7 @@ static void max8997_muic_mhl_cb(int attached)
 
 	if (attached == MAX8997_MUIC_ATTACHED) {
 #ifdef	CONFIG_SAMSUNG_MHL
-		mhl_onoff_ex(true);
-	} else if (attached == MAX8997_MUIC_DETACHED) {
-		mhl_onoff_ex(false);
+		sii9234_mhl_detection_sched();
 #endif
 	}
 }
@@ -4511,6 +4565,58 @@ static struct platform_device sec_device_thermistor = {
 
 
 struct gpio_keys_button u1_buttons[] = {
+#if defined(CONFIG_MACH_U1CAMERA_BD)
+	{
+		.code = KEY_POWER,
+		.gpio = GPIO_nPOWER,
+		.active_low = 1,
+		.type = EV_KEY,
+		.wakeup = 1,
+		.isr_hook = sec_debug_check_crash_key,
+	},
+	{
+		.code = KEY_RESERVED,
+		.gpio = GPIO_RSERVED_KEY,
+		.active_low = 1,
+		.type = EV_KEY,
+		.wakeup = 1,
+	},
+	{
+		.code = KEY_PLAY,
+		.gpio = GPIO_PLAY_KEY,
+		.active_low = 1,
+		.type = EV_KEY,
+		.wakeup = 1,
+	},
+	{
+		.code = KEY_RECORD,
+		.gpio = GPIO_RECORD_KEY,
+		.active_low = 1,
+		.type = EV_KEY,
+		.wakeup = 1,
+	},
+	{
+		.code = KEY_MENU,
+		.gpio = GPIO_MENU_KEY,
+		.active_low = 1,
+		.type = EV_KEY,
+		.wakeup = 1,
+	},
+	{
+		.code = KEY_HOME,
+		.gpio = GPIO_HOME_KEY,
+		.active_low = 1,
+		.type = EV_KEY,
+		.wakeup = 1,
+	},
+	{
+		.code = KEY_BACK,
+		.gpio = GPIO_BACK_KEY,
+		.active_low = 1,
+		.type = EV_KEY,
+		.wakeup = 1,
+	},
+#else
 	{
 		.code = KEY_VOLUMEUP,
 		.gpio = GPIO_VOL_UP,
@@ -4546,6 +4652,7 @@ struct gpio_keys_button u1_buttons[] = {
 		.wakeup = 1,
 		.debounce_interval = 10,
 	},			/* ok key */
+#endif
 };
 
 struct gpio_keys_platform_data u1_keypad_platform_data = {
@@ -4606,8 +4713,13 @@ static struct sec_jack_zone sec_jack_zones[] = {
 		 * stays in this range for 100ms (10ms delays, 10 samples)
 		 */
 		.adc_high = 3800,
+#if defined(CONFIG_MACH_Q1_BD)
 		.delay_ms = 15,
 		.check_count = 20,
+#else
+		.delay_ms = 10,
+		.check_count = 5,
+#endif
 		.jack_type = SEC_HEADSET_4POLE,
 	},
 	{
@@ -4683,10 +4795,12 @@ static void mxt224_power_on(void)
 	s3c_gpio_cfgpin(GPIO_TSP_LDO_ON, S3C_GPIO_OUTPUT);
 	s3c_gpio_setpull(GPIO_TSP_LDO_ON, S3C_GPIO_PULL_NONE);
 	gpio_set_value(GPIO_TSP_LDO_ON, 1);
-	mdelay(70);
+	//mdelay(70);
+	msleep(70);
 	s3c_gpio_setpull(GPIO_TSP_INT, S3C_GPIO_PULL_NONE);
 	s3c_gpio_cfgpin(GPIO_TSP_INT, S3C_GPIO_SFN(0xf));
-	mdelay(40);
+	//mdelay(40);
+	msleep(40);
 }
 
 static void mxt224_power_off(void)
@@ -4791,10 +4905,12 @@ static void mxt224_power_on(void)
 	s3c_gpio_cfgpin(GPIO_TSP_LDO_ON, S3C_GPIO_OUTPUT);
 	s3c_gpio_setpull(GPIO_TSP_LDO_ON, S3C_GPIO_PULL_NONE);
 	gpio_set_value(GPIO_TSP_LDO_ON, 1);
-	mdelay(70);
+	//mdelay(70);
+	msleep(70);
 	s3c_gpio_setpull(GPIO_TSP_INT, S3C_GPIO_PULL_NONE);
 	s3c_gpio_cfgpin(GPIO_TSP_INT, S3C_GPIO_SFN(0xf));
-	mdelay(40);
+	//mdelay(40);
+	msleep(40);
 	/* printk("mxt224_power_on is finished\n"); */
 }
 
@@ -4815,12 +4931,13 @@ static void mxt224_power_off(void)
 #define MXT224_THRESHOLD_BATT		40
 #define MXT224_THRESHOLD_BATT_INIT		55
 #define MXT224_THRESHOLD_CHRG		70
-#define MXT224_NOISE_THRESHOLD_BATT		30
-#define MXT224_NOISE_THRESHOLD_CHRG		40
+#define MXT224_NOISE_THRESHOLD_BATT		10 //20120530
+#define MXT224_NOISE_THRESHOLD_CHRG		40 //20120523
 #define MXT224_MOVFILTER_BATT		11
 #define MXT224_MOVFILTER_CHRG		47
 #define MXT224_ATCHCALST		4
 #define MXT224_ATCHCALTHR		35
+#define CTE_MODE 	3 //20120521 add
 
 static u8 t7_config[] = { GEN_POWERCONFIG_T7,
 	48,			/* IDLEACQINT */
@@ -4850,11 +4967,15 @@ static u8 t20_config[] = { PROCI_GRIPFACESUPPRESSION_T20,
 
 static u8 t22_config[] = { PROCG_NOISESUPPRESSION_T22,
 	143, 0, 0, 0, 0, 0, 0, 3, MXT224_NOISE_THRESHOLD_BATT, 0,
+#if 0 //20120523 add #if 0
+	0, 10, 12, 18, 20, 29, 3
+#else
 	0, 29, 34, 39, 49, 58, 3
+#endif
 };
 
 static u8 t28_config[] = { SPT_CTECONFIG_T28,
-			   0, 0, 3, 16, 19, 60
+			   0, 0, CTE_MODE, 16, 19, 60 //20120521 changed
 };
 static u8 end_config[] = { RESERVED_T255 };
 
@@ -4966,7 +5087,7 @@ static u8 t42_config_e[] = { PROCI_TOUCHSUPPRESSION_T42,
 };
 
 static u8 t46_config_e[] = { SPT_CTECONFIG_T46,
-	0, 3, 16, MXT224E_ACTVSYNCSPERX_NORMAL, 0, 0, 1, 0, 0
+	0, CTE_MODE, 16, MXT224E_ACTVSYNCSPERX_NORMAL, 0, 0, 1, 0, 0 //20120521 changed
 };
 
 static u8 t47_config_e[] = { PROCI_STYLUS_T47,
@@ -5078,7 +5199,7 @@ static u8 t42_config_e[] = { PROCI_TOUCHSUPPRESSION_T42,
 };
 
 static u8 t46_config_e[] = { SPT_CTECONFIG_T46,
-	0, 3, 16, MXT224E_ACTVSYNCSPERX_NORMAL, 0, 0, 1, 0, 0
+	0, CTE_MODE, 16, MXT224E_ACTVSYNCSPERX_NORMAL, 0, 0, 1, 0, 0 //20120521 changed
 };
 
 static u8 t47_config_e[] = { PROCI_STYLUS_T47,
@@ -5216,6 +5337,7 @@ static struct mxt224_platform_data mxt224_data = {
 	.movfilter_charging_e = MXT224E_MOVFILTER_CHRG,
 	.actvsyncsperx_e = MXT224E_ACTVSYNCSPERX_NORMAL,
 	.nexttchdi_e = MXT224E_NEXTTCHDI_NORMAL,
+	.cte_mode = CTE_MODE,
 	.power_on = mxt224_power_on,
 	.power_off = mxt224_power_off,
 	.register_cb = tsp_register_callback,
@@ -6366,6 +6488,9 @@ static void __init mipi_fb_init(void)
 	 */
 	printk(KERN_INFO "%s :: fb_platform_data.hw_ver = 0x%x\n",
 	       __func__, fb_platform_data.hw_ver);
+
+	fb_platform_data.mipi_is_enabled = 1;
+	fb_platform_data.interface_mode = FIMD_CPU_INTERFACE;
 
 	dsim_pd = (struct s5p_platform_dsim *)
 	    s5p_device_dsim.dev.platform_data;

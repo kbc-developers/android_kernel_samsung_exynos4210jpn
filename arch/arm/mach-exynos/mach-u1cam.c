@@ -214,11 +214,7 @@ static struct wacom_g5_callbacks *wacom_callbacks;
 				 S5PV210_UFCON_TXTRIG4 |	\
 				 S5PV210_UFCON_RXTRIG4)
 
-#define SMDKC210_UFCON_GPS	(S3C2410_UFCON_FIFOMODE |	\
-				S5PV210_UFCON_TXTRIG8 |	\
-				S5PV210_UFCON_RXTRIG32)
-
-static struct s3c2410_uartcfg smdk4212_uartcfgs[] __initdata = {
+static struct s3c2410_uartcfg smdkc210_uartcfgs[] __initdata = {
 	[0] = {
 		.hwport = 0,
 		.flags = 0,
@@ -234,7 +230,7 @@ static struct s3c2410_uartcfg smdk4212_uartcfgs[] __initdata = {
 		.flags = 0,
 		.ucon = SMDKC210_UCON_DEFAULT,
 		.ulcon = SMDKC210_ULCON_DEFAULT,
-		.ufcon = SMDKC210_UFCON_GPS,
+		.ufcon = SMDKC210_UFCON_DEFAULT,
 		.set_runstate = set_gps_uart_op,
 	},
 	[2] = {
@@ -5885,6 +5881,9 @@ static void __init mipi_fb_init(void)
 	 */
 	printk(KERN_INFO "%s :: fb_platform_data.hw_ver = 0x%x\n",
 	       __func__, fb_platform_data.hw_ver);
+
+	fb_platform_data.mipi_is_enabled = 1;
+	fb_platform_data.interface_mode = FIMD_CPU_INTERFACE;
 
 	dsim_pd = (struct s5p_platform_dsim *)
 	    s5p_device_dsim.dev.platform_data;

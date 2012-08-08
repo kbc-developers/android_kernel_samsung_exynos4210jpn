@@ -48,8 +48,7 @@
 
 #endif
 
-#if defined(CONFIG_MACH_U1) || defined(CONFIG_MACH_PX) || \
-	defined(CONFIG_MACH_TRATS)
+#if defined(CONFIG_MACH_U1) || defined(CONFIG_MACH_PX)
 #define TRANS_LOAD_H0 30
 #define TRANS_LOAD_L1 20
 #define TRANS_LOAD_H1 100
@@ -59,24 +58,23 @@
 #define CHECK_DELAY_OFF	(.5*HZ)
 #endif
 
-#if defined(CONFIG_MACH_MIDAS) || defined(CONFIG_MACH_SMDK4X12) \
-	|| defined(CONFIG_MACH_SLP_PQ)
+#if defined(CONFIG_MACH_MIDAS) || defined(CONFIG_MACH_SMDK4X12)
+#ifdef CONFIG_MACH_S2PLUS
+#define TRANS_LOAD_H0 30
+#define TRANS_LOAD_L1 20
+#define TRANS_LOAD_H1 100
+#else
 #define TRANS_LOAD_H0 20
 #define TRANS_LOAD_L1 10
 #define TRANS_LOAD_H1 35
+#endif
 #define TRANS_LOAD_L2 15
 #define TRANS_LOAD_H2 45
 #define TRANS_LOAD_L3 20
 
 #define BOOT_DELAY	60
-
-#if defined(CONFIG_MACH_SLP_PQ)
-#define CHECK_DELAY_ON	(.3*HZ * 4)
-#define CHECK_DELAY_OFF	(.3*HZ)
-#else
 #define CHECK_DELAY_ON	(.5*HZ * 4)
 #define CHECK_DELAY_OFF	(.5*HZ)
-#endif
 #endif
 
 #define TRANS_RQ 2
@@ -181,21 +179,12 @@ standalone_hotplug(unsigned int load, unsigned long nr_rq_min, unsigned int cpu_
 		{0, 0}
 	};
 
-	static void __iomem *clk_fimc;
-	unsigned char fimc_stat;
 
 	cur_freq = clk_get_rate(clk_get(NULL, "armclk")) / 1000;
 
 	nr_online_cpu = num_online_cpus();
 
 	avg_load = (unsigned int)((cur_freq * load) / max_performance);
-
-	clk_fimc = ioremap(0x10020000, SZ_4K);
-	fimc_stat = __raw_readl(clk_fimc + 0x0920);
-	iounmap(clk_fimc);
-
-	if ((fimc_stat>>4 & 0x1) == 1)
-		return HOTPLUG_IN;
 
 	if (hotplug_out_chk(nr_online_cpu, threshold[nr_online_cpu - 1][0],
 			    avg_load, cur_freq)) {

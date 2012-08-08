@@ -11,6 +11,7 @@
 #include "mali_gp_job.h"
 #include "mali_osk.h"
 #include "mali_osk_list.h"
+#include "mali_kernel_common.h"
 #include "mali_uk_types.h"
 
 struct mali_gp_job *mali_gp_job_create(struct mali_session_data *session, _mali_uk_gp_start_job_s *args, u32 id)
@@ -32,10 +33,12 @@ struct mali_gp_job *mali_gp_job_create(struct mali_session_data *session, _mali_
 		job->perf_counter_value0 = 0;
 		job->perf_counter_value1 = 0;
 
+#if MALI_TIMELINE_PROFILING_ENABLED
 		job->pid = _mali_osk_get_pid();
 		job->tid = _mali_osk_get_tid();
 		job->frame_builder_id = args->frame_builder_id;
 		job->flush_id = args->flush_id;
+#endif
 
 		return job;
 	}

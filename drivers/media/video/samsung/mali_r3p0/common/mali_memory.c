@@ -9,6 +9,7 @@
  */
 
 #include "mali_kernel_common.h"
+#include "mali_kernel_ioctl.h"
 #include "mali_kernel_descriptor_mapping.h"
 #include "mali_mem_validation.h"
 #include "mali_memory.h"
@@ -36,6 +37,39 @@
  */
 #define MALI_MEM_DESCRIPTORS_INIT 64
 #define MALI_MEM_DESCRIPTORS_MAX 65536
+
+extern struct mali_cluster
+{
+	struct mali_l2_cache_core *l2;
+	u32 number_of_groups;
+	struct mali_group* groups[MALI_MAX_NUMBER_OF_GROUPS_PER_CLUSTER];
+};
+
+extern struct mali_group
+{
+	struct mali_cluster *cluster;
+
+	struct mali_mmu_core *mmu;
+	struct mali_session_data *session;
+	int page_dir_ref_count;
+#if defined(USING_MALI200)
+	mali_bool pagedir_activation_failed;
+#endif
+
+	struct mali_gp_core         *gp_core;
+	enum mali_group_core_state  gp_state;
+	struct mali_gp_job          *gp_running_job;
+
+	struct mali_pp_core         *pp_core;
+	enum mali_group_core_state  pp_state;
+	struct mali_pp_job          *pp_running_job;
+	u32                         pp_running_sub_job;
+
+	_mali_osk_lock_t *lock;
+#ifdef DEBUG
+	u32 lock_owner;
+#endif
+};
 
 typedef struct dedicated_memory_info
 {
@@ -77,7 +111,7 @@ typedef struct external_mem_allocation
  * This function will fail if it is unable to put the MMU in stall mode (which
  * might be the case if a page fault is also being processed).
  *
- * @param args see _mali_uk_mem_munmap_s in "mali_utgard_uk_types.h"
+ * @param args see _mali_uk_mem_munmap_s in "mali_uk_types.h"
  * @return _MALI_OSK_ERR_OK on success, otherwise a suitable _mali_osk_errcode_t on failure.
  */
 static _mali_osk_errcode_t _mali_ukk_mem_munmap_internal( _mali_uk_mem_munmap_s *args );
@@ -170,8 +204,6 @@ void mali_memory_terminate(void)
 {
 	MALI_DEBUG_PRINT(2, ("Memory system terminating\n"));
 
-	mali_mmu_page_table_cache_destroy();
-
 	while ( NULL != mem_region_registrations)
 	{
 		dedicated_memory_info * m;
@@ -194,6 +226,8 @@ void mali_memory_terminate(void)
 		mali_allocation_engine_destroy(memory_engine);
 		memory_engine = NULL;
 	}
+
+	mali_mmu_page_table_cache_destroy();
 }
 
 _mali_osk_errcode_t mali_memory_session_begin(struct mali_session_data * session_data)
@@ -336,7 +370,7 @@ _mali_osk_errcode_t mali_memory_core_resource_os_memory(_mali_osk_resource_t * r
 	 * resources of the same alloc_order will be Last-in-first */
 	next_allocator_list = &physical_memory_allocators;
 
-	while (NULL != *next_allocator_list &&
+	while ( NULL != *next_allocator_list &&
 			(*next_allocator_list)->alloc_order < alloc_order )
 	{
 		next_allocator_list = &((*next_allocator_list)->next);
@@ -901,6 +935,12 @@ static _mali_osk_errcode_t mali_address_manager_map(mali_memory_allocation * des
 	struct mali_session_data *session_data;
 	u32 mali_address;
 
+	u32 num_clusters = mali_cluster_get_glob_num_clusters();
+	u32 clust_num_groups;
+	struct mali_cluster *cluster;
+	struct mali_group *group;
+	u32 i,j;
+
 	MALI_DEBUG_ASSERT_POINTER(descriptor);
 	MALI_DEBUG_ASSERT_POINTER(phys_addr);
 
@@ -921,10 +961,6 @@ _mali_osk_errcode_t _mali_ukk_mem_mmap( _mali_uk_mem_mmap_s *args )
 {
 	struct mali_session_data *session_data;
 	mali_memory_allocation * descriptor;
-
-	u32 num_groups = mali_group_get_glob_num_groups();
-	struct mali_group *group;
-	u32 i;
 
 	/* validate input */
 	if (NULL == args) { MALI_DEBUG_PRINT(3,("mali_ukk_mem_mmap: args was NULL\n")); MALI_ERROR(_MALI_OSK_ERR_INVALID_ARGS); }
@@ -951,15 +987,6 @@ _mali_osk_errcode_t _mali_ukk_mem_mmap( _mali_uk_mem_mmap_s *args )
 
 	if (0 == mali_allocation_engine_allocate_memory(memory_engine, descriptor, physical_memory_allocators, &session_data->memory_head))
 	{
-		for (i = 0; i < num_groups; i++)
-		{
-			group = mali_group_get_glob_group(i);
-			if (mali_group_get_session(group) == session_data)
-			{
-				mali_mmu_zap_tlb(mali_group_get_mmu(group));
-			}
-		}
-
 	   	_mali_osk_lock_signal(session_data->memory_lock, _MALI_OSK_LOCKMODE_RW);
 
 		/* All ok, write out any information generated from this call */
@@ -1004,12 +1031,12 @@ static _mali_osk_errcode_t _mali_ukk_mem_munmap_internal( _mali_uk_mem_munmap_s 
 	for (i = 0; i < num_groups; i++)
 	{
 		group = mali_group_get_glob_group(i);
-		if (mali_group_get_session(group) == session_data)
+		if (group->session == session_data)
 		{
-			mali_bool res = mali_mmu_enable_stall(mali_group_get_mmu(group));
+			mali_bool res = mali_mmu_enable_stall(group->mmu);
 			if (MALI_TRUE != res)
 			{
-				MALI_PRINT_ERROR(("_mali_ukk_mem_munmap_internal: unable to stall mmu\n"));
+				MALI_PRINT_ERROR(("_mali_ukk_mem_munmap_internal:unable to stall mmu\n"));
 			}
 		}
 	}
@@ -1024,10 +1051,10 @@ static _mali_osk_errcode_t _mali_ukk_mem_munmap_internal( _mali_uk_mem_munmap_s 
 	for (i = 0; i < num_groups; i++)
 	{
 		group = mali_group_get_glob_group(i);
-		if (mali_group_get_session(group) == session_data)
+		if (group->session == session_data)
 		{
-			mali_mmu_zap_tlb(mali_group_get_mmu(group));
-			mali_mmu_disable_stall(mali_group_get_mmu(group));
+			mali_mmu_zap_tlb(group->mmu);
+			mali_mmu_disable_stall(group->mmu);
 		}
 	}
 

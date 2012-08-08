@@ -198,7 +198,7 @@ struct mali_mmu_core *mali_mmu_create(_mali_osk_resource_t *resource)
 	}
 	else
 	{
-		MALI_PRINT_ERROR(("Failed to allocate memory for MMU\n"));
+		MALI_PRINT_ERROR(("Failed to allocate memory for MMU %s\n", mmu->hw_core.description));
 	}
 
 	return NULL;
@@ -362,7 +362,7 @@ static _mali_osk_errcode_t mali_mmu_upper_half(void * data)
 	if (0 != int_stat)
 	{
 		mali_hw_core_register_write(&mmu->hw_core, MALI_MMU_REGISTER_INT_MASK, 0);
-		mali_hw_core_register_read(&mmu->hw_core, MALI_MMU_REGISTER_STATUS);
+		mali_hw_core_register_read(&mmu->hw_core, MALI_MMU_REGISTER_STATUS); /* @@@@ WTF???? HW bug??? */
 
 		if (int_stat & MALI_MMU_INTERRUPT_PAGE_FAULT)
 		{
@@ -423,11 +423,6 @@ void mali_mmu_zap_tlb(struct mali_mmu_core *mmu)
 	mali_mmu_enable_stall(mmu); /* this might fail */
 	mali_hw_core_register_write(&mmu->hw_core, MALI_MMU_REGISTER_COMMAND, MALI_MMU_COMMAND_ZAP_CACHE);
 	mali_mmu_disable_stall(mmu);
-}
-
-void mali_mmu_invalidate_page(struct mali_mmu_core *mmu, u32 mali_address)
-{
-	mali_hw_core_register_write(&mmu->hw_core, MALI_MMU_REGISTER_ZAP_ONE_LINE, MALI_MMU_PDE_ENTRY(mali_address));
 }
 
 static void mali_mmu_activate_address_space(struct mali_mmu_core *mmu, u32 page_directory)

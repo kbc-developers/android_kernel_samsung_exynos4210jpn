@@ -9,14 +9,11 @@
  */
 
 #include "mali_kernel_common.h"
-#include "mali_kernel_core.h"
 #include "mali_osk.h"
 #include "mali_uk_types.h"
 #include "mali_mmu_page_directory.h"
 #include "mali_memory.h"
 
-#include "mali_cluster.h"
-#include "mali_group.h"
 
 static _mali_osk_errcode_t fill_page(mali_io_address mapping, u32 data);
 
@@ -80,6 +77,7 @@ _mali_osk_errcode_t mali_create_fault_flush_pages(u32 *page_directory, u32 *page
 	return err;
 }
 
+
 void mali_destroy_fault_flush_pages(u32 *page_directory, u32 *page_table, u32 *data_page)
 {
 	if (MALI_INVALID_PAGE != *page_directory)
@@ -100,6 +98,7 @@ void mali_destroy_fault_flush_pages(u32 *page_directory, u32 *page_table, u32 *d
 		*data_page = MALI_INVALID_PAGE;
 	}
 }
+
 
 static _mali_osk_errcode_t fill_page(mali_io_address mapping, u32 data)
 {
@@ -174,9 +173,6 @@ _mali_osk_errcode_t mali_mmu_pagedir_unmap(struct mali_page_directory *pagedir, 
 	const int last_pde = MALI_MMU_PDE_ENTRY(mali_address + size - 1);
 	u32 left = size;
 	int i;
-	mali_bool pd_changed = MALI_FALSE;
-	u32 pages_to_invalidate[3]; /* hard-coded to 3: max two pages from the PT level plus max one page from PD level */
-	u32 num_pages_inv = 0;
 
 	/* For all page directory entries in range. */
 	for (i = first_pde; i <= last_pde; i++)
@@ -200,7 +196,7 @@ _mali_osk_errcode_t mali_mmu_pagedir_unmap(struct mali_page_directory *pagedir, 
 		pagedir->page_entries_usage_count[i]--;
 
 		/* If entire page table is unused, free it */
-		if (0 == pagedir->page_entries_usage_count[i])
+		if(0 == pagedir->page_entries_usage_count[i])
 		{
 			u32 page_address;
 			MALI_DEBUG_PRINT(4, ("Releasing page table as this is the last reference\n"));
@@ -211,15 +207,13 @@ _mali_osk_errcode_t mali_mmu_pagedir_unmap(struct mali_page_directory *pagedir, 
 			_mali_osk_mem_iowrite32_relaxed(pagedir->page_directory_mapped, i*sizeof(u32), 0);
 
 			mali_mmu_release_table_page(page_address);
-			pd_changed = MALI_TRUE;
 		}
 		else
 		{
-			pages_to_invalidate[num_pages_inv] = mali_page_directory_get_phys_address(pagedir, i);
-			num_pages_inv++;
-
 			/* If part of the page table is still in use, zero the relevant PTEs */
 			mali_mmu_zero_pte(pagedir->page_entries_mapped[i], mali_address, size_in_pde);
+
+			/* TODO: Invalidate page in L2 */
 		}
 
 		left -= size_in_pde;
@@ -227,20 +221,11 @@ _mali_osk_errcode_t mali_mmu_pagedir_unmap(struct mali_page_directory *pagedir, 
 	}
 	_mali_osk_write_mem_barrier();
 
-	/* L2 pages invalidation */
-	if (MALI_TRUE == pd_changed)
-	{
-		pages_to_invalidate[num_pages_inv] = pagedir->page_directory;
-		num_pages_inv++;
-	}
-
-	if (_MALI_PRODUCT_ID_MALI200 != mali_kernel_core_get_product_id())
-	{
-		mali_cluster_invalidate_pages(pages_to_invalidate, num_pages_inv);
-	}
+	/* TODO: Invalidate page directory in L2 (if changed?)  */
 
 	MALI_SUCCESS;
 }
+
 
 struct mali_page_directory *mali_mmu_pagedir_alloc(void)
 {
@@ -300,11 +285,6 @@ void mali_mmu_pagedir_update(struct mali_page_directory *pagedir, u32 mali_addre
 			        phys_address | MALI_MMU_FLAGS_WRITE_PERMISSION | MALI_MMU_FLAGS_READ_PERMISSION | MALI_MMU_FLAGS_PRESENT);
 	}
 	_mali_osk_write_mem_barrier();
-}
-
-u32 mali_page_directory_get_phys_address(struct mali_page_directory *pagedir, u32 index)
-{
-	return (_mali_osk_mem_ioread32(pagedir->page_directory_mapped, index*sizeof(u32)) & ~MALI_MMU_FLAGS_MASK);
 }
 
 /* For instrumented */

@@ -82,10 +82,9 @@
 #endif
 #endif
 
-/* Sanity check we're only dealing with the memory hotplug + migrate and/or
- * compaction combo */
+/* Sanity check we're only dealing with the memory hotplug + migrate combo */
 #ifdef CONFIG_MIGRATION
-#if defined(CONFIG_NUMA) || defined(CONFIG_CPUSETS) || defined(CONFIG_MEMORY_FAILURE)
-#error "MVP not tested with migration features other than CONFIG_MEMORY_HOTPLUG and CONFIG_COMPACTION"
+#if defined(CONFIG_NUMA) || defined(CONFIG_COMPACTION) || defined(CONFIG_CPUSETS) || defined(CONFIG_MEMORY_FAILURE)
+//#error "MVP not tested with migration features other than CONFIG_MEMORY_HOTPLUG"
 #endif
 #endif

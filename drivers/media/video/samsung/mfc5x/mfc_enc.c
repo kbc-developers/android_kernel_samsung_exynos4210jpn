@@ -638,7 +638,7 @@ static int set_init_arg(struct mfc_inst_ctx *ctx, void *arg)
 #else
 	init_arg->cmn.out_u_addr.strm_ref_y = mfc_mem_data_ofs(enc_ctx->streamaddr, 1);
 	init_arg->cmn.out_u_addr.mv_ref_yc = 0;
-	init_arg->cmn.out_p_addr.strm_ref_y = enc_ctx->streamaddr;
+	init_arg->cmn.out_p_addr.strm_ref_y = mfc_mem_base_ofs(enc_ctx->streamaddr);
 	init_arg->cmn.out_p_addr.mv_ref_yc = 0;
 #endif
 
@@ -1602,7 +1602,7 @@ static int mfc_encoding_frame(struct mfc_inst_ctx *ctx, struct mfc_enc_exe_arg *
 	write_shm(ctx, exe_arg->in_frametag, SET_FRAME_TAG);
 
 	/* Set stream buffer addr */
-	enc_ctx->streamaddr = mfc_mem_base_ofs(exe_arg->in_strm_st);
+	enc_ctx->streamaddr = exe_arg->in_strm_st;
 	enc_ctx->streamsize = exe_arg->in_strm_end - exe_arg->in_strm_st;
 
 #if defined(CONFIG_CPU_EXYNOS4212) || defined(CONFIG_CPU_EXYNOS4412)

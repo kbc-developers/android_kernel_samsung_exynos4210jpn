@@ -89,7 +89,6 @@ struct wm8994_priv {
 	struct wm8994_fll_config fll[2], fll_suspend[2];
 	struct completion fll_locked[2];
 	bool fll_locked_irq;
-	bool fll_byp;
 
 	int vmid_refcount;
 	int active_refcount;

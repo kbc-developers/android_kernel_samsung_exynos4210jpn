@@ -163,33 +163,10 @@ fw-shipped-$(CONFIG_TOUCHSCREEN_MELFAS) += tsp_melfas/PUBL.fw
 else
 $(warning '$(TSPFIRMWARE_DIRECTORY)' directory dose not exist)
 endif
-
-TSPFIRMWARE_DIRECTORY_MEL_GC = firmware/tsp_melfas/gc
-ifeq ($(shell test -d $(TSPFIRMWARE_DIRECTORY_MEL_GC) && echo yes),yes)
-fw-shipped-$(CONFIG_TOUCHSCREEN_MELFAS_GC) += tsp_melfas/gc/A_CORE.fw
-fw-shipped-$(CONFIG_TOUCHSCREEN_MELFAS_GC) += tsp_melfas/gc/A_PRIV.fw
-fw-shipped-$(CONFIG_TOUCHSCREEN_MELFAS_GC) += tsp_melfas/gc/A_PUBL.fw
-else
-$(warning '$(TSPFIRMWARE_DIRECTORY)' directory dose not exist)
-endif
-
-TSPFIRMWARE_DIRECTORY_MEL_NOTE = firmware/tsp_melfas/note
-ifeq ($(shell test -d $(TSPFIRMWARE_DIRECTORY_MEL_NOTE) && echo yes),yes)
-fw-shipped-$(CONFIG_TOUCHSCREEN_MELFAS_NOTE) += tsp_melfas/note/CORE.fw
-fw-shipped-$(CONFIG_TOUCHSCREEN_MELFAS_NOTE) += tsp_melfas/note/PRIV.fw
-fw-shipped-$(CONFIG_TOUCHSCREEN_MELFAS_NOTE) += tsp_melfas/note/PUBL.fw
-else
-$(warning '$(TSPFIRMWARE_DIRECTORY)' directory dose not exist)
-endif
-
 ifeq ($(CONFIG_MACH_C1VZW),y)
 fw-shipped-$(CONFIG_AUDIENCE_ES305) += audience/es305_fw_c1vzw.bin
 else
-ifeq ($(CONFIG_MACH_C2),y)
-fw-shipped-$(CONFIG_AUDIENCE_ES305) += audience/es305_fw_c1vzw.bin
-else
 fw-shipped-$(CONFIG_AUDIENCE_ES305) += audience/es305_fw.bin
-endif
 endif
 
 fw-shipped-all := $(fw-shipped-y) $(fw-shipped-m) $(fw-shipped-)

@@ -724,7 +724,7 @@ MksckGetName(struct socket *sock,
    Mksck *mksck;
    struct sock *sk = sock->sk;
 
-   // MAX_SOCK_ADDR is size of *addr, Linux doesn't export it!
+   // MAX_SOCK_ADDR is size of *addr but Linux doesn't export it!
    // ASSERT_ON_COMPILE(sizeof (struct sockaddr_mk) <= MAX_SOCK_ADDR);
 
    lock_sock(sk);

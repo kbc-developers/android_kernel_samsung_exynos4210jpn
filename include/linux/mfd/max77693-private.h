@@ -367,7 +367,6 @@ extern int max77693_muic_get_status1_adc1k_value(void);
 extern int max77693_muic_get_status1_adc_value(void);
 extern void otg_control(int);
 extern void powered_otg_control(int);
-extern int max77693_muic_set_audio_switch(bool enable);
 
 #ifdef CONFIG_MFD_MAX77693
 enum cable_type_muic {

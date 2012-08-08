@@ -1309,15 +1309,15 @@ static int s5k5ccgx_af_start_preflash(struct v4l2_subdev *sd)
 		break;
 	}
 
+	/* We wait for 200ms after pre flash on.
+	 * check whether AE is stable.*/
+	msleep(200);
+
 	/* Check AE-stable */
 	if (state->focus.preflash == PREFLASH_ON) {
-		/* We wait for 200ms after pre flash on.
-		 * check whether AE is stable.*/
-		msleep(200);
-
 		/* Do checking AE-stable */
 		for (count = 0; count < AE_STABLE_SEARCH_COUNT; count++) {
-			if (state->focus.cancel) {
+			if (state->focus.start == AUTO_FOCUS_OFF) {
 				cam_info("af_start_preflash: \
 					AF is cancelled!\n");
 				state->focus.status = AF_RESULT_CANCELLED;
@@ -1332,11 +1332,11 @@ static int s5k5ccgx_af_start_preflash(struct v4l2_subdev *sd)
 			if (read_value == 0x0001) {
 				af_dbg("AE-stable success,"
 					" count=%d, delay=%dms\n", count,
-					AE_STABLE_SEARCH_DELAY);
+					state->one_frame_delay_ms);
 				break;
 			}
 
-			msleep(AE_STABLE_SEARCH_DELAY);
+			msleep(state->one_frame_delay_ms);
 		}
 
 		/* restore write mode */
@@ -1345,10 +1345,10 @@ static int s5k5ccgx_af_start_preflash(struct v4l2_subdev *sd)
 		if (unlikely(count >= AE_STABLE_SEARCH_COUNT)) {
 			cam_err("%s: ERROR, AE unstable."
 				" count=%d, delay=%dms\n",
-				__func__, count, AE_STABLE_SEARCH_DELAY);
+				__func__, count, state->one_frame_delay_ms);
 			/* return -ENODEV; */
 		}
-	} else if (state->focus.cancel) {
+	} else if (state->focus.start == AUTO_FOCUS_OFF) {
 		cam_info("af_start_preflash: AF is cancelled!\n");
 		state->focus.status = AF_RESULT_CANCELLED;
 	}
@@ -1364,7 +1364,6 @@ static int s5k5ccgx_af_start_preflash(struct v4l2_subdev *sd)
 			state->focus.preflash = PREFLASH_NONE;
 		}
 
-		state->focus.cancel = 0;
 		if (state->focus.touch)
 			state->focus.touch = 0;
 	}
@@ -1409,7 +1408,7 @@ static int s5k5ccgx_do_af(struct v4l2_subdev *sd)
 
 	/*1st search*/
 	for (count = 0; count < FIRST_AF_SEARCH_COUNT; count++) {
-		if (state->focus.cancel) {
+		if (state->focus.start == AUTO_FOCUS_OFF) {
 			cam_dbg("do_af: AF is cancelled while doing(1st)\n");
 			state->focus.status = AF_RESULT_CANCELLED;
 			goto check_done;
@@ -1424,7 +1423,7 @@ static int s5k5ccgx_do_af(struct v4l2_subdev *sd)
 		if (read_value != 0x01)
 			break;
 
-		msleep(AF_SEARCH_DELAY);
+		msleep(state->one_frame_delay_ms);
 	}
 
 	if (read_value != 0x02) {
@@ -1437,13 +1436,13 @@ static int s5k5ccgx_do_af(struct v4l2_subdev *sd)
 	/*2nd search*/
 	cam_dbg("AF 2nd search\n");
 	for (count = 0; count < SECOND_AF_SEARCH_COUNT; count++) {
-		if (state->focus.cancel) {
+		msleep(state->one_frame_delay_ms);
+
+		if (state->focus.start == AUTO_FOCUS_OFF) {
 			cam_dbg("do_af: AF is cancelled while doing(2nd)\n");
 			state->focus.status = AF_RESULT_CANCELLED;
 			goto check_done;
 		}
-
-		msleep(AF_SEARCH_DELAY);
 
 		read_value = 0x0FFFF;
 		s5k5ccgx_i2c_write_twobyte(client, 0x002C, 0x7000);
@@ -1473,12 +1472,11 @@ check_done:
 	 * But we now unlock it unconditionally if AF is started,
 	 */
 	if (state->focus.status == AF_RESULT_CANCELLED) {
-		cam_dbg("do_af: Single AF cancelled\n");
+		cam_dbg("%s: Single AF cancelled.\n", __func__);
 		s5k5ccgx_set_lock(sd, AEAWB_UNLOCK, false);
-		state->focus.cancel = 0;
 	} else {
 		state->focus.start = AUTO_FOCUS_OFF;
-		cam_dbg("do_af: Single AF finished\n");
+		cam_dbg("%s: Single AF finished\n", __func__);
 	}
 
 	if ((state->focus.preflash == PREFLASH_ON) &&
@@ -1521,18 +1519,14 @@ static int s5k5ccgx_set_af(struct v4l2_subdev *sd, s32 val)
 	state->focus.start = val;
 
 	if (val == AUTO_FOCUS_ON) {
-		state->focus.cancel = 0;
 		err = queue_work(state->workqueue, &state->af_work);
-		if (unlikely(!err)) {
-			cam_warn("AF is still operating!\n");
-			return 0;
-		}
-
-		state->focus.status = AF_RESULT_DOING;
+		if (likely(err))
+			state->focus.status = AF_RESULT_DOING;
+		else
+			cam_warn("WARNING, AF is still processing. So new AF cannot start\n");
 	} else {
 		/* Cancel AF */
 		cam_info("set_af: AF cancel requested!\n");
-		state->focus.cancel = 1;
 	}
 
 	cam_trace("X\n");
@@ -1546,7 +1540,7 @@ static int s5k5ccgx_stop_af(struct v4l2_subdev *sd)
 	int err = 0;
 
 	cam_trace("E\n");
-	/* mutex_lock(&state->af_lock); */
+	mutex_lock(&state->af_lock);
 
 	switch (state->focus.status) {
 	case AF_RESULT_FAILED:
@@ -1574,15 +1568,23 @@ static int s5k5ccgx_stop_af(struct v4l2_subdev *sd)
 		break;
 	}
 
-	if (state->focus.touch)
+	if (!state->focus.touch) {
+		/* We move lens to default position if af is cancelled.*/
+		err = s5k5ccgx_return_focus(sd);
+		if (unlikely(err)) {
+			cam_err("%s: ERROR, fail to af_norma_mode (%d)\n",
+				__func__, err);
+			goto err_out;
+		}
+	} else
 		state->focus.touch = 0;
 
-	/* mutex_unlock(&state->af_lock); */
+	mutex_unlock(&state->af_lock);
 	cam_trace("X\n");
 	return 0;
 
 err_out:
-	/* mutex_unlock(&state->af_lock); */
+	mutex_unlock(&state->af_lock);
 	return err;
 }
 
@@ -1591,39 +1593,22 @@ static void s5k5ccgx_af_worker(struct work_struct *work)
 	struct s5k5ccgx_state *state = container_of(work, \
 				struct s5k5ccgx_state, af_work);
 	struct v4l2_subdev *sd = &state->sd;
-	struct s5k5ccgx_interval *win_stable = &state->focus.win_stable;
-	u32 touch_win_delay = 0;
-	s32 interval = 0;
 	int err = -EINVAL;
 
 	cam_trace("E\n");
 
 	mutex_lock(&state->af_lock);
-	state->focus.reset_done = 0;
 
 	if (state->sensor_mode == SENSOR_CAMERA) {
 		state->one_frame_delay_ms = ONE_FRAME_DELAY_MS_NORMAL;
-		touch_win_delay = ONE_FRAME_DELAY_MS_LOW;
 		err = s5k5ccgx_af_start_preflash(sd);
 		if (unlikely(err))
 			goto out;
 
 		if (state->focus.status == AF_RESULT_CANCELLED)
 			goto out;
-	} else
-		state->one_frame_delay_ms = touch_win_delay = 50;
-
-	/* sleep here for the time needed for af window before do_af. */
-	if (state->focus.touch) {
-		do_gettimeofday(&win_stable->curr_time);
-		interval = GET_ELAPSED_TIME(win_stable->curr_time, \
-				win_stable->before_time) / 1000;
-		if (interval < touch_win_delay) {
-			cam_dbg("window stable: %dms + %dms\n", interval,
-				touch_win_delay - interval);
-			debug_msleep(sd, touch_win_delay - interval);
-		} else
-			cam_dbg("window stable: %dms\n", interval);
+	} else {
+		state->one_frame_delay_ms = 50;
 	}
 
 	s5k5ccgx_do_af(sd);
@@ -1638,36 +1623,19 @@ out:
 static int s5k5ccgx_set_focus_mode(struct v4l2_subdev *sd, s32 val)
 {
 	struct s5k5ccgx_state *state = to_state(sd);
-	u32 cancel = 0;
-	u8 focus_mode = (u8)val;
+	u32 af_cancel = 0;
 	int err = -EINVAL;
 
 	/* cam_trace("E\n");*/
+	cam_dbg("%s val =%d(0x%X)\n", __func__, val, val);
 
 	if (state->focus.mode == val)
 		return 0;
 
-	cancel = (u32)val & FOCUS_MODE_DEFAULT;
-
-	/* Do nothing if cancel request occurs when af is being finished*/
-	if (cancel && (state->focus.status == AF_RESULT_DOING)) {
-		state->focus.cancel = 1;
-		return 0;
-	}
-
-	cam_dbg("%s val =%d(0x%X)\n", __func__, val, val);
-
+	af_cancel = (u32)val & FOCUS_MODE_DEFAULT;
 	mutex_lock(&state->af_lock);
-	if (cancel) {
-		s5k5ccgx_stop_af(sd);
-		if (state->focus.reset_done) {
-			cam_dbg("AF is already cancelled fully\n");
-			goto out;
-		}
-		state->focus.reset_done = 1;
-	}
 
-	switch (focus_mode) {
+	switch (val) {
 	case FOCUS_MODE_MACRO:
 		err = s5k5ccgx_set_from_table(sd, "af_macro_mode",
 				&state->regs->af_macro_mode, 1, 0);
@@ -1677,7 +1645,7 @@ static int s5k5ccgx_set_focus_mode(struct v4l2_subdev *sd, s32 val)
 			goto err_out;
 		}
 
-		state->focus.mode = focus_mode;
+		state->focus.mode = FOCUS_MODE_MACRO;
 		break;
 
 	case FOCUS_MODE_INFINITY:
@@ -1691,7 +1659,7 @@ static int s5k5ccgx_set_focus_mode(struct v4l2_subdev *sd, s32 val)
 			goto err_out;
 		}
 
-		state->focus.mode = focus_mode;
+		state->focus.mode = val;
 		break;
 
 	case FOCUS_MODE_FACEDETECT:
@@ -1700,14 +1668,18 @@ static int s5k5ccgx_set_focus_mode(struct v4l2_subdev *sd, s32 val)
 		break;
 
 	default:
-		cam_err("%s: ERROR, invalid val(0x%X)\n:",
-			__func__, val);
-		goto err_out;
+		if (!af_cancel) {
+			cam_err("%s: ERROR, invalid val(0x%X)\n:",
+						__func__, val);
+			goto err_out;
+		}
 		break;
 	}
-
-out:
 	mutex_unlock(&state->af_lock);
+
+	if (af_cancel)
+		s5k5ccgx_stop_af(sd);
+
 	return 0;
 
 err_out:
@@ -1848,11 +1820,11 @@ static int s5k5ccgx_set_af_window(struct v4l2_subdev *sd)
 	err |= s5k5ccgx_i2c_write_twobyte(client, 0x002A, 0x023C);
 	err |= s5k5ccgx_i2c_write_twobyte(client, 0x0F12, 0x0001);
 
-	do_gettimeofday(&state->focus.win_stable.before_time);
+	debug_msleep(sd, 60);
 	mutex_unlock(&state->af_lock);
 
 	CHECK_ERR(err);
-	cam_info("AF window position completed.\n");
+	cam_dbg("%s: AF window position completed.\n", __func__);
 
 	cam_trace("X\n");
 	return 0;
@@ -1870,15 +1842,17 @@ static int s5k5ccgx_set_touch_af(struct v4l2_subdev *sd, s32 val)
 
 	if (val) {
 		if (mutex_is_locked(&state->af_lock)) {
-			cam_warn("%s: AF is still operating!\n", __func__);
+			cam_warn("%s: WARNING, AF is busy\n", __func__);
 			return 0;
 		}
 
 		err = queue_work(state->workqueue, &state->af_win_work);
 		if (likely(!err))
 			cam_warn("WARNING, AF window is still processing\n");
-	} else
-		cam_info("set_touch_af: invalid value %d\n", val);
+	} else {
+		err = s5k5ccgx_stop_af(sd);
+		CHECK_ERR_MSG(err, "val=%d\n", 0)
+	}
 
 	cam_trace("X\n");
 	return 0;
@@ -2031,7 +2005,7 @@ static void s5k5ccgx_set_framesize(struct v4l2_subdev *sd,
 static int s5k5ccgx_wait_steamoff(struct v4l2_subdev *sd)
 {
 	struct s5k5ccgx_state *state = to_state(sd);
-	struct s5k5ccgx_interval *stream_time = &state->stream_time;
+	struct s5k5ccgx_stream_time *stream_time = &state->stream_time;
 	s32 elapsed_msec = 0;
 
 	cam_trace("E\n");
@@ -2229,8 +2203,6 @@ static inline void s5k5ccgx_get_exif_flash(struct v4l2_subdev *sd,
 					u16 *flash)
 {
 	struct s5k5ccgx_state *state = to_state(sd);
-
-	*flash = 0;
 
 	switch (state->flash_mode) {
 	case FLASH_MODE_OFF:

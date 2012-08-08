@@ -232,24 +232,8 @@ struct exynos_drm_g2d_private {
 	struct list_head	iommu_map_list;
 };
 
-/*
- * Exynos drm ipp private structure
- *
- * @dev: device object to device driver for using driver data.
- * @ippdrv: link used ippdrv.
- * @event_list: list head to event.
- * @iommu_list: list head to iommu map information.
- */
-struct exynos_drm_ipp_private {
-	struct device	*dev;
-	void *ippdrv;
-	struct list_head	event_list;
-	struct list_head	iommu_list;
-};
-
 struct drm_exynos_file_private {
 	struct exynos_drm_g2d_private	*g2d_priv;
-	struct exynos_drm_ipp_private	*ipp_priv;
 };
 
 /*
@@ -266,12 +250,6 @@ struct exynos_drm_private {
 	 * this array is used to be aware of which crtc did it request vblank.
 	 */
 	struct drm_crtc *crtc[MAX_CRTC];
-
-	/*
-	 * maximum size of allocation by userptr feature.
-	 * - as default, this has 16MB and only root user can change it.
-	 */
-	unsigned long userptr_limit;
 };
 
 /*
@@ -341,7 +319,4 @@ extern struct platform_driver mixer_driver;
 extern struct platform_driver exynos_drm_common_hdmi_driver;
 extern struct platform_driver vidi_driver;
 extern struct platform_driver g2d_driver;
-extern struct platform_driver rotator_driver;
-extern struct platform_driver fimc_driver;
-extern struct platform_driver gsc_driver;
 #endif

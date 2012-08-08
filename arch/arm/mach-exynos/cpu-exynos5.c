@@ -171,6 +171,138 @@ static struct map_desc exynos5_iodesc[] __initdata = {
 		.pfn		= __phys_to_pfn(EXYNOS5_PA_DMC),
 		.length		= SZ_4K,
 		.type		= MT_DEVICE,
+#ifdef CONFIG_EXYNOS5_SETUP_BTS
+	}, {
+		.virtual	= (unsigned long)S5P_VA_DDR_R1_FBM,
+		.pfn		= __phys_to_pfn(EXYNOS5_PA_DDR_R1_FBM),
+		.length 	= SZ_4K,
+		.type		= MT_DEVICE,
+	}, {
+		.virtual	= (unsigned long)S5P_VA_DDR_R0_FBM,
+		.pfn		= __phys_to_pfn(EXYNOS5_PA_DDR_R0_FBM),
+		.length 	= SZ_4K,
+		.type		= MT_DEVICE,
+	}, {
+		.virtual	= (unsigned long)S5P_VA_BTS_CPU,
+		.pfn		= __phys_to_pfn(EXYNOS5_PA_BTS_CPU),
+		.length 	= SZ_4K,
+		.type		= MT_DEVICE,
+	}, {
+		.virtual	= (unsigned long)S5P_VA_BTS_C2C,
+		.pfn		= __phys_to_pfn(EXYNOS5_PA_BTS_C2C),
+		.length 	= SZ_4K,
+		.type		= MT_DEVICE,
+	}, {
+		.virtual	= (unsigned long)S5P_VA_BTS_3D_ACP,
+		.pfn		= __phys_to_pfn(EXYNOS5_PA_BTS_3D_ACP),
+		.length 	= SZ_4K,
+		.type		= MT_DEVICE,
+	}, {
+		.virtual	= (unsigned long)S5P_VA_BTS_MFC0,
+		.pfn		= __phys_to_pfn(EXYNOS5_PA_BTS_MFC0),
+		.length 	= SZ_4K,
+		.type		= MT_DEVICE,
+	}, {
+		.virtual	= (unsigned long)S5P_VA_BTS_MFC1,
+		.pfn		= __phys_to_pfn(EXYNOS5_PA_BTS_MFC1),
+		.length 	= SZ_4K,
+		.type		= MT_DEVICE,
+	}, {
+		.virtual	= (unsigned long)S5P_VA_BTS_ROTATOR,
+		.pfn		= __phys_to_pfn(EXYNOS5_PA_BTS_ROTATOR),
+		.length 	= SZ_4K,
+		.type		= MT_DEVICE,
+	}, {
+		.virtual	= (unsigned long)S5P_VA_BTS_MDMA1,
+		.pfn		= __phys_to_pfn(EXYNOS5_PA_BTS_MDMA1),
+		.length 	= SZ_4K,
+		.type		= MT_DEVICE,
+	}, {
+		.virtual	= (unsigned long)S5P_VA_BTS_JPEG,
+		.pfn		= __phys_to_pfn(EXYNOS5_PA_BTS_JPEG),
+		.length 	= SZ_4K,
+		.type		= MT_DEVICE,
+	}, {
+		.virtual	= (unsigned long)S5P_VA_BTS_FIMC_ISP,
+		.pfn		= __phys_to_pfn(EXYNOS5_PA_BTS_FIMC_ISP),
+		.length 	= SZ_4K,
+		.type		= MT_DEVICE,
+	}, {
+		.virtual	= (unsigned long)S5P_VA_BTS_FIMC_SCALER_C,
+		.pfn		= __phys_to_pfn(EXYNOS5_PA_BTS_FIMC_SCALER_C),
+		.length 	= SZ_4K,
+		.type		= MT_DEVICE,
+	}, {
+		.virtual	= (unsigned long)S5P_VA_BTS_FIMC_SCALER_P,
+		.pfn		= __phys_to_pfn(EXYNOS5_PA_BTS_FIMC_SCALER_P),
+		.length 	= SZ_4K,
+		.type		= MT_DEVICE,
+	}, {
+		.virtual	= (unsigned long)S5P_VA_BTS_FIMC_FD,
+		.pfn		= __phys_to_pfn(EXYNOS5_PA_BTS_FIMC_FD),
+		.length 	= SZ_4K,
+		.type		= MT_DEVICE,
+	}, {
+		.virtual	= (unsigned long)S5P_VA_BTS_FIMC_ODC,
+		.pfn		= __phys_to_pfn(EXYNOS5_PA_BTS_FIMC_ODC),
+		.length 	= SZ_4K,
+		.type		= MT_DEVICE,
+	}, {
+		.virtual	= (unsigned long)S5P_VA_BTS_FIMC_DIS0,
+		.pfn		= __phys_to_pfn(EXYNOS5_PA_BTS_FIMC_DIS0),
+		.length 	= SZ_4K,
+		.type		= MT_DEVICE,
+	}, {
+		.virtual	= (unsigned long)S5P_VA_BTS_FIMC_DIS1,
+		.pfn		= __phys_to_pfn(EXYNOS5_PA_BTS_FIMC_DIS1),
+		.length 	= SZ_4K,
+		.type		= MT_DEVICE,
+	}, {
+		.virtual	= (unsigned long)S5P_VA_BTS_FIMC_3DNR,
+		.pfn		= __phys_to_pfn(EXYNOS5_PA_BTS_FIMC_3DNR),
+		.length 	= SZ_4K,
+		.type		= MT_DEVICE,
+	}, {
+		.virtual	= (unsigned long)S5P_VA_BTS_GSCALER0,
+		.pfn		= __phys_to_pfn(EXYNOS5_PA_BTS_GSCALER0),
+		.length 	= SZ_4K,
+		.type		= MT_DEVICE,
+	}, {
+		.virtual	= (unsigned long)S5P_VA_BTS_GSCALER1,
+		.pfn		= __phys_to_pfn(EXYNOS5_PA_BTS_GSCALER1),
+		.length 	= SZ_4K,
+		.type		= MT_DEVICE,
+	}, {
+		.virtual	= (unsigned long)S5P_VA_BTS_GSCALER2,
+		.pfn		= __phys_to_pfn(EXYNOS5_PA_BTS_GSCALER2),
+		.length 	= SZ_4K,
+		.type		= MT_DEVICE,
+	}, {
+		.virtual	= (unsigned long)S5P_VA_BTS_GSCALER3,
+		.pfn		= __phys_to_pfn(EXYNOS5_PA_BTS_GSCALER3),
+		.length 	= SZ_4K,
+		.type		= MT_DEVICE,
+	}, {
+		.virtual	= (unsigned long)S5P_VA_BTS_DISP10,
+		.pfn		= __phys_to_pfn(EXYNOS5_PA_BTS_DISP10),
+		.length 	= SZ_4K,
+		.type		= MT_DEVICE,
+	}, {
+		.virtual	= (unsigned long)S5P_VA_BTS_DISP11,
+		.pfn		= __phys_to_pfn(EXYNOS5_PA_BTS_DISP11),
+		.length 	= SZ_4K,
+		.type		= MT_DEVICE,
+	}, {
+		.virtual	= (unsigned long)S5P_VA_BTS_TV0,
+		.pfn		= __phys_to_pfn(EXYNOS5_PA_BTS_TV0),
+		.length 	= SZ_4K,
+		.type		= MT_DEVICE,
+	}, {
+		.virtual	= (unsigned long)S5P_VA_BTS_TV1,
+		.pfn		= __phys_to_pfn(EXYNOS5_PA_BTS_TV1),
+		.length 	= SZ_4K,
+		.type		= MT_DEVICE,
+#endif
 	},
 };
 
@@ -256,7 +388,7 @@ void __init exynos5_map_io(void)
 	s3c_i2c2_setname("s3c2440-i2c");
 
 #ifdef CONFIG_S5P_DEV_ACE
-	s5p_ace_setname("exynos-ace");
+	s5p_ace_setname("exynos4-ace");
 #endif
 }
 

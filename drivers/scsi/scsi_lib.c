@@ -446,12 +446,6 @@ static void scsi_run_queue(struct request_queue *q)
 
 		spin_lock(sdev->request_queue->queue_lock);
 		__blk_run_queue(sdev->request_queue);
-
-
-		if (WARN((!sdev || !sdev->request_queue),
-				"request_queue is null."))
-				break;
-
 		spin_unlock(sdev->request_queue->queue_lock);
 		spin_lock(shost->host_lock);
 	}

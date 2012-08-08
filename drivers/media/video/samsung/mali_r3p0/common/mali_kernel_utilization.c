@@ -13,7 +13,7 @@
 #include "mali_platform.h"
 
 /* Define how often to calculate and report GPU utilization, in milliseconds */
-#define MALI_GPU_UTILIZATION_TIMEOUT 100
+#define MALI_GPU_UTILIZATION_TIMEOUT 1000
 
 static _mali_osk_lock_t *time_data_lock;
 
@@ -182,8 +182,6 @@ void mali_utilization_core_start(u64 time_now)
 			period_start_time = work_start_time; /* starting a new period */
 
 			_mali_osk_lock_signal(time_data_lock, _MALI_OSK_LOCKMODE_RW);
-
-			_mali_osk_timer_del(utilization_timer);
 
 			_mali_osk_timer_add(utilization_timer, _mali_osk_time_mstoticks(MALI_GPU_UTILIZATION_TIMEOUT));
 		}

@@ -49,7 +49,7 @@ struct s5p_media_device media_devs[] = {
 	},
 #endif
 
-#if defined(CONFIG_MACH_U1) || defined(CONFIG_MACH_TRATS)
+#ifdef CONFIG_MACH_U1
 #ifdef CONFIG_ANDROID_PMEM_MEMSIZE_PMEM
 	{
 		.id = S5P_MDEV_PMEM,

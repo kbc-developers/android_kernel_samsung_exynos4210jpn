@@ -76,7 +76,15 @@ static void _allocation_list_item_release(AllocationList * item);
 
 
 /* Variable declarations */
+#if KERNEL_BUILTIN
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,36)
+spinlock_t allocation_list_spinlock = SPIN_LOCK_UNLOCKED;
+#else
 static DEFINE_SPINLOCK(allocation_list_spinlock);
+#endif
+#else
+static DEFINE_SPINLOCK(allocation_list_spinlock);
+#endif
 static AllocationList * pre_allocated_memory = (AllocationList*) NULL ;
 static int pre_allocated_memory_size_current  = 0;
 #ifdef MALI_OS_MEMORY_KERNEL_BUFFER_SIZE_IN_MB

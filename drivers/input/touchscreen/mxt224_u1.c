@@ -158,6 +158,7 @@ struct mxt224_data {
 	u8 movfilter_charging_e;
 	u8 actvsyncsperx_e;
 	u8 nexttchdi_e;
+	u8 cte_mode;
 
 	void (*power_on) (void);
 	void (*power_off) (void);
@@ -334,6 +335,9 @@ static unsigned int qt_timer_state;
 static unsigned int good_check_flag;
 static unsigned int not_yet_count;
 
+#if 1 //20120521 add #if 1
+static bool auto_cal_flag=0; /* 1: enabled,0: disabled*/
+#endif
 static u8 cal_check_flag;
 
 static u8 Doing_calibration_flag;
@@ -450,6 +454,9 @@ static void mxt224_ta_probe(bool ta_status)
 		calcfg_dis = copy_data->calcfg_charging_e;
 		calcfg_en = copy_data->calcfg_charging_e | 0x20;
 		noise_threshold = copy_data->noisethr_charging;
+//From KOR		
+		movfilter = copy_data->movfilter_charging;
+//
 		charge_time = copy_data->chrgtime_charging_e;
 #ifdef CLEAR_MEDIAN_FILTER_ERROR
 		copy_data->gErrCondition = ERR_RTN_CONDITION_MAX;
@@ -464,6 +471,9 @@ static void mxt224_ta_probe(bool ta_status)
 		calcfg_dis = copy_data->calcfg_batt_e;
 		calcfg_en = copy_data->calcfg_batt_e | 0x20;
 		noise_threshold = copy_data->noisethr_batt;
+//From KOR			
+		movfilter = copy_data->movfilter_batt;	
+//		
 		charge_time = copy_data->chrgtime_batt_e;
 #ifdef CLEAR_MEDIAN_FILTER_ERROR
 		copy_data->gErrCondition = ERR_RTN_CONDITION_IDLE;
@@ -641,7 +651,12 @@ static void mxt224_ta_probe(bool ta_status)
 			 (u8) size_one, &val);
 		printk(KERN_ERR "[TSP]TA_probe MXT224 T%d Byte%d is %d\n", 9,
 		       register_address, val);
-
+//From KOR
+		value = (u8) movfilter;
+		register_address = 13;
+		write_mem(copy_data, obj_address + (u16) register_address,
+			  size_one, &value);
+//
 		value = noise_threshold;
 		register_address = 8;
 		ret =
@@ -667,6 +682,7 @@ void check_chip_calibration(unsigned char one_touch_input_flag)
 	u16 size;
 	u16 object_address = 0;
 	bool ta_status_check;
+	u8 val;
 
 	/* we have had the first touchscreen or face suppression message
 	 * after a calibration - check the sensor state and try to confirm if
@@ -712,8 +728,14 @@ void check_chip_calibration(unsigned char one_touch_input_flag)
 
 	/* data is ready - read the detection flags */
 	/* read_mem(diag_address, 82,data_buffer); */
+#if 1 //20120521 add #if 1
+	if (copy_data->family_id == 0x80)
+		read_mem(copy_data, object_address, (20*2*2 + 2), data_buffer);
+	else if (copy_data->family_id == 0x81)
+		read_mem(copy_data, object_address, (22*2*2 + 2), data_buffer);
+#else
 	read_mem(copy_data, object_address, 82, data_buffer);
-
+#endif
 	/* data array is 20 x 16 bits for each set of flags, 2 byte header,
 	   40 bytes for touch flags 40 bytes for antitouch flags */
 
@@ -722,13 +744,25 @@ void check_chip_calibration(unsigned char one_touch_input_flag)
 
 		/* mode 0 : 16 x line, mode 1 : 17 etc etc upto mode 4. */
 		/* x_line_limit = 16 + cte_config.mode; */
-		x_line_limit = 16 + 3;
+		x_line_limit = 16 +copy_data->cte_mode; //20120521 changed
 
+#if 1 //20120521 add #if 1
+		if (copy_data->family_id == 0x80)
+		{
+			if (x_line_limit > 20) 
+				x_line_limit = 20;
+		}
+		else if (copy_data->family_id == 0x81)
+		{
+			if (x_line_limit > 22) 
+				x_line_limit = 22;
+		}
+#else
 		if (x_line_limit > 20) {
 			/* hard limit at 20 so we don't over-index the array */
 			x_line_limit = 20;
 		}
-
+#endif
 		/* double the limit as the array is in bytes not words */
 		x_line_limit = x_line_limit << 1;
 
@@ -751,13 +785,33 @@ void check_chip_calibration(unsigned char one_touch_input_flag)
 				if (data_buffer[3 + i] & check_mask)
 					tch_ch++;
 
+#if 1 //20120521 add #if 1
+	if (copy_data->family_id == 0x80)
+	{
 				/* check anti-detect flags */
 				if (data_buffer[42 + i] & check_mask)
 					atch_ch++;
 
 				if (data_buffer[43 + i] & check_mask)
 					atch_ch++;
+	}
+	else if (copy_data->family_id == 0x81)
+	{
+		/* check anti-detect flags */
+		if (data_buffer[46 + i] & check_mask)
+			atch_ch++;
 
+		if (data_buffer[47 + i] & check_mask)
+			atch_ch++;
+	}
+#else
+				/* check anti-detect flags */
+				if (data_buffer[42 + i] & check_mask)
+					atch_ch++;
+
+				if (data_buffer[43 + i] & check_mask)
+					atch_ch++;
+#endif
 			}
 		}
 
@@ -786,6 +840,16 @@ void check_chip_calibration(unsigned char one_touch_input_flag)
 			not_yet_count = 0;
 		} else if ((tch_ch > 0) && (atch_ch == 0)) {
 			/* cal was good - don't need to check any more */
+#if 1 //20120521 #if 1
+	             if((auto_cal_flag == 0) && (copy_data->family_id == 0x80)) {
+				data_byte = 5;
+				ret = get_object_info(copy_data, GEN_ACQUISITIONCONFIG_T8, &size, &object_address);
+				write_mem(copy_data, object_address+4, 1, &data_byte);	/* TCHAUTOCAL 1sec */
+				read_mem(copy_data, object_address+4, 1, &val);
+				printk(KERN_DEBUG"[TSP] auto calibration enable state is %d!!!\n",val);
+				auto_cal_flag = 1;
+		       }
+#endif
 			not_yet_count = 0;
 
 			/* original:qt_time_diff = 501 */
@@ -816,6 +880,7 @@ void check_chip_calibration(unsigned char one_touch_input_flag)
 					copy_data->palm_chk_flag = 2;
 
 					if (copy_data->family_id == 0x80) {
+						 auto_cal_flag = 0; //20120521 add
 						write_mem(copy_data,
 						  object_address + 6, 1,
 						  &copy_data->atchcalst);
@@ -1394,16 +1459,23 @@ static int freq_hop_err_setting(int state)
 	u16 size_one = 1;
 
 	printk(KERN_DEBUG"[TSP] freq_hop_err_setting\n");
+#if 0 //20120523 add if 0
+	copy_data->freq_table.fherr_num = 50;
+#else
 	copy_data->freq_table.fherr_num = 30;
+#endif
 	ret =
 		get_object_info(copy_data, GEN_POWERCONFIG_T7,
 		&size_one, &object_address);
 	value = 255;
 	write_mem(copy_data, object_address, 1, &value);
 
+	if(cal_check_flag == 1) //20120521 add
+	{
 	cal_check_flag = 0;
 	good_check_flag = 0;
 	qt_timer_state = 0;
+		auto_cal_flag = 0;
 
 	ret =
 		get_object_info(copy_data, GEN_ACQUISITIONCONFIG_T8,
@@ -1416,6 +1488,7 @@ static int freq_hop_err_setting(int state)
 	copy_data->freq_table.fherr_setting = 2;
 	write_mem(copy_data, object_address + 6, 1, &copy_data->atchcalst);
 	write_mem(copy_data, object_address + 7, 1, &copy_data->atchcalsthr);
+	}
 
 	ret =
 		get_object_info(copy_data, TOUCH_MULTITOUCHSCREEN_T9,
@@ -1440,6 +1513,12 @@ static int freq_hop_err_setting(int state)
 
 	value = copy_data->freq_table.t22_freqscale_for_fherr;
 	write_mem(copy_data, object_address + 10, 1, &value);
+
+#if 1 //20120521 add #if 1
+	ret = get_object_info(copy_data, SPT_CTECONFIG_T28, &size_one, &object_address);
+	value = 48;
+	write_mem(copy_data, object_address+4, 1, &value);
+#endif
 
 	if (state == 1) {
 		write_mem(copy_data, object_address + 11, 5,
@@ -1702,6 +1781,16 @@ static irqreturn_t mxt224_irq_thread(int irq, void *ptr)
 		} else if ((msg[0] == 0x1) &&
 			((msg[1] & 0x40) == 0x40)) { /* overflow */
 			printk(KERN_ERR "[TSP] Overflow!!!!!!");
+#if 1 //20120521 add #if 1
+			if((Doing_calibration_flag == 1)&& (copy_data->family_id == 0x80)) //20120521 changed
+			{
+				value = 1;
+				write_mem(copy_data, copy_data->cmd_proc + CMD_RESET_OFFSET, 1, &value);
+				msleep(70);
+				freq_hop_err_setting(1);
+				copy_data->freq_table.fherr_cnt =0;
+			}
+#endif
 		} else if ((msg[0] == 0x1) &&
 			((msg[1] & 0x10) == 0x00)) {	/* caliration */
 			printk(KERN_ERR "[TSP] Calibration End!!!!!!");
@@ -3362,9 +3451,7 @@ static int __devinit mxt224_probe(struct i2c_client *client,
 	data->gpio_read_done = pdata->gpio_read_done;
 
 	data->power_on();
-#if defined(CONFIG_MACH_M0_GRANDECTC)
-	msleep(100);
-#endif
+
 	ret = mxt224_init_touch_driver(data);
 	if (ret) {
 		dev_err(&client->dev, "chip initialization failed\n");
@@ -3395,6 +3482,7 @@ static int __devinit mxt224_probe(struct i2c_client *client,
 		data->movfilter_batt = pdata->movfilter_batt;
 		data->movfilter_charging = pdata->movfilter_charging;
 		data->threshold = pdata->tchthr_charging;
+		data->cte_mode = pdata->cte_mode; //20120521 add
 
 		printk(KERN_ERR "[TSP] TSP chip is MXT224\n");
 	} else if (data->family_id == 0x81) {	/* MXT-224E */
@@ -3418,6 +3506,7 @@ static int __devinit mxt224_probe(struct i2c_client *client,
 		data->actvsyncsperx_e = pdata->actvsyncsperx_e;
 		data->nexttchdi_e = pdata->nexttchdi_e;
 		data->threshold_e = pdata->tchthr_batt_e;
+		data->cte_mode = pdata->cte_mode;//20120521 add
 
 		printk(KERN_ERR "[TSP] TSP chip is MXT224-E\n");
 		get_object_info(data, SPT_USERDATA_T38, &size_one,
@@ -3520,9 +3609,9 @@ static int __devinit mxt224_probe(struct i2c_client *client,
 	copy_data->freq_table.fherr_setting = 0;
 	copy_data->freq_table.fherr_cnt = 0;
 	copy_data->freq_table.fherr_num = 1;
-	copy_data->freq_table.t9_blen_for_fherr = 16;
+	copy_data->freq_table.t9_blen_for_fherr = 0;//20120530
 	copy_data->freq_table.t9_blen_for_fherr_cnt = 0;
-	copy_data->freq_table.t9_thr_for_fherr = 60;
+	copy_data->freq_table.t9_thr_for_fherr = 20;//20120530
 	copy_data->freq_table.t9_movfilter_for_fherr = 80;
 	copy_data->freq_table.t22_noisethr_for_fherr = 30;
 	copy_data->freq_table.t22_freqscale_for_fherr = 1;

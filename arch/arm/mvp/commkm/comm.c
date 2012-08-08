@@ -920,11 +920,19 @@ dequeueCommit:
       }
 
       if (rc <= 0) {
+         DispatchUnlock(channel);
+         for ( ; vecLen; ) {
+            if (vec[--vecLen].iov_base) {
+               channel->impl->dataFree(vec[vecLen].iov_base);
+               vec[vecLen].iov_base = NULL;
+            }
+            vec[vecLen].iov_len = 0;
+         }
          if (rc < 0) {
             zombify = 1;
             rc = 1;
          }
-         goto outUnlockAndFreeIovec;
+         goto out;
       }
 
 #if defined(COMM_DISPATCH_EXTRA_WRITER_WAKEUP)
@@ -933,13 +941,7 @@ dequeueCommit:
       WakeUpWriter(channel);
 #endif
 
-      if (firstPacket.opCode >= channel->implNmbOps) {
-         CommOS_Debug(("%s: Ignoring illegal opCode [%u]!\n",
-                       __FUNCTION__, (unsigned int)firstPacket.opCode));
-         CommOS_Debug(("%s: Max opCode: %u\n",
-                       __FUNCTION__, channel->implNmbOps));
-         goto outUnlockAndFreeIovec;
-      }
+      CommHold(channel); /* We must hold the entry before we dispatch. */
 
       /*
        * NOTE:
@@ -952,21 +954,24 @@ dequeueCommit:
        * - alternatively, always releasing the dispatch lock after the
        *   operation completes, ties up the channel and imposes too much
        *   serialization between sockets.
-       * - to prevent the channel from being torn down while an operation
-       *   is in flight (and potentially having released the dispatch lock),
-       *   we increment the ref count on the channel and then release it
-       *   after the function returns.
        */
 
 #if defined(COMM_INSTRUMENT)
       CommOS_AddReturnAtomic(&commOpCalls, 1);
 #endif
+      if (firstPacket.opCode < channel->implNmbOps) {
+         channel->impl->operations[firstPacket.opCode](channel, channel->state,
+                                                       &firstPacket,
+                                                       vec, vecLen);
+      } else {
+         CommOS_Debug(("%s: Ignoring illegal opCode [%u]!\n",
+                       __FUNCTION__, (unsigned int)firstPacket.opCode));
+         CommOS_Debug(("%s: Max opCode: %u\n",
+                       __FUNCTION__, channel->implNmbOps));
+      }
 
-      CommHold(channel);
-      channel->impl->operations[firstPacket.opCode](channel, channel->state,
-                                                    &firstPacket, vec, vecLen);
       CommRelease(channel);
-      goto out; /* No unlocking, see comment above. */
+      goto out;
    }
 
    /* Process state changes. */
@@ -1078,6 +1083,7 @@ dequeueCommit:
       }
       rc = 1;
    }
+
    DispatchUnlock(channel);
 
 out:
@@ -1085,17 +1091,6 @@ out:
       Comm_Zombify(channel, 0);
    }
    return rc;
-
-outUnlockAndFreeIovec:
-   DispatchUnlock(channel);
-   for ( ; vecLen; ) {
-      if (vec[--vecLen].iov_base) {
-         channel->impl->dataFree(vec[vecLen].iov_base);
-         vec[vecLen].iov_base = NULL;
-      }
-      vec[vecLen].iov_len = 0;
-   }
-   goto out;
 #undef VEC_SIZE
 }
 

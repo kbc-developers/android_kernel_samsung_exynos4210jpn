@@ -19,7 +19,6 @@
 #include <linux/interrupt.h>
 #include <linux/pm_runtime.h>
 #include <linux/mutex.h>
-#include <linux/gpio.h>
 #include <linux/mfd/core.h>
 #include <linux/mfd/s5m87xx/s5m-core.h>
 #include <linux/mfd/s5m87xx/s5m-pmic.h>
@@ -125,7 +124,7 @@ static int s5m87xx_i2c_probe(struct i2c_client *i2c,
 	i2c_set_clientdata(i2c, s5m87xx);
 	s5m87xx->dev = &i2c->dev;
 	s5m87xx->i2c = i2c;
-	s5m87xx->irq = gpio_to_irq(pdata->irq_gpio);
+	s5m87xx->irq = i2c->irq;
 	s5m87xx->type = id->driver_data;
 
 	if (pdata) {

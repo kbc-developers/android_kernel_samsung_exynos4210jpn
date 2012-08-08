@@ -729,13 +729,12 @@ static void gsc_out_buffer_queue(struct vb2_buffer *vb)
 	int ret;
 
 	if (gsc->out.req_cnt >= atomic_read(&q->queued_count)) {
-		spin_lock_irqsave(&gsc->slock, flags);
 		ret = gsc_out_set_in_addr(gsc, ctx, buf, vb->v4l2_buf.index);
 		if (ret) {
 			gsc_err("Failed to prepare G-Scaler address");
-			spin_unlock_irqrestore(&gsc->slock, flags);
 			return;
 		}
+		spin_lock_irqsave(&gsc->slock, flags);
 		gsc_hw_set_input_buf_masking(gsc, vb->v4l2_buf.index, false);
 		gsc_hw_set_in_pingpong_update(gsc);
 		spin_unlock_irqrestore(&gsc->slock, flags);

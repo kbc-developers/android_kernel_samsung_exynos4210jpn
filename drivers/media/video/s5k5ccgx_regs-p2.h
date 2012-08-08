@@ -7021,6 +7021,7 @@ static const u32 s5k5ccgx_stream_stop_reg[] = {
 	0x002A01E4,
 	0x0F120000,
 	0x0F120001,
+	0xFFFF0078, //Delay 120ms
 };
 
 static const u32 s5k5ccgx_176_144_Preview[] = {

@@ -19,7 +19,6 @@
 #include <linux/device.h>
 #include <linux/version.h>
 #include <linux/module.h>
-#include <linux/slab.h>
 #include "mali_kernel_license.h"
 #include "mali_kernel_common.h"
 #include "mali_kernel_linux.h"
@@ -30,6 +29,7 @@
 #include <linux/seq_file.h>
 #include <linux/debugfs.h>
 #include <asm/uaccess.h>
+#include <linux/slab.h>
 #include <linux/module.h>
 #include "mali_kernel_sysfs.h"
 #if MALI_INTERNAL_TIMELINE_PROFILING_ENABLED
@@ -72,6 +72,9 @@ static int open_copy_private_data(struct inode *inode, struct file *filp)
 	filp->private_data = inode->i_private;
 	return 0;
 }
+
+
+
 
 static ssize_t gp_gpx_counter_srcx_read(struct file *filp, char __user *ubuf, size_t cnt, loff_t *gpos, u32 src_id)
 {
@@ -967,7 +970,7 @@ static const struct file_operations memory_usage_fops = {
 
 static ssize_t user_settings_write(struct file *filp, const char __user *ubuf, size_t cnt, loff_t *ppos)
 {
-	u32 val;
+	unsigned long val;
 	int ret;
 	_mali_uk_user_setting_t setting;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,39)

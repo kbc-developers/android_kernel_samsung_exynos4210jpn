@@ -84,8 +84,6 @@ extern int s5p_mixer_set_grp_layer_src_pos(enum s5p_mixer_layer layer, u32 span,
 		u32 width, u32 height, u32 src_offs_x, u32 src_offs_y);
 extern void s5p_mixer_set_bg_color(enum s5p_mixer_bg_color_num colornum,
 		u32 color_y, u32 color_cb, u32 color_cr);
-extern void s5p_mixer_set_video_limiter(u32 upper_y, u32 lower_y,
-		u32 upper_c, u32 lower_c, bool enable);
 extern void s5p_mixer_init_status_reg(enum s5p_mixer_burst_mode burst,
 		enum s5p_tvout_endian endian);
 extern int s5p_mixer_init_display_mode(enum s5p_tvout_disp_mode mode,
@@ -403,7 +401,7 @@ extern void s5p_hdmi_reg_hpd_gen(void);
 extern int s5p_hdmi_reg_intc_set_isr(irqreturn_t (*isr)(int, void *), u8 num);
 extern void s5p_hdmi_reg_intc_enable(enum s5p_hdmi_interrrupt intr, u8 en);
 #ifdef CONFIG_HDMI_EARJACK_MUTE
-extern bool hdmi_audio_ext;
+extern int hdmi_audio_ext;
 #endif
 extern void s5p_hdmi_reg_audio_enable(u8 en);
 extern int s5p_hdmi_audio_init(

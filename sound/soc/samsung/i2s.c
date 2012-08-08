@@ -29,8 +29,7 @@
 #include "i2s.h"
 #include "srp-types.h"
 
-#if defined(CONFIG_SND_SAMSUNG_RP) && \
-	(defined(CONFIG_MACH_U1) || defined(CONFIG_MACH_TRATS))
+#if defined(CONFIG_SND_SAMSUNG_RP) && defined(CONFIG_MACH_U1)
 #define USE_ALT_REG_RECOVER
 #endif
 
@@ -785,11 +784,7 @@ static int i2s_startup(struct snd_pcm_substream *substream,
 			i2s->addr + I2SMOD);
 	}
 #else
-	if (!is_opened(other)
-#if defined(CONFIG_SND_SAMSUNG_RP)
-		&& !srp_active(i2s, IS_OPENED)
-#endif
-		)
+	if (!is_opened(other) && !srp_active(i2s, IS_OPENED))
 		i2s_clk_enable(i2s, true);
 
 	if (i2s->reg_saved) {

@@ -462,9 +462,8 @@ static void ohci_hcd_s5p_drv_shutdown(struct platform_device *pdev)
 static const struct dev_pm_ops ohci_s5p_pm_ops = {
 	.suspend		= ohci_hcd_s5p_drv_suspend,
 	.resume			= ohci_hcd_s5p_drv_resume,
-#ifdef CONFIG_HIBERNATION
+#ifdef CONFIG_SLP
 	.freeze			= ohci_hcd_s5p_drv_suspend,
-	.thaw			= ohci_hcd_s5p_drv_resume,
 	.restore		= ohci_hcd_s5p_drv_resume,
 #endif
 	.runtime_suspend	= ohci_hcd_s5p_drv_runtime_suspend,

@@ -64,29 +64,26 @@ struct exynos_drm_iommu_info {
  * @dma_addr: bus address(accessed by dma) to allocated memory region.
  *	- this address could be physical address without IOMMU and
  *	device address with IOMMU.
+ * @userptr: user space address to the buffer allocated by malloc.
  * @write: whether pages will be written to by the caller.
  * @sgt: sg table to transfer page data.
  * @pages: contain all pages to allocated memory region.
- * @page_size: could be 4K, 64K or 1MB.
  * @size: size of allocated memory region.
  * @shared: indicate shared mfc memory region.
  *	(temporarily used and it should be removed later.)
  * @shared_refcount: a reference count for this buffer being shared with others.
- * @pfnmap: indicate whether memory region from userptr is mmaped with
- *	VM_PFNMAP or not.
  */
 struct exynos_drm_gem_buf {
 	struct device		*dev;
 	void __iomem		*kvaddr;
 	dma_addr_t		dma_addr;
+	unsigned long		userptr;
 	unsigned int		write;
 	struct sg_table		*sgt;
 	struct page		**pages;
-	unsigned long		page_size;
 	unsigned long		size;
 	bool			shared;
 	atomic_t		shared_refcount;
-	bool			pfnmap;
 };
 
 /*
@@ -117,8 +114,6 @@ struct exynos_drm_gem_obj {
 	unsigned long			size;
 	struct vm_area_struct		*vma;
 	unsigned int			flags;
-	void				*dma_buf_vmapping;
-	int				vmapping_count;
 	unsigned int			priv_handle;
 	unsigned int			priv_id;
 };
@@ -129,8 +124,6 @@ void exynos_drm_priv_cb_register(struct exynos_drm_private_cb *cb);
 /* register a buffer object to private buffer manager. */
 int register_buf_to_priv_mgr(struct exynos_drm_gem_obj *obj,
 		unsigned int *priv_handle, unsigned int *priv_id);
-
-struct page **exynos_gem_get_pages(struct drm_gem_object *obj, gfp_t gfpmask);
 
 /* destroy a buffer with gem object */
 void exynos_drm_gem_destroy(struct exynos_drm_gem_obj *exynos_gem_obj);
@@ -183,10 +176,6 @@ int exynos_drm_gem_mmap_ioctl(struct drm_device *dev, void *data,
 
 /* map user space allocated by malloc to pages. */
 int exynos_drm_gem_userptr_ioctl(struct drm_device *dev, void *data,
-				      struct drm_file *file_priv);
-
-/* get buffer information to memory region allocated by gem. */
-int exynos_drm_gem_get_ioctl(struct drm_device *dev, void *data,
 				      struct drm_file *file_priv);
 
 /* initialize gem object. */

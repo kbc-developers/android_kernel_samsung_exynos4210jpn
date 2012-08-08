@@ -17,62 +17,51 @@
 
 #include "battery-factory.h"
 
-/* prototype */
-static ssize_t factory_show_property(struct device *dev,
+static ssize_t battery_show_property(struct device *dev,
 				     struct device_attribute *attr, char *buf);
 
-static ssize_t factory_store_property(struct device *dev,
+static ssize_t battery_store_property(struct device *dev,
 			     struct device_attribute *attr,
 			     const char *buf, size_t count);
 
-static ssize_t ctia_show_property(struct device *dev,
-				     struct device_attribute *attr, char *buf);
-
-static ssize_t ctia_store_property(struct device *dev,
-			     struct device_attribute *attr,
-			     const char *buf, size_t count);
-
-
-#define FACTORY_ATTR(_name)			\
+#define BATTERY_ATTR(_name)			\
 {						\
 	.attr = { .name = #_name,		\
 		  .mode = S_IRUGO | S_IWUSR | S_IWGRP,	\
 		},					\
-	.show = factory_show_property,		\
-	.store = factory_store_property,		\
+	.show = battery_show_property,		\
+	.store = battery_store_property,		\
 }
 
-static struct device_attribute factory_attrs[] = {
-	FACTORY_ATTR(batt_reset_soc),
-	FACTORY_ATTR(batt_read_raw_soc),
-	FACTORY_ATTR(batt_read_adj_soc),
-	FACTORY_ATTR(batt_type),
-	FACTORY_ATTR(batt_temp_adc),
-	FACTORY_ATTR(batt_temp_aver),
-	FACTORY_ATTR(batt_temp_adc_aver),
-	FACTORY_ATTR(batt_vol_aver),
-	FACTORY_ATTR(batt_vfocv),
-	FACTORY_ATTR(batt_lp_charging),
-	FACTORY_ATTR(batt_charging_source),
-	FACTORY_ATTR(test_mode),
-	FACTORY_ATTR(batt_error_test),
-	FACTORY_ATTR(siop_activated),
-	FACTORY_ATTR(wc_status),
-	FACTORY_ATTR(wpc_pin_state),
-	FACTORY_ATTR(factory_mode),
-	FACTORY_ATTR(update),
+static struct device_attribute battery_attrs[] = {
+	BATTERY_ATTR(batt_reset_soc),
+	BATTERY_ATTR(batt_read_raw_soc),
+	BATTERY_ATTR(batt_read_adj_soc),
+	BATTERY_ATTR(batt_type),
+	BATTERY_ATTR(batt_temp_adc),
+	BATTERY_ATTR(batt_temp_aver),
+	BATTERY_ATTR(batt_temp_adc_aver),
+	BATTERY_ATTR(batt_vol_aver),
+	BATTERY_ATTR(batt_vfocv),
+	BATTERY_ATTR(batt_lp_charging),
+	BATTERY_ATTR(batt_charging_source),
+	BATTERY_ATTR(test_mode),
+	BATTERY_ATTR(batt_error_test),
+	BATTERY_ATTR(siop_activated),
+	BATTERY_ATTR(wc_status),
+	BATTERY_ATTR(wpc_pin_state),
 
 	/* not use */
-	FACTORY_ATTR(batt_vol_adc),
-	FACTORY_ATTR(batt_vol_adc_cal),
-	FACTORY_ATTR(batt_vol_adc_aver),
-	FACTORY_ATTR(batt_temp_adc_cal),
-	FACTORY_ATTR(batt_vf_adc),
-	FACTORY_ATTR(auth_battery),
+	BATTERY_ATTR(batt_vol_adc),
+	BATTERY_ATTR(batt_vol_adc_cal),
+	BATTERY_ATTR(batt_vol_adc_aver),
+	BATTERY_ATTR(batt_temp_adc_cal),
+	BATTERY_ATTR(batt_vf_adc),
+	BATTERY_ATTR(auth_battery),
 
 #if defined(CONFIG_TARGET_LOCALE_KOR) || defined(CONFIG_MACH_M0_CTC)
-	FACTORY_ATTR(batt_temp_adc_spec),
-	FACTORY_ATTR(batt_sysrev),
+	BATTERY_ATTR(batt_temp_adc_spec),
+	BATTERY_ATTR(batt_sysrev),
 #endif
 };
 
@@ -93,8 +82,6 @@ enum {
 	SIOP_ACTIVATED,
 	WC_STATUS,
 	WPC_PIN_STATE,
-	FACTORY_MODE,
-	UPDATE,
 
 	/* not use */
 	BATT_VOL_ADC,
@@ -110,15 +97,15 @@ enum {
 #endif
 };
 
-static ssize_t factory_show_property(struct device *dev,
+static ssize_t battery_show_property(struct device *dev,
 				     struct device_attribute *attr, char *buf)
 {
 	struct battery_info *info = dev_get_drvdata(dev->parent);
 	int i;
 	int cnt, dat, d_max, d_min, d_total;
 	int val;
-	const ptrdiff_t off = attr - factory_attrs;
-	pr_debug("%s: %s\n", __func__, factory_attrs[off].attr.name);
+	const ptrdiff_t off = attr - battery_attrs;
+	pr_debug("%s: %s\n", __func__, battery_attrs[off].attr.name);
 
 	i = 0;
 	val = 0;
@@ -220,10 +207,6 @@ static ssize_t factory_show_property(struct device *dev,
 #endif
 		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n", val);
 		break;
-	case FACTORY_MODE:
-		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
-						info->factory_mode);
-		break;
 	case BATT_VOL_ADC:
 	case BATT_VOL_ADC_CAL:
 	case BATT_VOL_ADC_AVER:
@@ -253,15 +236,15 @@ static ssize_t factory_show_property(struct device *dev,
 	return i;
 }
 
-static ssize_t factory_store_property(struct device *dev,
+static ssize_t battery_store_property(struct device *dev,
 			     struct device_attribute *attr,
 			     const char *buf, size_t count)
 {
 	struct battery_info *info = dev_get_drvdata(dev->parent);
 	int x;
 	int ret;
-	const ptrdiff_t off = attr - factory_attrs;
-	pr_info("%s: %s\n", __func__, factory_attrs[off].attr.name);
+	const ptrdiff_t off = attr - battery_attrs;
+	pr_info("%s: %s\n", __func__, battery_attrs[off].attr.name);
 
 	x = 0;
 	ret = 0;
@@ -308,22 +291,6 @@ static ssize_t factory_store_property(struct device *dev,
 			ret = count;
 		}
 		break;
-	case FACTORY_MODE:
-		if (sscanf(buf, "%d\n", &x) == 1) {
-			if (x)
-				info->factory_mode = true;
-			else
-				info->factory_mode = false;
-
-			pr_info("%s: factory mode %s\n", __func__,
-				(info->factory_mode ? "set" : "clear"));
-			ret = count;
-		}
-		break;
-	case UPDATE:
-		pr_info("%s: battery update\n", __func__);
-		ret = count;
-		break;
 	default:
 		ret = -EINVAL;
 	}
@@ -333,118 +300,23 @@ static ssize_t factory_store_property(struct device *dev,
 	return ret;
 }
 
-#define CTIA_ATTR(_name)			\
-{						\
-	.attr = { .name = #_name,		\
-		  .mode = S_IRUGO | S_IWUSR | S_IWGRP,	\
-		},					\
-	.show = ctia_show_property,		\
-	.store = ctia_store_property,		\
-}
-
-/* CTIA */
-static struct device_attribute ctia_attrs[] = {
-	CTIA_ATTR(talk_wcdma),
-	CTIA_ATTR(talk_gsm),
-	CTIA_ATTR(call),
-	CTIA_ATTR(video),
-	CTIA_ATTR(music),
-	CTIA_ATTR(browser),
-	CTIA_ATTR(hotspot),
-	CTIA_ATTR(camera),
-	CTIA_ATTR(data_call),
-	CTIA_ATTR(gps),
-	CTIA_ATTR(lte),
-	CTIA_ATTR(wifi),
-	CTIA_ATTR(use),
-};
-
-static ssize_t ctia_show_property(struct device *dev,
-				     struct device_attribute *attr, char *buf)
-{
-	struct battery_info *info = dev_get_drvdata(dev->parent);
-	int i = 0;
-	const ptrdiff_t off = attr - ctia_attrs;
-	pr_info("%s: %s\n", __func__, ctia_attrs[off].attr.name);
-
-	i += scnprintf(buf + i, PAGE_SIZE - i, "%d 0x%04x\n",
-				info->event_state, info->event_type);
-
-	return i;
-}
-
-static ssize_t ctia_store_property(struct device *dev,
-			     struct device_attribute *attr,
-			     const char *buf, size_t count)
-{
-	struct battery_info *info = dev_get_drvdata(dev->parent);
-	int x = 0;
-	int ret = -EINVAL;
-	const ptrdiff_t off = attr - ctia_attrs;
-	pr_info("%s: %s\n", __func__, ctia_attrs[off].attr.name);
-
-	if (sscanf(buf, "%d\n", &x) == 1) {
-		if (x == 1) {
-			info->event_type |= (1 << off);
-			pr_info("%s: set case #%d, event(0x%04x)\n",
-				__func__, off, info->event_type);
-		} else if (x == 0) {
-			info->event_type &= ~(1 << off);
-			pr_info("%s: clear case #%d, event(0x%04x)\n",
-				__func__, off, info->event_type);
-		} else {
-			pr_info("%s: invalid case #%d, event(0x%04x)\n",
-				__func__, off, info->event_type);
-		}
-		ret = count;
-	}
-
-	battery_event_control(info);
-
-	return ret;
-}
-
 void battery_create_attrs(struct device *dev)
 {
-	struct battery_info *info = dev_get_drvdata(dev->parent);
 	int i, rc;
-	pr_info("%s\n", __func__);
 
-	for (i = 0; i < ARRAY_SIZE(factory_attrs); i++) {
-		rc = device_create_file(dev, &factory_attrs[i]);
-		pr_debug("%s: factory attr: %s\n", __func__,
-				factory_attrs[i].attr.name);
+	for (i = 0; i < ARRAY_SIZE(battery_attrs); i++) {
+		rc = device_create_file(dev, &battery_attrs[i]);
+		pr_debug("%s: battery attr.: %s\n", __func__,
+					battery_attrs[i].attr.name);
 		if (rc)
-			goto create_factory_attrs_failed;
+			goto create_attrs_failed;
 	}
-	pr_info("%s: factory attrs created\n", __func__);
+	goto succeed;
 
-	if (!info->pdata->ctia_spec) {
-		pr_info("%s: not support CTIA spec\n", __func__);
-		return;
-	}
-
-	for (i = 0; i < ARRAY_SIZE(ctia_attrs); i++) {
-		rc = device_create_file(dev, &ctia_attrs[i]);
-		pr_debug("%s: CTIA attr: %s\n", __func__,
-				ctia_attrs[i].attr.name);
-		if (rc)
-			goto create_ctia_attrs_failed;
-	}
-	pr_info("%s: CTIA attrs created\n", __func__);
-
-	return;
-
-create_factory_attrs_failed:
-	pr_info("%s: factory attrs created failed\n", __func__);
+create_attrs_failed:
 	while (i--)
-		device_remove_file(dev, &factory_attrs[i]);
-	return;
-
-create_ctia_attrs_failed:
-	pr_info("%s: CTIA attrs created failed\n", __func__);
-	while (i--)
-		device_remove_file(dev, &ctia_attrs[i]);
+		device_remove_file(dev, &battery_attrs[i]);
+succeed:
 	return;
 }
 

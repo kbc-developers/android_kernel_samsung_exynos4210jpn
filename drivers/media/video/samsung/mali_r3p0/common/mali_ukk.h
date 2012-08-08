@@ -225,7 +225,7 @@ _mali_osk_errcode_t _mali_ukk_close( void **context );
  * allocated, and a pointer to this memory written into the system_info member
  * of _mali_uk_get_system_info_s.
  *
- * @param args see _mali_uk_get_system_info_size_s in "mali_utgard_uk_types.h"
+ * @param args see _mali_uk_get_system_info_size_s in "mali_uk_types.h"
  * @return _MALI_OSK_ERR_OK on success, otherwise a suitable _mali_osk_errcode_t on failure.
  */
 _mali_osk_errcode_t _mali_ukk_get_system_info_size( _mali_uk_get_system_info_size_s *args );
@@ -262,7 +262,7 @@ _mali_osk_errcode_t _mali_ukk_get_system_info_size( _mali_uk_get_system_info_siz
  * destination address for pointer-patching to occur. When NULL, it is unused, an no pointer-patching occurs in the
  * common code.
  *
- * @param args see _mali_uk_get_system_info_s in "mali_utgard_uk_types.h"
+ * @param args see _mali_uk_get_system_info_s in "mali_uk_types.h"
  * @return _MALI_OSK_ERR_OK on success, otherwise a suitable _mali_osk_errcode_t on failure.
  */
 _mali_osk_errcode_t _mali_ukk_get_system_info( _mali_uk_get_system_info_s *args );
@@ -271,34 +271,34 @@ _mali_osk_errcode_t _mali_ukk_get_system_info( _mali_uk_get_system_info_s *args 
  *
  * Sleeps until notified or a timeout occurs. Returns information about the notification.
  *
- * @param args see _mali_uk_wait_for_notification_s in "mali_utgard_uk_types.h"
+ * @param args see _mali_uk_wait_for_notification_s in "mali_uk_types.h"
  * @return _MALI_OSK_ERR_OK on success, otherwise a suitable _mali_osk_errcode_t on failure.
  */
 _mali_osk_errcode_t _mali_ukk_wait_for_notification( _mali_uk_wait_for_notification_s *args );
 
 /** @brief Post a notification to the notification queue of this application.
  *
- * @param args see _mali_uk_post_notification_s in "mali_utgard_uk_types.h"
+ * @param args see _mali_uk_post_notification_s in "mali_uk_types.h"
  * @return _MALI_OSK_ERR_OK on success, otherwise a suitable _mali_osk_errcode_t on failure.
  */
 _mali_osk_errcode_t _mali_ukk_post_notification( _mali_uk_post_notification_s *args );
 
 /** @brief Verifies if the user and kernel side of this API are compatible.
  *
- * @param args see _mali_uk_get_api_version_s in "mali_utgard_uk_types.h"
+ * @param args see _mali_uk_get_api_version_s in "mali_uk_types.h"
  * @return _MALI_OSK_ERR_OK on success, otherwise a suitable _mali_osk_errcode_t on failure.
  */
 _mali_osk_errcode_t _mali_ukk_get_api_version( _mali_uk_get_api_version_s *args );
 
 /** @brief Get the user space settings applicable for calling process.
  *
- * @param args see _mali_uk_get_user_settings_s in "mali_utgard_uk_types.h"
+ * @param args see _mali_uk_get_user_settings_s in "mali_uk_types.h"
  */
 _mali_osk_errcode_t _mali_ukk_get_user_settings(_mali_uk_get_user_settings_s *args);
 
 /** @brief Get a user space setting applicable for calling process.
  *
- * @param args see _mali_uk_get_user_setting_s in "mali_utgard_uk_types.h"
+ * @param args see _mali_uk_get_user_setting_s in "mali_uk_types.h"
  */
 _mali_osk_errcode_t _mali_ukk_get_user_setting(_mali_uk_get_user_setting_s *args);
 
@@ -329,7 +329,7 @@ _mali_osk_errcode_t _mali_ukk_get_user_setting(_mali_uk_get_user_setting_s *args
  * @note This function is for Mali-MMU builds \b only. It should not be called
  * when the drivers are built without Mali-MMU support.
  *
- * @param args see \ref _mali_uk_init_mem_s in mali_utgard_uk_types.h
+ * @param args see \ref _mali_uk_init_mem_s in mali_uk_types.h
  * @return _MALI_OSK_ERR_OK on success, otherwise a suitable
  * _mali_osk_errcode_t on failure.
  */
@@ -345,7 +345,7 @@ _mali_osk_errcode_t _mali_ukk_init_mem( _mali_uk_init_mem_s *args );
  * @note This function is for Mali-MMU builds \b only. It should not be called
  * when the drivers are built without Mali-MMU support.
  *
- * @param args see \ref _mali_uk_term_mem_s in mali_utgard_uk_types.h
+ * @param args see \ref _mali_uk_term_mem_s in mali_uk_types.h
  * @return _MALI_OSK_ERR_OK on success, otherwise a suitable
  * _mali_osk_errcode_t on failure.
  */
@@ -380,7 +380,7 @@ _mali_osk_errcode_t _mali_ukk_term_mem( _mali_uk_term_mem_s *args );
  * It is not possible for a process to accidentally corrupt another process'
  * \em Mali-virtual address space.
  *
- * @param args see _mali_uk_mem_mmap_s in "mali_utgard_uk_types.h"
+ * @param args see _mali_uk_mem_mmap_s in "mali_uk_types.h"
  * @return _MALI_OSK_ERR_OK on success, otherwise a suitable _mali_osk_errcode_t on failure.
  */
 _mali_osk_errcode_t _mali_ukk_mem_mmap( _mali_uk_mem_mmap_s *args );
@@ -390,42 +390,42 @@ _mali_osk_errcode_t _mali_ukk_mem_mmap( _mali_uk_mem_mmap_s *args );
  * Unmaps Mali memory from the current user process in a generic way. This only operates on Mali memory supplied
  * from _mali_ukk_mem_mmap().
  *
- * @param args see _mali_uk_mem_munmap_s in "mali_utgard_uk_types.h"
+ * @param args see _mali_uk_mem_munmap_s in "mali_uk_types.h"
  * @return _MALI_OSK_ERR_OK on success, otherwise a suitable _mali_osk_errcode_t on failure.
  */
 _mali_osk_errcode_t _mali_ukk_mem_munmap( _mali_uk_mem_munmap_s *args );
 
 /** @brief Determine the buffer size necessary for an MMU page table dump.
- * @param args see _mali_uk_query_mmu_page_table_dump_size_s in mali_utgard_uk_types.h
+ * @param args see _mali_uk_query_mmu_page_table_dump_size_s in mali_uk_types.h
  * @return _MALI_OSK_ERR_OK on success, otherwise a suitable _mali_osk_errcode_t on failure.
  */
 _mali_osk_errcode_t _mali_ukk_query_mmu_page_table_dump_size( _mali_uk_query_mmu_page_table_dump_size_s *args );
 /** @brief Dump MMU Page tables.
- * @param args see _mali_uk_dump_mmu_page_table_s in mali_utgard_uk_types.h
+ * @param args see _mali_uk_dump_mmu_page_table_s in mali_uk_types.h
  * @return _MALI_OSK_ERR_OK on success, otherwise a suitable _mali_osk_errcode_t on failure.
  */
 _mali_osk_errcode_t _mali_ukk_dump_mmu_page_table( _mali_uk_dump_mmu_page_table_s * args );
 
 /** @brief Map a physically contiguous range of memory into Mali
- * @param args see _mali_uk_map_external_mem_s in mali_utgard_uk_types.h
+ * @param args see _mali_uk_map_external_mem_s in mali_uk_types.h
  * @return _MALI_OSK_ERR_OK on success, otherwise a suitable _mali_osk_errcode_t on failure.
  */
 _mali_osk_errcode_t _mali_ukk_map_external_mem( _mali_uk_map_external_mem_s *args );
 
 /** @brief Unmap a physically contiguous range of memory from Mali
- * @param args see _mali_uk_unmap_external_mem_s in mali_utgard_uk_types.h
+ * @param args see _mali_uk_unmap_external_mem_s in mali_uk_types.h
  * @return _MALI_OSK_ERR_OK on success, otherwise a suitable _mali_osk_errcode_t on failure.
  */
 _mali_osk_errcode_t _mali_ukk_unmap_external_mem( _mali_uk_unmap_external_mem_s *args );
 
 #if MALI_USE_UNIFIED_MEMORY_PROVIDER != 0
 /** @brief Map UMP memory into Mali
- * @param args see _mali_uk_attach_ump_mem_s in mali_utgard_uk_types.h
+ * @param args see _mali_uk_attach_ump_mem_s in mali_uk_types.h
  * @return _MALI_OSK_ERR_OK on success, otherwise a suitable _mali_osk_errcode_t on failure.
  */
 _mali_osk_errcode_t _mali_ukk_attach_ump_mem( _mali_uk_attach_ump_mem_s *args );
 /** @brief Unmap UMP memory from Mali
- * @param args see _mali_uk_release_ump_mem_s in mali_utgard_uk_types.h
+ * @param args see _mali_uk_release_ump_mem_s in mali_uk_types.h
  * @return _MALI_OSK_ERR_OK on success, otherwise a suitable _mali_osk_errcode_t on failure.
  */
 _mali_osk_errcode_t _mali_ukk_release_ump_mem( _mali_uk_release_ump_mem_s *args );
@@ -469,7 +469,7 @@ _mali_osk_errcode_t _mali_ukk_release_ump_mem( _mali_uk_release_ump_mem_s *args 
  * @note if implemented, this function is entirely platform-dependant, and does
  * not exist in common code.
  *
- * @param args see _mali_uk_va_to_mali_pa_s in "mali_utgard_uk_types.h"
+ * @param args see _mali_uk_va_to_mali_pa_s in "mali_uk_types.h"
  * @return _MALI_OSK_ERR_OK on success, otherwise a suitable _mali_osk_errcode_t on failure.
  */
 _mali_osk_errcode_t _mali_ukk_va_to_mali_pa( _mali_uk_va_to_mali_pa_s * args );
@@ -498,14 +498,14 @@ _mali_osk_errcode_t _mali_ukk_va_to_mali_pa( _mali_uk_va_to_mali_pa_s * args );
  *
  * Job completion can be awaited with _mali_ukk_wait_for_notification().
  *
- * @param args see _mali_uk_pp_start_job_s in "mali_utgard_uk_types.h"
+ * @param args see _mali_uk_pp_start_job_s in "mali_uk_types.h"
  * @return _MALI_OSK_ERR_OK on success, otherwise a suitable _mali_osk_errcode_t on failure.
  */
 _mali_osk_errcode_t _mali_ukk_pp_start_job( _mali_uk_pp_start_job_s *args );
 
 /** @brief Returns the number of Fragment Processors in the system
  *
- * @param args see _mali_uk_get_pp_number_of_cores_s in "mali_utgard_uk_types.h"
+ * @param args see _mali_uk_get_pp_number_of_cores_s in "mali_uk_types.h"
  * @return _MALI_OSK_ERR_OK on success, otherwise a suitable _mali_osk_errcode_t on failure.
  */
 _mali_osk_errcode_t _mali_ukk_get_pp_number_of_cores( _mali_uk_get_pp_number_of_cores_s *args );
@@ -515,17 +515,10 @@ _mali_osk_errcode_t _mali_ukk_get_pp_number_of_cores( _mali_uk_get_pp_number_of_
  * This function may only be called when _mali_ukk_get_pp_number_of_cores() indicated at least one Fragment
  * Processor core is available.
  *
- * @param args see _mali_uk_get_pp_core_version_s in "mali_utgard_uk_types.h"
+ * @param args see _mali_uk_get_pp_core_version_s in "mali_uk_types.h"
  * @return _MALI_OSK_ERR_OK on success, otherwise a suitable _mali_osk_errcode_t on failure.
  */
 _mali_osk_errcode_t _mali_ukk_get_pp_core_version( _mali_uk_get_pp_core_version_s *args );
-
-/** @brief Disable Write-back unit(s) on specified job
- *
- * @param args see _mali_uk_get_pp_core_version_s in "mali_utgard_uk_types.h"
- */
-void _mali_ukk_pp_job_disable_wb(_mali_uk_pp_disable_wb_s *args);
-
 
 /** @} */ /* end group _mali_uk_pp */
 
@@ -551,14 +544,14 @@ void _mali_ukk_pp_job_disable_wb(_mali_uk_pp_disable_wb_s *args);
  *
  * Job completion can be awaited with _mali_ukk_wait_for_notification().
  *
- * @param args see _mali_uk_gp_start_job_s in "mali_utgard_uk_types.h"
+ * @param args see _mali_uk_gp_start_job_s in "mali_uk_types.h"
  * @return _MALI_OSK_ERR_OK on success, otherwise a suitable _mali_osk_errcode_t on failure.
  */
 _mali_osk_errcode_t _mali_ukk_gp_start_job( _mali_uk_gp_start_job_s *args );
 
 /** @brief Returns the number of Vertex Processors in the system.
  *
- * @param args see _mali_uk_get_gp_number_of_cores_s in "mali_utgard_uk_types.h"
+ * @param args see _mali_uk_get_gp_number_of_cores_s in "mali_uk_types.h"
  * @return _MALI_OSK_ERR_OK on success, otherwise a suitable _mali_osk_errcode_t on failure.
  */
 _mali_osk_errcode_t _mali_ukk_get_gp_number_of_cores( _mali_uk_get_gp_number_of_cores_s *args );
@@ -568,7 +561,7 @@ _mali_osk_errcode_t _mali_ukk_get_gp_number_of_cores( _mali_uk_get_gp_number_of_
  * This function may only be called when _mali_uk_get_gp_number_of_cores() indicated at least one Vertex
  * Processor core is available.
  *
- * @param args see _mali_uk_get_gp_core_version_s in "mali_utgard_uk_types.h"
+ * @param args see _mali_uk_get_gp_core_version_s in "mali_uk_types.h"
  * @return _MALI_OSK_ERR_OK on success, otherwise a suitable _mali_osk_errcode_t on failure.
  */
 _mali_osk_errcode_t _mali_ukk_get_gp_core_version( _mali_uk_get_gp_core_version_s *args );
@@ -578,7 +571,7 @@ _mali_osk_errcode_t _mali_ukk_get_gp_core_version( _mali_uk_get_gp_core_version_
  * After receiving notification that a Vertex Processor job was suspended from
  * _mali_ukk_wait_for_notification() you can use this function to resume or abort the job.
  *
- * @param args see _mali_uk_gp_suspend_response_s in "mali_utgard_uk_types.h"
+ * @param args see _mali_uk_gp_suspend_response_s in "mali_uk_types.h"
  * @return _MALI_OSK_ERR_OK on success, otherwise a suitable _mali_osk_errcode_t on failure.
  */
 _mali_osk_errcode_t _mali_ukk_gp_suspend_response( _mali_uk_gp_suspend_response_s *args );
@@ -591,33 +584,34 @@ _mali_osk_errcode_t _mali_ukk_gp_suspend_response( _mali_uk_gp_suspend_response_
 
 /** @brief Start recording profiling events.
  *
- * @param args see _mali_uk_profiling_start_s in "mali_utgard_uk_types.h"
+ * @param args see _mali_uk_profiling_start_s in "mali_uk_types.h"
  */
 _mali_osk_errcode_t _mali_ukk_profiling_start(_mali_uk_profiling_start_s *args);
 
 /** @brief Add event to profiling buffer.
  *
- * @param args see _mali_uk_profiling_add_event_s in "mali_utgard_uk_types.h"
+ * @param args see _mali_uk_profiling_add_event_s in "mali_uk_types.h"
  */
 _mali_osk_errcode_t _mali_ukk_profiling_add_event(_mali_uk_profiling_add_event_s *args);
 
 /** @brief Stop recording profiling events.
  *
- * @param args see _mali_uk_profiling_stop_s in "mali_utgard_uk_types.h"
+ * @param args see _mali_uk_profiling_stop_s in "mali_uk_types.h"
  */
 _mali_osk_errcode_t _mali_ukk_profiling_stop(_mali_uk_profiling_stop_s *args);
 
 /** @brief Retrieve a recorded profiling event.
  *
- * @param args see _mali_uk_profiling_get_event_s in "mali_utgard_uk_types.h"
+ * @param args see _mali_uk_profiling_get_event_s in "mali_uk_types.h"
  */
 _mali_osk_errcode_t _mali_ukk_profiling_get_event(_mali_uk_profiling_get_event_s *args);
 
 /** @brief Clear recorded profiling events.
  *
- * @param args see _mali_uk_profiling_clear_s in "mali_utgard_uk_types.h"
+ * @param args see _mali_uk_profiling_clear_s in "mali_uk_types.h"
  */
 _mali_osk_errcode_t _mali_ukk_profiling_clear(_mali_uk_profiling_clear_s *args);
+
 
 /** @} */ /* end group _mali_uk_profiling */
 #endif
@@ -631,22 +625,11 @@ _mali_osk_errcode_t _mali_ukk_profiling_clear(_mali_uk_profiling_clear_s *args);
  * waiting is finished. This information can then be used in kernel space to
  * complement the GPU utilization metric.
  *
- * @param args see _mali_uk_vsync_event_report_s in "mali_utgard_uk_types.h"
+ * @param args see _mali_uk_vsync_event_report_s in "mali_uk_types.h"
  */
 _mali_osk_errcode_t _mali_ukk_vsync_event_report(_mali_uk_vsync_event_report_s *args);
 
 /** @} */ /* end group _mali_uk_vsync */
-
-/** @addtogroup _mali_sw_counters_report U/K Software counter reporting
- * @{ */
-
-/** @brief Report software counters.
- *
- * @param args see _mali_uk_sw_counters_report_s in "mali_uk_types.h"
- */
-_mali_osk_errcode_t _mali_ukk_sw_counters_report(_mali_uk_sw_counters_report_s *args);
-
-/** @} */ /* end group _mali_sw_counters_report */
 
 /** @} */ /* end group u_k_api */
 

@@ -29,21 +29,19 @@
 #include <linux/completion.h>
 #include <linux/workqueue.h>
 #include <linux/clk.h>
-#ifndef CONFIG_ARCH_EXYNOS
+/*
 #include <linux/mfd/pmic8058.h>
-#endif
+#include <mach/subsystem_notif.h>
+#include <mach/subsystem_restart.h>
+#include "msm_watchdog.h"
+#include "devices.h"
+#include "clock.h"
+*/
 #include <asm/mach-types.h>
 #include <asm/uaccess.h>
 #include <mach/mdm2.h>
 #include <mach/restart.h>
-#include <mach/subsystem_notif.h>
-#include <mach/subsystem_restart.h>
 #include <linux/msm_charm.h>
-#ifndef CONFIG_ARCH_EXYNOS
-#include "msm_watchdog.h"
-#include "devices.h"
-#include "clock.h"
-#endif
 #include "mdm_private.h"
 #include <linux/wakelock.h>
 
@@ -52,25 +50,20 @@
 #define MDM_MODEM_DELTA		100
 
 static int mdm_debug_on;
-static int power_on_count;
+static int first_power_on = 1;
 static int hsic_peripheral_status = 1;
 static DEFINE_MUTEX(hsic_status_lock);
 
 static void mdm_peripheral_connect(struct mdm_modem_drv *mdm_drv)
 {
-	struct mdm_platform_data *pdata;
-
-	pr_info("%s\n", __func__);
-
+	pr_err("%s\n", __func__);
 	mutex_lock(&hsic_status_lock);
 	if (hsic_peripheral_status)
 		goto out;
-
-	pdata = mdm_drv->pdata;
-	if (pdata->peripheral_platform_device_ohci)
-		platform_device_add(pdata->peripheral_platform_device_ohci);
-	if (pdata->peripheral_platform_device_ehci)
-		platform_device_add(pdata->peripheral_platform_device_ehci);
+	#if 1
+	if (mdm_drv->pdata->peripheral_platform_device)
+		platform_device_add(mdm_drv->pdata->peripheral_platform_device);
+	#endif
 	hsic_peripheral_status = 1;
 out:
 	mutex_unlock(&hsic_status_lock);
@@ -80,19 +73,14 @@ out:
 
 static void mdm_peripheral_disconnect(struct mdm_modem_drv *mdm_drv)
 {
-	struct mdm_platform_data *pdata;
-
-	pr_info("%s\n", __func__);
-
+	pr_err("%s\n", __func__);
 	mutex_lock(&hsic_status_lock);
 	if (!hsic_peripheral_status)
 		goto out;
-
-	pdata = mdm_drv->pdata;
-	if (pdata->peripheral_platform_device_ehci)
-		platform_device_del(pdata->peripheral_platform_device_ehci);
-	if (pdata->peripheral_platform_device_ohci)
-		platform_device_del(pdata->peripheral_platform_device_ohci);
+	#if 1
+	if (mdm_drv->pdata->peripheral_platform_device)
+		platform_device_del(mdm_drv->pdata->peripheral_platform_device);
+	#endif
 	hsic_peripheral_status = 0;
 out:
 	mutex_unlock(&hsic_status_lock);
@@ -102,59 +90,41 @@ out:
 
 static void power_on_mdm(struct mdm_modem_drv *mdm_drv)
 {
-	power_on_count++;
-
-	pr_err("%s: power count %d\n", __func__, power_on_count);
-	/* this gpio will be used to indicate apq readiness,
-	 * de-assert it now so that it can asserted later
-	 */
-	gpio_direction_output(mdm_drv->ap2mdm_wakeup_gpio, 0);
-
-	/* The second attempt to power-on the mdm is the first attempt
-	 * from user space, but we're already powered on. Ignore this.
-	 * Subsequent attempts are from SSR or if something failed, in
-	 * which case we must always reset the modem.
-	 */
-	if (power_on_count == 2)
-		return;
-
 	mdm_peripheral_disconnect(mdm_drv);
 
 	/* Pull RESET gpio low and wait for it to settle. */
-	pr_info("Pulling RESET gpio low\n");
+	pr_debug("Pulling RESET gpio low\n");
 	gpio_direction_output(mdm_drv->ap2mdm_pmic_reset_n_gpio, 0);
 	usleep_range(5000, 10000);
 
 	/* Deassert RESET first and wait for ir to settle. */
-	pr_info("%s: Pulling RESET gpio high\n", __func__);
+	pr_debug("%s: Pulling RESET gpio high\n", __func__);
 	gpio_direction_output(mdm_drv->ap2mdm_pmic_reset_n_gpio, 1);
-	msleep(20);
+	usleep_range(1000, 1000);
 
 	/* Pull PWR gpio high and wait for it to settle, but only
 	 * the first time the mdm is powered up.
 	 * Some targets do not use ap2mdm_kpdpwr_n_gpio.
 	 */
-	if (power_on_count == 1) {
+	if (first_power_on) {
 		if (mdm_drv->ap2mdm_kpdpwr_n_gpio > 0) {
 			pr_debug("%s: Powering on mdm modem\n", __func__);
 			gpio_direction_output(mdm_drv->ap2mdm_kpdpwr_n_gpio, 1);
 			usleep_range(1000, 1000);
 		}
+		first_power_on = 0;
 	}
-
-#ifdef CONFIG_ARCH_EXYNOS
-	gpio_direction_output(mdm_drv->ap2mdm_status_gpio, 1);
-#endif
 	mdm_peripheral_connect(mdm_drv);
 
 	msleep(200);
+	pr_err("%s : ap2mdm_status = %d\n", __func__,
+				gpio_get_value(mdm_drv->ap2mdm_status_gpio));
 }
 
 static void power_down_mdm(struct mdm_modem_drv *mdm_drv)
 {
 	int i;
 
-	pr_err("%s\n", __func__);
 	for (i = MDM_MODEM_TIMEOUT; i > 0; i -= MDM_MODEM_DELTA) {
 		/* pet_watchdog(); */
 		msleep(MDM_MODEM_DELTA);
@@ -176,14 +146,14 @@ static void power_down_mdm(struct mdm_modem_drv *mdm_drv)
 	mdm_peripheral_disconnect(mdm_drv);
 }
 
-#ifdef CONFIG_ARCH_EXYNOS
 static void normal_boot_done(struct mdm_modem_drv *mdm_drv)
 {
 	pr_err("%s\n", __func__);
 	mdm_peripheral_disconnect(mdm_drv);
+	mdm_peripheral_connect(mdm_drv);
+	pr_err("%s : ap2mdm_status = %d\n", __func__,
+				gpio_get_value(mdm_drv->ap2mdm_status_gpio));
 }
-#endif
-
 static void debug_state_changed(int value)
 {
 	mdm_debug_on = value;
@@ -191,14 +161,13 @@ static void debug_state_changed(int value)
 
 static void mdm_status_changed(struct mdm_modem_drv *mdm_drv, int value)
 {
-	pr_debug("%s: value:%d\n", __func__, value);
+	pr_err("%s: value:%d\n", __func__, value);
 
-	pr_err("%s: ap2mdm_status = %d\n", __func__,
+	pr_err("%s : ap2mdm_status = %d\n", __func__,
 				gpio_get_value(mdm_drv->ap2mdm_status_gpio));
 	if (value) {
 		mdm_peripheral_disconnect(mdm_drv);
 		mdm_peripheral_connect(mdm_drv);
-		gpio_direction_output(mdm_drv->ap2mdm_wakeup_gpio, 1);
 	}
 }
 
@@ -207,24 +176,15 @@ static struct mdm_ops mdm_cb = {
 	.power_down_mdm_cb = power_down_mdm,
 	.debug_state_changed_cb = debug_state_changed,
 	.status_cb = mdm_status_changed,
-#ifdef CONFIG_ARCH_EXYNOS
 	.normal_boot_done_cb = normal_boot_done,
-#endif
 };
 
-/* temprary wakelock, remove when L3 state implemented */
-#ifdef CONFIG_ARCH_EXYNOS
 static struct wake_lock mdm_wake;
-#endif
-
 static int __init mdm_modem_probe(struct platform_device *pdev)
 {
 	pr_err("%s\n", __func__);
-/* temprary wakelock, remove when L3 state implemented */
-#ifdef CONFIG_ARCH_EXYNOS
 	wake_lock_init(&mdm_wake, WAKE_LOCK_SUSPEND, "mdm_wake");
 	wake_lock(&mdm_wake);
-#endif
 	return mdm_common_create(pdev, &mdm_cb);
 }
 
@@ -249,6 +209,7 @@ static struct platform_driver mdm_modem_driver = {
 
 static int __init mdm_modem_init(void)
 {
+	pr_err("%s !!!! !!!!!!!\n", __func__);
 	return platform_driver_probe(&mdm_modem_driver, mdm_modem_probe);
 }
 

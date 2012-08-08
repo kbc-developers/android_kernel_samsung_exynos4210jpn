@@ -43,8 +43,6 @@ static void jack_set_data(struct jack_platform_data *pdata,
 		pdata->jig_online = value;
 	else if (!strcmp(name, "host"))
 		pdata->host_online = value;
-	else if (!strcmp(name, "cradle"))
-		pdata->cradle_online = value;
 }
 
 int jack_get_data(const char *name)
@@ -69,8 +67,6 @@ int jack_get_data(const char *name)
 		return jack->pdata->jig_online;
 	else if (!strcmp(name, "host"))
 		return jack->pdata->host_online;
-	else if (!strcmp(name, "cradle"))
-		return jack->pdata->cradle_online;
 
 
 	return -EINVAL;
@@ -112,7 +108,6 @@ JACK_OUTPUT(earjack_online);
 JACK_OUTPUT(earkey_online);
 JACK_OUTPUT(jig_online);
 JACK_OUTPUT(host_online);
-JACK_OUTPUT(cradle_online);
 
 static int jack_device_init(struct jack_data *jack)
 {
@@ -140,9 +135,6 @@ static int jack_device_init(struct jack_data *jack)
 	if (pdata->host_online != -1)
 		ret = device_create_file(&jack_dev->dev,
 				&dev_attr_host_online);
-	if (pdata->cradle_online != -1)
-		ret = device_create_file(&jack_dev->dev,
-				&dev_attr_cradle_online);
 
 	return 0;
 }
@@ -185,8 +177,6 @@ static int __devexit jack_remove(struct platform_device *pdev)
 		device_remove_file(&jack_dev->dev, &dev_attr_jig_online);
 	if (pdata->host_online != -1)
 		device_remove_file(&jack_dev->dev, &dev_attr_host_online);
-	if (pdata->cradle_online != -1)
-		device_remove_file(&jack_dev->dev, &dev_attr_cradle_online);
 
 
 	platform_set_drvdata(pdev, NULL);

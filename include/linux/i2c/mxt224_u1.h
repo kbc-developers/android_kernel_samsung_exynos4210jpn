@@ -115,6 +115,9 @@ struct mxt224_platform_data {
 	u8 movfilter_charging_e;
 	u8 actvsyncsperx_e;
 	u8 nexttchdi_e;
+//Saj
+	u8 cte_mode;
+
 	void (*power_on) (void);
 	void (*power_off) (void);
 	void (*register_cb) (void *);

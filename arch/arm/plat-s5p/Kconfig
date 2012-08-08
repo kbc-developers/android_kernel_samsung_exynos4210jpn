@@ -256,12 +256,6 @@ config S5P_DEV_DSIM12
 	help
 	  Compile in platform device definitions for MIPI-DSIM channel 1
 
-config S5P_BTS
-	bool "S5P BTS driver"
-	default n
-	help
-	  Use Bus Traffic Shaper Driver
-
 config S5P_DEV_MIPI_DSIM
 	bool
 	depends on FB_MIPI_DSIM

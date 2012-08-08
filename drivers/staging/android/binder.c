@@ -1543,16 +1543,6 @@ static void binder_transaction(struct binder_proc *proc,
 		t->from = thread;
 	else
 		t->from = NULL;
-#ifdef CONFIG_MACH_P4NOTE
-	/* workaround code for invalid binder proc */
-	if (!proc->tsk) {
-		binder_debug(BINDER_DEBUG_FAILED_TRANSACTION,
-			     "binder: %d:%d invalid proc\n",
-			     proc->pid, thread->pid);
-		return_error = BR_FAILED_REPLY;
-		goto err_binder_alloc_buf_failed;
-	}
-#endif
 	t->sender_euid = proc->tsk->cred->euid;
 	t->to_proc = target_proc;
 	t->to_thread = target_thread;

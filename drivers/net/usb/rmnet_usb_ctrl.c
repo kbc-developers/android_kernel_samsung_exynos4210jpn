@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -81,7 +81,7 @@ enum {
 do { \
 	if (ctl_msg_dbg_mask & MSM_USB_CTL_DUMP_BUFFER) \
 			print_hex_dump(KERN_INFO, prestr, DUMP_PREFIX_NONE, \
-				16, 1, buf, cnt > 16 ? 16 : cnt, false); \
+					16, 1, buf, cnt, false); \
 } while (0)
 
 #define DBG(x...) \
@@ -126,10 +126,8 @@ static void notification_available_cb(struct urb *urb)
 	struct usb_cdc_notification	*ctrl;
 	struct usb_device		*udev;
 	struct rmnet_ctrl_dev		*dev = urb->context;
-	unsigned int		iface_num;
 
 	udev = interface_to_usbdev(dev->intf);
-	iface_num = dev->intf->cur_altsetting->desc.bInterfaceNumber;
 
 	switch (urb->status) {
 	case 0:
@@ -173,8 +171,7 @@ static void notification_available_cb(struct urb *urb)
 			dev_err(dev->devicep,
 			"%s: Error submitting Read URB %d\n", __func__, status);
 			goto resubmit_int_urb;
-		} else
-			pr_info("[NRA:%d]>\n", iface_num);
+		}
 
 		if (!dev->resp_available) {
 			dev->resp_available = true;
@@ -204,16 +201,13 @@ static void resp_avail_cb(struct urb *urb)
 	void				*cpkt;
 	int				status = 0;
 	size_t				cpkt_size = 0;
-	unsigned int		iface_num;
 
 	udev = interface_to_usbdev(dev->intf);
-	iface_num = dev->intf->cur_altsetting->desc.bInterfaceNumber;
 
 	switch (urb->status) {
 	case 0:
 		/*success*/
 		dev->get_encap_resp_cnt++;
-		pr_info("[RACB:%d]<\n", iface_num);
 		break;
 
 	/*do not resubmit*/
@@ -237,12 +231,6 @@ static void resp_avail_cb(struct urb *urb)
 
 	cpkt = urb->transfer_buffer;
 	cpkt_size = urb->actual_length;
-	if (!cpkt_size) {
-		dev->zlp_cnt++;
-		dev_dbg(dev->devicep, "%s: zero length pkt received\n",
-				__func__);
-		goto resubmit_int_urb;
-	}
 
 	list_elem = kmalloc(sizeof(struct ctrl_pkt_list_elem), GFP_ATOMIC);
 	if (!list_elem) {
@@ -270,19 +258,15 @@ resubmit_int_urb:
 	if (status)
 		dev_err(dev->devicep, "%s: Error re-submitting Int URB %d\n",
 			__func__, status);
-	pr_info("[CHKRA:%d]>\n", iface_num);
 }
 
 static int rmnet_usb_ctrl_start_rx(struct rmnet_ctrl_dev *dev)
 {
 	int	retval = 0;
-	unsigned int		iface_num;
-	iface_num = dev->intf->cur_altsetting->desc.bInterfaceNumber;
 
 	retval = usb_submit_urb(dev->inturb, GFP_KERNEL);
 	if (retval < 0)
 		dev_err(dev->devicep, "%s Intr submit %d\n", __func__, retval);
-	pr_info("[CHKRA:%d]>\n", iface_num);
 
 	return retval;
 }
@@ -463,11 +447,19 @@ static int rmnet_ctl_open(struct inode *inode, struct file *file)
 	if (dev->is_opened)
 		goto already_opened;
 
+ctrl_open:
+	if (!is_dev_connected(dev)) {
+		dev_dbg(dev->devicep, "%s: Device not connected\n",
+			__func__);
+		return -ENODEV;
+	}
+
 	/*block open to get first response available from mdm*/
 	if (dev->mdm_wait_timeout && !dev->resp_available) {
 		retval = wait_event_interruptible_timeout(
 					dev->open_wait_queue,
-					dev->resp_available,
+					dev->resp_available ||
+					!is_dev_connected(dev),
 					msecs_to_jiffies(dev->mdm_wait_timeout *
 									1000));
 		if (retval == 0) {
@@ -479,6 +471,8 @@ static int rmnet_ctl_open(struct inode *inode, struct file *file)
 						__func__, dev->name);
 			return retval;
 		}
+
+		goto ctrl_open;
 	}
 
 	if (!dev->resp_available) {
@@ -554,7 +548,7 @@ static ssize_t rmnet_ctl_read(struct file *file, char __user *buf, size_t count,
 
 ctrl_read:
 	if (!is_dev_connected(dev)) {
-		dev_dbg(dev->devicep, "%s: Device not connected\n",
+		dev_err(dev->devicep, "%s: Device not connected\n",
 			__func__);
 		return -ENETRESET;
 	}
@@ -805,8 +799,6 @@ int rmnet_usb_ctrl_probe(struct usb_interface *intf,
 			 dev->intbuf, wMaxPacketSize,
 			 notification_available_cb, dev, interval);
 
-	ctl_msg_dbg_mask = MSM_USB_CTL_DUMP_BUFFER;
-
 	return rmnet_usb_ctrl_start_rx(dev);
 }
 
@@ -835,7 +827,7 @@ void rmnet_usb_ctrl_disconnect(struct rmnet_ctrl_dev *dev)
 }
 
 #if defined(CONFIG_DEBUG_FS)
-#define DEBUG_BUF_SIZE	4096
+#define DEBUG_BUF_SIZE	1024
 static ssize_t rmnet_usb_ctrl_read_stats(struct file *file, char __user *ubuf,
 		size_t count, loff_t *ppos)
 {
@@ -864,7 +856,6 @@ static ssize_t rmnet_usb_ctrl_read_stats(struct file *file, char __user *ubuf,
 				"cbits_tolocal:            %d\n"
 				"cbits_tomdm:              %d\n"
 				"mdm_wait_timeout:         %u\n"
-				"zlp_cnt:                  %u\n"
 				"dev opened:               %s\n",
 				dev, dev->name,
 				dev->snd_encap_cmd_cnt,
@@ -875,7 +866,6 @@ static ssize_t rmnet_usb_ctrl_read_stats(struct file *file, char __user *ubuf,
 				dev->cbits_tolocal,
 				dev->cbits_tomdm,
 				dev->mdm_wait_timeout,
-				dev->zlp_cnt,
 				dev->is_opened ? "OPEN" : "CLOSE");
 
 	}
@@ -903,7 +893,6 @@ static ssize_t rmnet_usb_ctrl_reset_stats(struct file *file, const char __user *
 		dev->get_encap_resp_cnt = 0;
 		dev->set_ctrl_line_state_cnt = 0;
 		dev->tx_ctrl_err_cnt = 0;
-		dev->zlp_cnt = 0;
 	}
 	return count;
 }

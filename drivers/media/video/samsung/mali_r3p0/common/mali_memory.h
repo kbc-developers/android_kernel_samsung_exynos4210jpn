@@ -14,9 +14,6 @@
 #include "mali_osk.h"
 #include "mali_session.h"
 
-struct mali_cluster;
-struct mali_group;
-
 /** @brief Initialize Mali memory subsystem
  *
  * Allocate and initialize internal data structures. Must be called before

@@ -68,8 +68,9 @@ struct busfreq_data {
 	int (*init)	(struct device *dev, struct busfreq_data *data);
 	struct opp *(*monitor)(struct busfreq_data *data);
 	void (*target)	(int index);
-	unsigned int (*get_int_volt) (unsigned long index);
+	unsigned int (*get_int_volt) (unsigned long freq);
 	unsigned int (*get_table_index) (struct opp *opp);
+	int (*check_tc_volt)(unsigned int *);
 	void (*busfreq_prepare) (unsigned int index);
 	void (*busfreq_post) (unsigned int index);
 	void (*set_qos) (unsigned int index);
@@ -99,5 +100,4 @@ void exynos4x12_post(unsigned int index);
 void exynos4x12_set_qos(unsigned int index);
 void exynos4x12_suspend(void);
 void exynos4x12_resume(void);
-int exynos4x12_find_busfreq_by_volt(unsigned int req_volt, unsigned int *freq);
 #endif /* __ASM_ARCH_BUSFREQ_H */

@@ -333,7 +333,6 @@ void exynos4_cpu_suspend(void)
 	}
 
 	outer_flush_all();
-
 #ifdef CONFIG_ARM_TRUSTZONE
 	exynos_smc(SMC_CMD_SLEEP, 0, 0, 0);
 #else
@@ -354,6 +353,7 @@ static int exynos4_pm_prepare(void)
 	/* Disable the full line of zero */
 	disable_cache_foz();
 #endif
+
 	return ret;
 }
 
@@ -540,17 +540,6 @@ static void exynos4_pm_resume(void)
 	s3c_suspend_wakeup_stat = __raw_readl(S5P_WAKEUP_STAT);
 
 	CHECK_POINT;
-
-	if ((__raw_readl(S5P_WAKEUP_STAT) == 0) && soc_is_exynos4412()) {
-		__raw_writel(0, S5P_EINT_PEND(0));
-		__raw_writel(0, S5P_EINT_PEND(1));
-		__raw_writel(0, S5P_EINT_PEND(2));
-		__raw_writel(0, S5P_EINT_PEND(3));
-		__raw_writel(0x01010001, S5P_ARM_CORE_OPTION(0));
-		__raw_writel(0x00000001, S5P_ARM_CORE_OPTION(1));
-		__raw_writel(0x00000001, S5P_ARM_CORE_OPTION(2));
-		__raw_writel(0x00000001, S5P_ARM_CORE_OPTION(3));
-	}
 
 	scu_enable(S5P_VA_SCU);
 

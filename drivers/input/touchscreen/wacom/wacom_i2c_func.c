@@ -33,7 +33,7 @@
 #define LATTICE_SIZE_Y ((MAX_COORD_Y / CAL_PITCH)+2)
 #endif
 
-#if defined(CONFIG_MACH_P4NOTE)
+#if defined(CONFIG_MACH_P4NOTE) || defined(CONFIG_MACH_P4)
 #define MAX_COORD_X WACOM_POSX_MAX
 #define MAX_COORD_Y WACOM_POSY_MAX
 #endif
@@ -45,48 +45,18 @@
 /* block wacom coordinate print */
 /* extern int sec_debug_level(void); */
 #ifdef CONFIG_SEC_TOUCHSCREEN_DVFS_LOCK
+void free_dvfs_lock(struct work_struct *work)
+{
+	struct wacom_i2c *wac_i2c =
+	    container_of(work, struct wacom_i2c, dvfs_work.work);
+
+#ifdef SEC_BUS_LOCK
 #if defined(CONFIG_MACH_P4NOTE)
-void free_dvfs_lock(struct work_struct *work)
-{
-	struct wacom_i2c *wac_i2c =
-	    container_of(work, struct wacom_i2c, dvfs_work.work);
-
-	if (wac_i2c->dvfs_lock_status)
-		dev_lock(wac_i2c->bus_dev,
-			wac_i2c->dev, SEC_BUS_LOCK_FREQ);
-	else {
-		dev_unlock(wac_i2c->bus_dev, wac_i2c->dev);
-		exynos_cpufreq_lock_free(DVFS_LOCK_ID_PEN);
-	}
-}
-
-static void set_dvfs_lock(struct wacom_i2c *wac_i2c, bool on)
-{
-	if (on) {
-		if (!wac_i2c->dvfs_lock_status) {
-			cancel_delayed_work(&wac_i2c->dvfs_work);
-			dev_lock(wac_i2c->bus_dev,
-				wac_i2c->dev, SEC_BUS_LOCK_FREQ2);
-			exynos_cpufreq_lock(DVFS_LOCK_ID_PEN,
-					    wac_i2c->cpufreq_level);
-			wac_i2c->dvfs_lock_status = true;
-			schedule_delayed_work(&wac_i2c->dvfs_work,
-				msecs_to_jiffies(SEC_DVFS_LOCK_TIMEOUT_MS));
-		}
-	} else {
-		if (wac_i2c->dvfs_lock_status) {
-			schedule_delayed_work(&wac_i2c->dvfs_work,
-				msecs_to_jiffies(SEC_DVFS_LOCK_TIMEOUT_MS));
-			wac_i2c->dvfs_lock_status = false;
-		}
-	}
-}
-#else	/* CONFIG_MACH_P4NOTE */
-void free_dvfs_lock(struct work_struct *work)
-{
-	struct wacom_i2c *wac_i2c =
-	    container_of(work, struct wacom_i2c, dvfs_work.work);
-
+	dev_unlock(wac_i2c->bus_dev, wac_i2c->dev);
+#else
+	exynos4_busfreq_lock_free(DVFS_LOCK_ID_PEN);
+#endif
+#endif	/* SEC_BUS_LOCK */
 	exynos_cpufreq_lock_free(DVFS_LOCK_ID_PEN);
 	wac_i2c->dvfs_lock_status = false;
 }
@@ -96,6 +66,14 @@ static void set_dvfs_lock(struct wacom_i2c *wac_i2c, bool on)
 	if (on) {
 		cancel_delayed_work(&wac_i2c->dvfs_work);
 		if (!wac_i2c->dvfs_lock_status) {
+#ifdef SEC_BUS_LOCK
+#if defined(CONFIG_MACH_P4NOTE)
+			dev_lock(wac_i2c->bus_dev,
+				wac_i2c->dev, BUS_LOCK_FREQ);
+#else
+			exynos4_busfreq_lock(DVFS_LOCK_ID_PEN, BUS_L1);
+#endif
+#endif	/* SEC_BUS_LOCK */
 			exynos_cpufreq_lock(DVFS_LOCK_ID_PEN,
 					    wac_i2c->cpufreq_level);
 			wac_i2c->dvfs_lock_status = true;
@@ -107,7 +85,6 @@ static void set_dvfs_lock(struct wacom_i2c *wac_i2c, bool on)
 	}
 }
 #endif
-#endif	/* CONFIG_SEC_TOUCHSCREEN_DVFS_LOCK */
 
 void forced_release(struct wacom_i2c *wac_i2c)
 {
@@ -235,55 +212,6 @@ int wacom_i2c_master_recv(struct i2c_client *client, char *buf,
 	return (ret == 1) ? count : ret;
 }
 
-int wacom_checksum(struct wacom_i2c *wac_i2c)
-{
-	int ret = 0, retry = 10;
-	int i = 0;
-	u8 buf[5] = {0, };
-
-	buf[0] = COM_CHECKSUM;
-
-	while (retry--) {
-		ret = i2c_master_send(wac_i2c->client, &buf[0], 1);
-		if (ret < 0) {
-			printk(KERN_DEBUG
-			       "[E-PEN] i2c fail, retry, %d\n",
-			       __LINE__);
-			continue;
-		}
-
-		msleep(200);
-		ret = i2c_master_recv(wac_i2c->client, buf, 5);
-		if (ret < 0) {
-			printk(KERN_DEBUG
-			       "[E-PEN] i2c fail, retry, %d\n",
-			       __LINE__);
-			continue;
-		} else if (buf[0] == 0x1f)
-			break;
-		printk(KERN_DEBUG "[E-PEN] checksum retry\n");
-	}
-
-	if (ret >= 0) {
-		printk(KERN_DEBUG
-		       "[E-PEN] received checksum %x, %x, %x, %x, %x\n",
-		       buf[0], buf[1], buf[2], buf[3], buf[4]);
-	}
-
-	for (i = 0; i < 5; ++i) {
-		if (buf[i] != Firmware_checksum[i]) {
-			printk(KERN_DEBUG
-			       "[E-PEN] checksum fail %dth %x %x\n", i,
-			       buf[i], Firmware_checksum[i]);
-			break;
-		}
-	}
-
-	wac_i2c->checksum_result = (5 == i);
-
-	return ret;
-}
-
 int wacom_i2c_query(struct wacom_i2c *wac_i2c)
 {
 	struct wacom_features *wac_feature = wac_i2c->wac_feature;
@@ -306,28 +234,33 @@ int wacom_i2c_query(struct wacom_i2c *wac_i2c)
 	msg[1].len = COM_QUERY_NUM;
 	msg[1].buf = (u8 *) data;
 
-	for (i = 0; i < query_limit; i++) {
+	do {
 		ret = i2c_transfer(wac_i2c->client->adapter, msg, 2);
 		printk(KERN_INFO "[E-PEN]: %s: %dth ret of wacom query=%d\n",
 		       __func__, i, ret);
-		if (2 == ret) {
-			wac_feature->fw_version =
-				((u16) data[7] << 8) + (u16) data[8];
-			if (wac_feature->fw_version != 0xFF
-			    && wac_feature->fw_version != 0xFFFF
-			    && wac_feature->fw_version != 0x0) {
-				break;
-			} else {
-				printk(KERN_NOTICE
-				       "[E-PEN]: %X, %X, %X, %X, %X, %X, %X, fw=0x%x\n",
-				       data[0], data[1], data[2], data[3],
-				       data[4], data[5], data[6],
-				       wac_feature->fw_version);
-			}
-		}
-	}
 
-#if defined(CONFIG_MACH_Q1_BD) || defined(CONFIG_MACH_P4NOTE)
+		i++;
+		if (ret < 0)
+			continue;
+
+		wac_feature->fw_version = ((u16) data[7] << 8) + (u16) data[8];
+		if (wac_feature->fw_version != 0xFF
+		    && wac_feature->fw_version != 0xFFFF
+		    && wac_feature->fw_version != 0x0) {
+			break;
+		} else {
+			printk(KERN_NOTICE
+			       "[E-PEN]: %X, %X, %X, %X, %X, %X, %X, %X, %X fw=0x%x\n",
+			       data[0], data[1], data[2], data[3], data[4],
+			       data[5], data[6], data[7], data[8],
+			       wac_feature->fw_version);
+		}
+
+		i++;
+	} while (i < query_limit);
+
+#if defined(CONFIG_MACH_Q1_BD) || defined(CONFIG_MACH_P4NOTE) || \
+	defined(CONFIG_MACH_P4)
 	wac_feature->x_max = (u16) MAX_COORD_X;
 	wac_feature->y_max = (u16) MAX_COORD_Y;
 #else
@@ -362,10 +295,6 @@ int wacom_i2c_query(struct wacom_i2c *wac_i2c)
 
 	if ((i == 10) && (ret < 0))
 		return ret;
-
-#if defined(CONFIG_MACH_P4NOTE)
-	wacom_checksum(wac_i2c);
-#endif
 
 	return 0;
 }
@@ -481,10 +410,6 @@ void wacom_i2c_coord_average(unsigned short *CoordX, unsigned short *CoordY,
 
 static bool wacom_i2c_coord_range(u16 *x, u16 *y)
 {
-#if defined(CONFIG_MACH_P4NOTE)
-	if ((*x <= WACOM_POSX_OFFSET) || (*y <= WACOM_POSY_OFFSET))
-		return false;
-#endif
 	if ((*x <= WACOM_POSX_MAX) && (*y <= WACOM_POSY_MAX))
 		return true;
 
@@ -540,14 +465,6 @@ int wacom_i2c_coord(struct wacom_i2c *wac_i2c)
 		x = ((u16) data[1] << 8) + (u16) data[2];
 		y = ((u16) data[3] << 8) + (u16) data[4];
 		pressure = ((u16) data[5] << 8) + (u16) data[6];
-
-#if defined(CONFIG_MACH_P4NOTE)
-		if (!wac_i2c->pen_type) {
-			pressure = (12 * pressure) / 10;
-			if (pressure > wac_i2c->wac_feature->pressure_max)
-				pressure = wac_i2c->wac_feature->pressure_max;
-		}
-#endif
 
 #ifdef WACOM_IMPORT_FW_ALGO
 		/* Change Position to Active Area */

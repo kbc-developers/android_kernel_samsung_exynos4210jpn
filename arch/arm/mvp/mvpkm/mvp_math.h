@@ -80,7 +80,7 @@
             (n) & (1UL <<  1) ?  1 :    \
             (n) & (1UL <<  0) ?  0 :    \
 	    0xffffffff			\
-	  ) : (uint32)(CLZ(1) - CLZ(n)) \
+	  ) : (CLZ(1) - CLZ(n))		\
 )
 
 /**

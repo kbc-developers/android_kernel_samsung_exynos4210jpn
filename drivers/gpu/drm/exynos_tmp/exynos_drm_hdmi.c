@@ -37,8 +37,6 @@ struct drm_hdmi_context {
 	struct exynos_drm_subdrv	subdrv;
 	struct exynos_drm_hdmi_context	*hdmi_ctx;
 	struct exynos_drm_hdmi_context	*mixer_ctx;
-
-	bool	enabled[MIXER_WIN_NR];
 };
 
 void exynos_hdmi_ops_register(struct exynos_hdmi_ops *ops)
@@ -119,7 +117,7 @@ static int drm_hdmi_enable_vblank(struct device *subdrv_dev)
 {
 	struct drm_hdmi_context *ctx = to_context(subdrv_dev);
 	struct exynos_drm_subdrv *subdrv = &ctx->subdrv;
-	struct exynos_drm_manager *manager = subdrv->manager;
+	struct exynos_drm_manager *manager = &subdrv->manager;
 
 	DRM_DEBUG_KMS("%s\n", __FILE__);
 
@@ -198,27 +196,8 @@ static void drm_hdmi_dpms(struct device *subdrv_dev, int mode)
 		hdmi_ops->dpms(ctx->hdmi_ctx->ctx, mode);
 }
 
-static void drm_hdmi_apply(struct device *subdrv_dev)
-{
-	struct drm_hdmi_context *ctx = to_context(subdrv_dev);
-	int i;
-
-	DRM_DEBUG_KMS("%s\n", __FILE__);
-
-	for (i = 0; i < MIXER_WIN_NR; i++) {
-		if (!ctx->enabled[i])
-			continue;
-		if (mixer_ops && mixer_ops->win_commit)
-			mixer_ops->win_commit(ctx->mixer_ctx->ctx, i);
-	}
-
-	if (hdmi_ops && hdmi_ops->commit)
-		hdmi_ops->commit(ctx->hdmi_ctx->ctx);
-}
-
 static struct exynos_drm_manager_ops drm_hdmi_manager_ops = {
 	.dpms = drm_hdmi_dpms,
-	.apply = drm_hdmi_apply,
 	.enable_vblank = drm_hdmi_enable_vblank,
 	.disable_vblank = drm_hdmi_disable_vblank,
 	.mode_fixup = drm_hdmi_mode_fixup,
@@ -241,50 +220,27 @@ static void drm_mixer_mode_set(struct device *subdrv_dev,
 static void drm_mixer_commit(struct device *subdrv_dev, int zpos)
 {
 	struct drm_hdmi_context *ctx = to_context(subdrv_dev);
-	int win = (zpos == DEFAULT_ZPOS) ? MIXER_DEFAULT_WIN : zpos;
 
 	DRM_DEBUG_KMS("%s\n", __FILE__);
 
-	if (win < 0 || win > MIXER_WIN_NR) {
-		DRM_ERROR("mixer window[%d] is wrong\n", win);
-		return;
-	}
-
 	if (mixer_ops && mixer_ops->win_commit)
-		mixer_ops->win_commit(ctx->mixer_ctx->ctx, win);
-
-	ctx->enabled[win] = true;
+		mixer_ops->win_commit(ctx->mixer_ctx->ctx, zpos);
 }
 
 static void drm_mixer_disable(struct device *subdrv_dev, int zpos)
 {
 	struct drm_hdmi_context *ctx = to_context(subdrv_dev);
-	int win = (zpos == DEFAULT_ZPOS) ? MIXER_DEFAULT_WIN : zpos;
 
 	DRM_DEBUG_KMS("%s\n", __FILE__);
 
-	if (win < 0 || win > MIXER_WIN_NR) {
-		DRM_ERROR("mixer window[%d] is wrong\n", win);
-		return;
-	}
-
 	if (mixer_ops && mixer_ops->win_disable)
-		mixer_ops->win_disable(ctx->mixer_ctx->ctx, win);
-
-	ctx->enabled[win] = false;
+		mixer_ops->win_disable(ctx->mixer_ctx->ctx, zpos);
 }
 
 static struct exynos_drm_overlay_ops drm_hdmi_overlay_ops = {
 	.mode_set = drm_mixer_mode_set,
 	.commit = drm_mixer_commit,
 	.disable = drm_mixer_disable,
-};
-
-static struct exynos_drm_manager hdmi_manager = {
-	.pipe		= -1,
-	.ops		= &drm_hdmi_manager_ops,
-	.overlay_ops	= &drm_hdmi_overlay_ops,
-	.display_ops	= &drm_hdmi_display_ops,
 };
 
 static int hdmi_subdrv_probe(struct drm_device *drm_dev,
@@ -353,9 +309,12 @@ static int __devinit exynos_drm_hdmi_probe(struct platform_device *pdev)
 
 	subdrv = &ctx->subdrv;
 
-	subdrv->dev = dev;
-	subdrv->manager = &hdmi_manager;
 	subdrv->probe = hdmi_subdrv_probe;
+	subdrv->manager.pipe = -1;
+	subdrv->manager.ops = &drm_hdmi_manager_ops;
+	subdrv->manager.overlay_ops = &drm_hdmi_overlay_ops;
+	subdrv->manager.display_ops = &drm_hdmi_display_ops;
+	subdrv->manager.dev = dev;
 
 	platform_set_drvdata(pdev, subdrv);
 

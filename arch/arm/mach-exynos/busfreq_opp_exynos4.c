@@ -43,6 +43,8 @@
 #include <mach/busfreq_exynos4.h>
 #include <mach/smc.h>
 
+#include <mach/asv.h>
+
 #include <plat/map-s5p.h>
 #include <plat/cpu.h>
 #include <plat/clock.h>
@@ -125,10 +127,18 @@ static unsigned int _target(struct busfreq_data *data, struct opp *new)
 		return data->get_table_index(data->curr_opp);
 
 	voltage = opp_get_voltage(new);
+
+	if (data->check_tc_volt)
+		data->check_tc_volt(&voltage);
+
 	if (newfreq > currfreq) {
 		regulator_set_voltage(data->vdd_mif, voltage,
 				voltage + 25000);
 		voltage = data->get_int_volt(index);
+
+		if (data->check_tc_volt)
+			data->check_tc_volt(&voltage);
+
 		regulator_set_voltage(data->vdd_int, voltage,
 				voltage + 25000);
 		/*if (data->busfreq_prepare)
@@ -145,6 +155,10 @@ static unsigned int _target(struct busfreq_data *data, struct opp *new)
 		regulator_set_voltage(data->vdd_mif, voltage,
 				voltage + 25000);
 		voltage = data->get_int_volt(index);
+
+		if (data->check_tc_volt)
+			data->check_tc_volt(&voltage);
+
 		regulator_set_voltage(data->vdd_int, voltage,
 				voltage + 25000);
 	}
@@ -187,8 +201,8 @@ static int exynos_buspm_notifier_event(struct notifier_block *this,
 	case PM_SUSPEND_PREPARE:
 		mutex_lock(&busfreq_lock);
 		_target(data, data->max_opp);
-		data->use = false;
 		mutex_unlock(&busfreq_lock);
+		data->use = false;
 		return NOTIFY_OK;
 	case PM_POST_RESTORE:
 	case PM_POST_SUSPEND:
@@ -206,16 +220,12 @@ static int exynos_busfreq_reboot_event(struct notifier_block *this,
 			exynos_reboot_notifier);
 
 	unsigned long voltage = opp_get_voltage(data->max_opp);
-	unsigned int index = data->get_table_index(data->max_opp);
-
-	mutex_lock(&busfreq_lock);
+	unsigned long freq = opp_get_freq(data->max_opp);
 
 	regulator_set_voltage(data->vdd_mif, voltage, voltage + 25000);
-	voltage = data->get_int_volt(index);
+	voltage = data->get_int_volt(freq);
 	regulator_set_voltage(data->vdd_int, voltage, voltage + 25000);
 	data->use = false;
-
-	mutex_unlock(&busfreq_lock);
 
 	printk(KERN_INFO "REBOOT Notifier for BUSFREQ\n");
 	return NOTIFY_DONE;
@@ -542,6 +552,7 @@ static __devinit int exynos_busfreq_probe(struct platform_device *pdev)
 		data->target = exynos4x12_target;
 		data->get_int_volt = exynos4x12_get_int_volt;
 		data->get_table_index = exynos4x12_get_table_index;
+		data->check_tc_volt = exynos4x12_compensate_temp;
 		data->monitor = exynos4x12_monitor;
 		data->busfreq_prepare = exynos4x12_prepare;
 		data->busfreq_post = exynos4x12_post;
@@ -596,7 +607,7 @@ static __devinit int exynos_busfreq_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, data);
 
-	queue_delayed_work(system_freezable_wq, &data->worker, 10 * data->sampling_rate);
+	queue_delayed_work(system_freezable_wq, &data->worker, data->sampling_rate);
 	return 0;
 
 err_pm_notifier:

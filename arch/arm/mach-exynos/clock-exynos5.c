@@ -116,12 +116,6 @@ static struct sleep_save exynos5_vpll_save[] = {
 #endif
 };
 
-static struct sleep_save exynos5_gpll_save[] = {
-	SAVE_ITEM(EXYNOS5_GPLL_LOCK),
-	SAVE_ITEM(EXYNOS5_GPLL_CON0),
-	SAVE_ITEM(EXYNOS5_GPLL_CON1),
-};
-
 static struct sleep_save exynos5250_clock_save_rev0[] = {
 	SAVE_ITEM(EXYNOS5_CLKGATE_IP_GPS),
 };
@@ -1173,10 +1167,6 @@ static struct clk exynos5_init_clocks_off[] = {
 		.enable		= exynos5_clk_ip_g3d_ctrl,
 		.ctrlbit	= ((1 << 1) | (1 << 0)),
 	}, {
-		.name		= "g3d",
-		.enable		= exynos5_clk_ip_g3d_ctrl,
-		.ctrlbit	= ((1 << 1) | (1 << 0)),
-	}, {
 		.name		= "isp0",
 		.devname	= "exynos5-fimc-is",
 		.enable		= exynos5_clk_ip_isp0_ctrl,
@@ -1431,7 +1421,7 @@ static struct clk exynos5_init_clocks_off[] = {
 	}, {
 		.name		= "acp",
 		.enable		= exynos5_clk_ip_acp_ctrl,
-		.ctrlbit	= (1 << 11),
+		.ctrlbit	= ((1 << 11) | (1 << 10) | (1 << 9) | (1 << 8)),
 	}, {
 		.name		= "rtic",
 		.enable		= exynos5_clk_ip_fsys_ctrl,
@@ -1587,7 +1577,7 @@ struct clk exynos5_init_dmaclocks[] = {
 		.name		= "pdma",
 		.devname	= "s3c-pl330.0",
 		.enable		= exynos5_clk_ip_gen_ctrl,
-		.ctrlbit	= ((1 << 4) | (1 << 14)),
+		.ctrlbit	= ((1 << 14) | (1 << 4)),
 	}, {
 		.name		= "pdma",
 		.devname	= "s3c-pl330.1",
@@ -1601,7 +1591,7 @@ struct clk exynos5_init_dmaclocks[] = {
 	}, {
 		.name		= "pdma",
 		.enable		= exynos5_clk_ip_acp_ctrl,
-		.ctrlbit	= ((1 << 1) | (1 << 8)),
+		.ctrlbit	= (1 << 1),
 	},
 };
 
@@ -2555,7 +2545,6 @@ static u32 exynos5_gpll_div[][6] = {
 	{667000000, 7, 389, 1, 0, 0},  /* for 333MHz, 222MHz, 166MHz */
 	{600000000, 4, 200, 1, 0, 0},  /* for 300MHz, 200MHz, 150MHz */
 	{533000000, 12, 533, 1, 0, 0}, /* for 533MHz, 266MHz, 133MHz */
-	{450000000, 12, 450, 1, 0, 0}, /* for 450 Hz */
 	{400000000, 3, 100, 1, 0, 0},
 	{333000000, 4, 222, 2, 0, 0},
 	{200000000, 3, 100, 2, 0, 0},
@@ -2633,8 +2622,6 @@ static int exynos5_clock_suspend(void)
 	s3c_pm_do_save(exynos5_epll_save, ARRAY_SIZE(exynos5_epll_save));
 	s3c_pm_do_save(exynos5_vpll_save, ARRAY_SIZE(exynos5_vpll_save));
 
-	if (samsung_rev() >= EXYNOS5250_REV_1_0)
-		s3c_pm_do_save(exynos5_gpll_save, ARRAY_SIZE(exynos5_gpll_save));
 	return 0;
 }
 
@@ -2645,9 +2632,6 @@ static void exynos5_clock_resume(void)
 	s3c_pm_do_restore_core(exynos5_epll_save, ARRAY_SIZE(exynos5_epll_save));
 	s3c_pm_do_restore_core(exynos5_vpll_save, ARRAY_SIZE(exynos5_vpll_save));
 
-	if (samsung_rev() >= EXYNOS5250_REV_1_0)
-		s3c_pm_do_restore_core(exynos5_gpll_save, ARRAY_SIZE(exynos5_gpll_save));
-
 	/* waiting epll & vpll locking time */
 	do {
 		tmp = __raw_readl(EXYNOS5_EPLL_CON0);
@@ -2656,12 +2640,6 @@ static void exynos5_clock_resume(void)
 	do {
 		tmp = __raw_readl(EXYNOS5_VPLL_CON0);
 	} while (!(tmp & 0x1 << EXYNOS5_VPLLCON0_LOCKED_SHIFT));
-
-	if (samsung_rev() >= EXYNOS5250_REV_1_0) {
-		do {
-			tmp = __raw_readl(EXYNOS5_GPLL_CON0);
-		} while (!(tmp & (0x1 << EXYNOS5_GPLLCON0_LOCKED_SHIFT)));
-	}
 
 	if (samsung_rev() < EXYNOS5250_REV_1_0)
 		s3c_pm_do_restore_core(exynos5250_clock_save_rev0,
@@ -2880,16 +2858,6 @@ void __init exynos5_register_clocks(void)
 	s3c_register_clocks(exynos5_i2cs_clocks, ARRAY_SIZE(exynos5_i2cs_clocks));
 	s3c_disable_clocks(exynos5_i2cs_clocks, ARRAY_SIZE(exynos5_i2cs_clocks));
 
-	if (samsung_rev() >= EXYNOS5250_REV_1_0) {
-		s3c_register_clocks(exynos5_uis_clocks, ARRAY_SIZE(exynos5_uis_clocks));
-		s3c_disable_clocks(exynos5_uis_clocks, ARRAY_SIZE(exynos5_uis_clocks));
-	}
-
-	if (samsung_rev() < EXYNOS5250_REV_1_0) {
-		s3c_register_clksrc(&exynos5_clk_sclk_c2c_rev0, 1);
-		s3c_register_clksrc(&exynos5_clk_aclk_c2c_rev0, 1);
-	}
-
 #ifndef CONFIG_SAMSUNG_C2C
 	if (soc_is_exynos5250() && (samsung_rev() >= EXYNOS5250_REV_1_0)) {
 		exynos5_c2c_clock.enable = exynos5_clk_ip_sysrgt_ctrl;
@@ -2899,6 +2867,16 @@ void __init exynos5_register_clocks(void)
 	s3c24xx_register_clock(&exynos5_c2c_clock);
 	s3c_disable_clocks(&exynos5_c2c_clock, 1);
 #endif
+
+	if (samsung_rev() >= EXYNOS5250_REV_1_0) {
+		s3c_register_clocks(exynos5_uis_clocks, ARRAY_SIZE(exynos5_uis_clocks));
+		s3c_disable_clocks(exynos5_uis_clocks, ARRAY_SIZE(exynos5_uis_clocks));
+	}
+
+	if (samsung_rev() < EXYNOS5250_REV_1_0) {
+		s3c_register_clksrc(&exynos5_clk_sclk_c2c_rev0, 1);
+		s3c_register_clksrc(&exynos5_clk_aclk_c2c_rev0, 1);
+	}
 
 	register_syscore_ops(&exynos5_clock_syscore_ops);
 	s3c_pwmclk_init();

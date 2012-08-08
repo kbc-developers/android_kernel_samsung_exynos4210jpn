@@ -30,10 +30,6 @@
 
 #include <plat/gpio-cfg.h>
 
-#if defined(CONFIG_MACH_M0_CTC)
-#include <linux/mfd/max77693.h>
-#endif
-
 #if defined(CONFIG_MACH_U1_KOR_LGT)
 #include <linux/mfd/max8997.h>
 
@@ -258,7 +254,7 @@ int mdm6600_init_modemctl_device(struct modem_ctl *mc, struct modem_data *pdata)
 }
 #endif				/* CONFIG_MACH_U1_KOR_LGT */
 
-#if defined(CONFIG_MACH_M0_CTC)
+#if defined(CONFIG_MACH_C1CTC) || defined(CONFIG_MACH_M0_CTC)
 #include "modem_link_device_dpram.h"
 
 #define PIF_TIMEOUT		(180 * HZ)
@@ -352,16 +348,6 @@ static int mdm6600_boot_on(struct modem_ctl *mc)
 
 		pr_info("[MSM] <%s> USB_BOOT_EN:[%d]\n", __func__,
 			gpio_get_value(GPIO_USB_BOOT_EN));
-
-		gpio_direction_output(GPIO_BOOT_SW_SEL, 0);
-		s3c_gpio_setpull(GPIO_BOOT_SW_SEL, S3C_GPIO_PULL_NONE);
-		gpio_set_value(GPIO_BOOT_SW_SEL, 0);
-
-		gpio_direction_output(GPIO_BOOT_SW_SEL, 1);
-		gpio_set_value(GPIO_BOOT_SW_SEL, 1);
-
-		pr_info("[MSM] <%s> BOOT_SW_SEL : [%d]\n", __func__,
-			gpio_get_value(GPIO_BOOT_SW_SEL));
 	} else if (system_rev == 11) {
 		gpio_direction_output(GPIO_USB_BOOT_EN, 0);
 		s3c_gpio_setpull(GPIO_USB_BOOT_EN, S3C_GPIO_PULL_NONE);
@@ -380,28 +366,8 @@ static int mdm6600_boot_on(struct modem_ctl *mc)
 		gpio_direction_output(GPIO_USB_BOOT_EN_REV06, 1);
 		gpio_set_value(GPIO_USB_BOOT_EN_REV06, 1);
 
-		pr_info("[MSM(%d)] <%s> USB_BOOT_EN:[%d]\n", system_rev,
-			__func__, gpio_get_value(GPIO_USB_BOOT_EN_REV06));
-
-		gpio_direction_output(GPIO_BOOT_SW_SEL, 0);
-		s3c_gpio_setpull(GPIO_BOOT_SW_SEL, S3C_GPIO_PULL_NONE);
-		gpio_set_value(GPIO_BOOT_SW_SEL, 0);
-
-		gpio_direction_output(GPIO_BOOT_SW_SEL, 1);
-		gpio_set_value(GPIO_BOOT_SW_SEL, 1);
-
-		pr_info("[MSM] <%s> BOOT_SW_SEL : [%d]\n", __func__,
-			gpio_get_value(GPIO_BOOT_SW_SEL));
-
-		gpio_direction_output(GPIO_BOOT_SW_SEL_REV06, 0);
-		s3c_gpio_setpull(GPIO_BOOT_SW_SEL_REV06, S3C_GPIO_PULL_NONE);
-		gpio_set_value(GPIO_BOOT_SW_SEL_REV06, 0);
-
-		gpio_direction_output(GPIO_BOOT_SW_SEL_REV06, 1);
-		gpio_set_value(GPIO_BOOT_SW_SEL_REV06, 1);
-
-		pr_info("[MSM(%d)] <%s> BOOT_SW_SEL : [%d]\n", system_rev,
-			__func__, gpio_get_value(GPIO_BOOT_SW_SEL_REV06));
+		pr_info("[MSM] <%s> USB_BOOT_EN:[%d]\n", __func__,
+			gpio_get_value(GPIO_USB_BOOT_EN_REV06));
 
 	} else {	/* system_rev>11 */
 		gpio_direction_output(GPIO_USB_BOOT_EN_REV06, 0);
@@ -414,17 +380,17 @@ static int mdm6600_boot_on(struct modem_ctl *mc)
 		pr_info("[MSM] <%s> USB_BOOT_EN:[%d]\n", __func__,
 			gpio_get_value(GPIO_USB_BOOT_EN_REV06));
 
-		gpio_direction_output(GPIO_BOOT_SW_SEL_REV06, 0);
-		s3c_gpio_setpull(GPIO_BOOT_SW_SEL_REV06, S3C_GPIO_PULL_NONE);
-		gpio_set_value(GPIO_BOOT_SW_SEL_REV06, 0);
+	}
 
-		gpio_direction_output(GPIO_BOOT_SW_SEL_REV06, 1);
-		gpio_set_value(GPIO_BOOT_SW_SEL_REV06, 1);
+	gpio_direction_output(mc->gpio_flm_uart_sel, 0);
+	s3c_gpio_setpull(mc->gpio_flm_uart_sel, S3C_GPIO_PULL_NONE);
+	gpio_set_value(mc->gpio_flm_uart_sel, 0);
+
+	gpio_direction_output(mc->gpio_flm_uart_sel, 1);
+	gpio_set_value(mc->gpio_flm_uart_sel, 1);
 
 	pr_info("[MSM] <%s> BOOT_SW_SEL : [%d]\n", __func__,
-			gpio_get_value(GPIO_BOOT_SW_SEL_REV06));
-
-	}
+		gpio_get_value(mc->gpio_flm_uart_sel));
 
 	mc->iod->modem_state_changed(mc->iod, STATE_BOOTING);
 
@@ -475,37 +441,7 @@ static int mdm6600_boot_off(struct modem_ctl *mc)
 
 	}
 
-	if (max7693_muic_cp_usb_state()) {
-		msleep(30);
-		gpio_direction_output(GPIO_USB_BOOT_EN, 1);
-		s3c_gpio_setpull(GPIO_USB_BOOT_EN, S3C_GPIO_PULL_NONE);
-		gpio_set_value(GPIO_USB_BOOT_EN, 1);
-		gpio_direction_output(GPIO_USB_BOOT_EN_REV06, 1);
-		s3c_gpio_setpull(GPIO_USB_BOOT_EN_REV06, S3C_GPIO_PULL_NONE);
-		gpio_set_value(GPIO_USB_BOOT_EN_REV06, 1);
-	}
-
-	gpio_set_value(GPIO_BOOT_SW_SEL, 0);
-
-	return 0;
-}
-
-
-static int mdm6600_force_crash_exit(struct modem_ctl *mc)
-{
-	pr_info("[MSM] <%s>\n", __func__);
-
-	if (!mc->gpio_cp_reset || !mc->gpio_cp_on) {
-		pr_err("[MSM] no gpio data\n");
-		return -ENXIO;
-	}
-
-	s3c_gpio_cfgpin(mc->gpio_cp_dump_int, S3C_GPIO_OUTPUT);
-	gpio_direction_output(mc->gpio_cp_dump_int, 1);
-
-	gpio_set_value(mc->gpio_cp_reset, 0);
-	gpio_set_value(mc->gpio_cp_on, 0);
-	gpio_set_value(mc->gpio_cp_reset, 1);
+	gpio_set_value(mc->gpio_flm_uart_sel, 0);
 
 	return 0;
 }
@@ -516,20 +452,16 @@ static irqreturn_t phone_active_irq_handler(int irq, void *arg)
 	int phone_reset = 0;
 	int phone_active = 0;
 	int phone_state = 0;
-	int cp_dump_int = 0;
 
-	if (!mc->gpio_cp_reset ||
-		!mc->gpio_phone_active || !mc->gpio_cp_dump_int) {
+	if (!mc->gpio_cp_reset || !mc->gpio_phone_active) {
 		pr_err("[MSM] no gpio data\n");
 		return IRQ_HANDLED;
 	}
 
 	phone_reset = gpio_get_value(mc->gpio_cp_reset);
 	phone_active = gpio_get_value(mc->gpio_phone_active);
-	cp_dump_int = gpio_get_value(mc->gpio_cp_dump_int);
-
-	pr_info("[MSM] <%s> phone_reset=%d, phone_active=%d, cp_dump_int=%d\n",
-		__func__, phone_reset, phone_active, cp_dump_int);
+	pr_info("[MSM] <%s> phone_reset = %d, phone_active = %d\n",
+		__func__, phone_reset, phone_active);
 
 	if (phone_reset && phone_active) {
 		phone_state = STATE_ONLINE;
@@ -537,10 +469,7 @@ static irqreturn_t phone_active_irq_handler(int irq, void *arg)
 			mc->iod->modem_state_changed(mc->iod, phone_state);
 	} else if (phone_reset && !phone_active) {
 		if (mc->phone_state == STATE_ONLINE) {
-			if (cp_dump_int)
-				phone_state = STATE_CRASH_EXIT;
-			else
-				phone_state = STATE_CRASH_RESET;
+			phone_state = STATE_CRASH_EXIT;
 			if (mc->iod && mc->iod->modem_state_changed)
 				mc->iod->modem_state_changed(mc->iod,
 							     phone_state);
@@ -568,7 +497,6 @@ static void mdm6600_get_ops(struct modem_ctl *mc)
 	mc->ops.modem_reset = mdm6600_reset;
 	mc->ops.modem_boot_on = mdm6600_boot_on;
 	mc->ops.modem_boot_off = mdm6600_boot_off;
-	mc->ops.modem_force_crash_exit = mdm6600_force_crash_exit;
 }
 
 int mdm6600_init_modemctl_device(struct modem_ctl *mc, struct modem_data *pdata)

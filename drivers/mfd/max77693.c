@@ -356,7 +356,6 @@ const struct dev_pm_ops max77693_pm = {
 	.resume = max77693_resume,
 #ifdef CONFIG_HIBERNATION
 	.freeze =  max77693_freeze,
-	.thaw = max77693_restore,
 	.restore = max77693_restore,
 #endif
 };

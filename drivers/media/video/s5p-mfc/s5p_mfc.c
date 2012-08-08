@@ -817,13 +817,6 @@ static int s5p_mfc_open(struct file *file)
 		goto err_node_type;
 	}
 
-#ifdef CONFIG_EXYNOS_CONTENT_PATH_PROTECTION
-	if (dev->num_drm_inst > 0) {
-		 mfc_err("DRM instance was activated, cannot open no more instance\n");
-		 ret = -EINVAL;
-		 goto err_drm_playback;
-	}
-#endif
 	dev->num_inst++;	/* It is guarded by mfc_mutex in vfd */
 
 	/* Allocate memory for context */
@@ -875,24 +868,6 @@ static int s5p_mfc_open(struct file *file)
 		goto err_ctx_ctrls;
 	}
 
-#ifdef CONFIG_EXYNOS_CONTENT_PATH_PROTECTION
-	if (check_magic(dev->drm_info.virt)) {
-		if (dev->num_inst == 1) {
-			mfc_debug(1, "DRM instance opened\n");
-
-			dev->num_drm_inst++;
-			ctx->is_drm = 1;
-
-			s5p_mfc_alloc_instance_buffer(ctx);
-		} else {
-			clear_magic(dev->drm_info.virt);
-			mfc_err("MFC instances are not cleared before DRM instance!\n");
-			ret = -EINVAL;
-			goto err_drm_start;
-		}
-	}
-#endif
-
 	/* Load firmware if this is the first instance */
 	if (dev->num_inst == 1) {
 		dev->watchdog_timer.expires = jiffies +
@@ -930,22 +905,11 @@ err_hw_init:
 	s5p_mfc_power_off();
 
 err_pwr_enable:
-#ifdef CONFIG_EXYNOS_CONTENT_PATH_PROTECTION
-	s5p_mfc_release_dev_context_buffer(dev);
-#endif
 err_fw_load:
 	s5p_mfc_release_firmware(dev);
 
 err_fw_alloc:
 	del_timer_sync(&dev->watchdog_timer);
-	if (ctx->is_drm) {
-		s5p_mfc_release_instance_buffer(ctx);
-		dev->num_drm_inst--;
-	}
-
-#ifdef CONFIG_EXYNOS_CONTENT_PATH_PROTECTION
-err_drm_start:
-#endif
 	call_cop(ctx, cleanup_ctx_ctrls, ctx);
 
 err_ctx_ctrls:
@@ -967,9 +931,6 @@ err_v4l2_fh:
 err_ctx_alloc:
 	dev->num_inst--;
 
-#ifdef CONFIG_EXYNOS_CONTENT_PATH_PROTECTION
-err_drm_playback:
-#endif
 err_node_type:
 	mfc_debug_leave();
 

@@ -2156,7 +2156,7 @@ static void __init midas_machine_init(void)
 				ARRAY_SIZE(i2c_devs_fuel));
 
 #ifdef CONFIG_EXYNOS4_DEV_DWMCI
-	exynos_dwmci_set_platdata(&exynos_dwmci_pdata, 0);
+	exynos_dwmci_set_platdata(&exynos_dwmci_pdata);
 #else
 	s3c_mshci_set_platdata(&exynos4_mshc_pdata);
 #endif

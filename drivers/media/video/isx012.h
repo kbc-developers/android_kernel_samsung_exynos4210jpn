@@ -9,7 +9,7 @@
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  *
- * - change date: 2012.04.17 12
+ * - change date: 2012.04.13 18
  */
 
 #ifndef __ISX012_H__
@@ -35,13 +35,13 @@
 #define CONFIG_CAM_YUV_CAPTURE
 #define CONFIG_CAM_I2C_LITTLE_ENDIAN
 /* #define CONFIG_LOAD_FILE */ /* for tuning */
-/* #define CONFIG_DEBUG_NO_FRAME */
+#define CONFIG_DEBUG_NO_FRAME
 
 /** Debuging Feature **/
 #define CONFIG_CAM_DEBUG
-/* #define CONFIG_CAM_TRACE */ /* Enable it with CONFIG_CAM_DEBUG */
+#define CONFIG_CAM_TRACE /* Enable it with CONFIG_CAM_DEBUG */
 /* #define CONFIG_CAM_AF_DEBUG *//* Enable it with CONFIG_CAM_DEBUG */
-/* #define DEBUG_WRITE_REGS */
+#define DEBUG_WRITE_REGS
 /***********************************/
 
 #ifdef CONFIG_VIDEO_ISX012_DEBUG
@@ -185,7 +185,6 @@ enum isx012_preview_frame_size {
 	PREVIEW_SZ_528x432,	/* 528x432 */
 	PREVIEW_SZ_VGA,		/* 640x480 */
 	PREVIEW_SZ_D1,		/* 720x480 */
-	PREVIEW_SZ_880x720,	/* 880x720 */
 	PREVIEW_SZ_SVGA,	/* 800x600 */
 	PREVIEW_SZ_1024x576,	/* 1024x576, 16:9 */
 	PREVIEW_SZ_1024x616,	/* 1024x616, ? */
@@ -358,33 +357,11 @@ struct isx012_focus {
 	u32 pos_y;
 
 	u32 start:1;	/* enum v4l2_auto_focus*/
-	u32 touch:1;
-	u32 lock:1;	/* fix me */
-	u32 ae_manual_mode:1;
-};
-
-/* struct for sensor specific data */
-struct isx012_ae_gain_offset {
-	u32	ae_auto;
-	u32	ae_now;
-	u32	ersc_auto;
-	u32	ersc_now;
-
-	u32	ae_ofsetval;
-	u32	ae_maxdiff;
-};
-
-/* Exposure */
-struct isx012_exposure {
-	struct isx012_ae_gain_offset ae_offset;
-	s32 val;
 	u32 ae_lock:1;
-};
-
-/* White Balance */
-struct isx012_whitebalance {
-	enum v4l2_wb_mode mode; /* wb mode */
 	u32 awb_lock:1;
+	u32 touch:1;
+	u32 af_cancel:1;
+	u32 ae_manual_mode:1;
 };
 
 struct isx012_exif {
@@ -396,10 +373,18 @@ struct isx012_exif {
 	/*int ebv;*/		/* exposure bias */
 };
 
+/* struct for sensor specific data */
+struct isx012_ae_gain_offset {
+	u32	ae_auto;
+	u32	ae_now;
+	u32	ersc_auto;
+	u32	ersc_now;
+};
+
 /* EXIF - flash filed */
 #define EXIF_FLASH_FIRED		(0x01)
-#define EXIF_FLASH_MODE_FIRING		(0x01 << 3)
-#define EXIF_FLASH_MODE_SUPPRESSION	(0x02 << 3)
+#define EXIF_FLASH_MODE_FIRING		(0x01)
+#define EXIF_FLASH_MODE_SUPPRESSION	(0x01 << 1)
 #define EXIF_FLASH_MODE_AUTO		(0x03 << 3)
 
 struct isx012_stream_time {
@@ -488,10 +473,18 @@ struct isx012_regs {
 	struct regset_table sharpness[SHARPNESS_MAX];
 	struct regset_table fps[I_FPS_MAX];
 	struct regset_table preview_return;
+	struct regset_table flash_start;
+	struct regset_table flash_end;
+	struct regset_table af_pre_flash_start;
+	struct regset_table af_pre_flash_end;
+	struct regset_table flash_ae_set;
+	struct regset_table flash_ae_clear;	/* not used */
 	struct regset_table ae_lock_on;
 	struct regset_table ae_lock_off;
 	struct regset_table awb_lock_on;
 	struct regset_table awb_lock_off;
+	struct regset_table restore_cap;
+	struct regset_table change_wide_cap;
 #ifdef CONFIG_VIDEO_ISX012_P8
 	struct regset_table set_lowlight_cap;
 #endif
@@ -501,19 +494,26 @@ struct isx012_regs {
 	struct regset_table flash_off;
 
 	/* AF */
-	struct regset_table af_normal_mode;
 	struct regset_table af_macro_mode;
-	struct regset_table cancel_af_normal;
-	struct regset_table cancel_af_macro;
-	struct regset_table af_restart;
+	struct regset_table af_normal_mode;
 	struct regset_table af_window_reset;
 	struct regset_table af_winddow_set;
+	struct regset_table af_restart;
+	struct regset_table af_macro_on;
+	struct regset_table af_macro_off;
+	struct regset_table cancel_macro_on;
+	struct regset_table cancel_macro_off;
 	struct regset_table af_saf_off;
 	struct regset_table af_touch_saf_off;
 	struct regset_table af_camcorder_start;
 	struct regset_table softlanding;
 
+	struct regset_table init_reg;
+	struct regset_table get_light_level;
 	struct regset_table get_esd_status;
+	struct regset_table get_iso;
+	struct regset_table get_ae_stable;
+	struct regset_table get_shutterspeed;
 
 	/* camera mode */
 	struct regset_table preview_mode;
@@ -523,9 +523,10 @@ struct isx012_regs {
 	struct regset_table halfrelease_mode_night;
 	struct regset_table camcorder_on;
 	struct regset_table camcorder_off;
-	struct regset_table lowlux_night_reset;
 
-	struct regset_table init_reg;
+	struct regset_table lowlux_night_reset;
+	struct regset_table stream_stop;
+
 	struct regset_table set_pll_4;
 #ifdef CONFIG_VIDEO_ISX012_P8
 	struct regset_table antibanding;
@@ -539,8 +540,6 @@ struct isx012_state {
 	const struct isx012_framesize *preview;
 	const struct isx012_framesize *capture;
 	struct isx012_focus focus;
-	struct isx012_exposure exposure;
-	struct isx012_whitebalance wb;
 	struct isx012_exif exif;
 #if !defined(CONFIG_CAM_YUV_CAPTURE)
 	struct isx012_jpeg_param jpeg;
@@ -555,12 +554,14 @@ struct isx012_state {
 #ifdef CONFIG_DEBUG_NO_FRAME
 	struct work_struct frame_work;
 #endif
+	struct isx012_ae_gain_offset ae_offset;
+
 	enum runmode runmode;
 	enum v4l2_sensor_mode sensor_mode;
 	enum v4l2_pix_format_mode format_mode;
 	enum v4l2_flash_mode flash_mode;
 	enum v4l2_scene_mode scene_mode;
-	enum v4l2_iso_mode iso;
+	enum v4l2_wb_mode wb_mode;
 
 	s32 vt_mode;
 	s32 req_fps;
@@ -569,22 +570,18 @@ struct isx012_state {
 	u32 one_frame_delay_ms;
 	u32 light_level;	/* light level */
 	u32 lux_level_flash;
-	u32 shutter_level_flash;
 	u8 *dbg_level;
 #ifdef CONFIG_DEBUG_NO_FRAME
 	bool frame_check;
 #endif
-	u32 cap_prereq;
-
 	u32 recording:1;
 	u32 hd_videomode:1;
 	u32 flash_on:1;
 	u32 ignore_flash:1;
-	u32 update_frmsize:1;
+	u32 need_update_frmsize:1;
 	u32 need_wait_streamoff:1;
 	u32 initialized:1;
 	u32 lowlux_night:1;
-	u32 cap_ready:1;
 };
 
 static inline struct  isx012_state *to_state(struct v4l2_subdev *sd)
@@ -622,15 +619,14 @@ extern int isx012_create_file(struct class *cls);
 #define LUX_LEVEL_FLASH_ON		0x2B
 
 /* Count for loop */
-#define ISX012_CNT_CAPTURE_FRM		330
+#define ISX012_CNT_CAPTURE_FRM		60
 #define ISX012_CNT_CLEAR_VINT		20
 #define ISX012_CNT_AE_STABLE		100 /* for checking MODESEL_FIX */
 #define ISX012_CNT_CAPTURE_AWB		8
 #define ISX012_CNT_OM_CHECK		30
-#define ISX012_CNT_CM_CHECK		280 /* 160 -> 180 */
-#define ISX012_CNT_STREAMOFF		300
+#define ISX012_CNT_CM_CHECK		180
 
-#define AF_SEARCH_COUNT			200
+#define AF_SEARCH_COUNT			80
 #define AE_STABLE_SEARCH_COUNT		7
 
 /* Sensor AF first,second window size.
@@ -639,20 +635,15 @@ extern int isx012_create_file(struct class *cls);
 #define DEFAULT_WINDOW_HEIGHT		80
 #define AF_PRECISION	100
 
-/*
- * Register Address Definition
- */
+/* Register Address */
 #define REG_INTSTS			0x000E
 #define REG_INTCLR			0x0012
-#define REG_ESD				0x005E
 
 #define REG_MODESEL_FIX			0x0080
-#define REG_MODESEL			0x0081
 #define REG_HSIZE_MONI			0x0090
 #define REG_HSIZE_CAP			0x0092
 #define REG_VSIZE_MONI			0x0096
 #define REG_VSIZE_CAP			0x0098
-#define REG_CAPNUM			0x00B6
 
 #define REG_CAP_GAINOFFSET		0x0186
 #define REG_ISOSENS_OUT			0x019A
@@ -672,26 +663,12 @@ extern int isx012_create_file(struct class *cls);
 #define REG_AE_SN7			0x029A
 #define REG_AE_SN11			0x029E
 
-#define REG_CPUEXT			0x5000
 #define REG_MANOUTGAIN			0x5E02
 #define REG_VPARA_TRG			0x8800
 #define REG_AWBSTS			0x8A24
 #define REG_AF_STATE			0x8B8A
 #define REG_AF_RESUNT			0x8B8B
 #define REG_AESCL			0x8BC0
-
-/*
- * Bit definition of register
- */
-/* CPUEXT register */
-#define REG_CPUEXT_AE_HOLD		(0x01 << 1)
-#define REG_CPUEXT_AWB_HOLD		(0x01 << 2)
-
-/* interrupt register */
-#define REG_INTBIT_OM			(0x01 << 0)
-#define REG_INTBIT_CM			(0x01 << 1)
-#define REG_INTBIT_CAPNUM_END		(0x01 << 3)
-#define REG_INTBIT_VINT			(0x01 << 5)
 
 /* The Path of Setfile */
 #ifdef CONFIG_LOAD_FILE
@@ -700,6 +677,19 @@ extern int isx012_create_file(struct class *cls);
 #include <linux/mm.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
+
+struct test {
+	u8 data;
+	struct test *nextBuf;
+};
+static struct test *testBuf;
+static s32 large_file;
+
+#define TEST_INIT	\
+{			\
+	.data = 0;	\
+	.nextBuf = NULL;	\
+}
 
 #define TUNING_FILE_PATH "/mnt/sdcard/isx012_regs.h"
 #endif /* CONFIG_LOAD_FILE*/

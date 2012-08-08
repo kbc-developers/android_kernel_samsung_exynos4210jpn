@@ -104,12 +104,15 @@ int s3cfb_draw_logo(struct fb_info *fb)
 #else /* #ifdef RGB_BOOTSCREEN */
 	u8 *logo_virt_buf;
 
-	if (bootloaderfb) {
-		logo_virt_buf = phys_to_virt(bootloaderfb);
-		memcpy(fb->screen_base, logo_virt_buf, fb->var.yres * fb->fix.line_length);
-		printk(KERN_INFO "Bootloader sent 'bootloaderfb' : %08X\n", bootloaderfb);
+	if (bootloaderfb)
+		printk(KERN_INFO "Bootloader sent 'bootloaderfb' to Kernel Successfully : %d", bootloaderfb);
+	else {
+		bootloaderfb = BOOT_FB_BASE_ADDR;
+		printk(KERN_ERR "Fail to get 'bootloaderfb' from Bootloader. so we must set  this value as %d", bootloaderfb);
 	}
 
+	logo_virt_buf = phys_to_virt(bootloaderfb);
+	memcpy(fb->screen_base, logo_virt_buf, fb->var.yres * fb->fix.line_length);
 #endif /* #ifdef RGB_BOOTSCREEN */
 #endif
 #endif
@@ -390,8 +393,7 @@ int s3cfb_map_default_video_memory(struct s3cfb_global *fbdev,
 			(unsigned int)fix->smem_start,
 			(unsigned int)fb->screen_base, fix->smem_len);
 
-	if (bootloaderfb)
-		memset(fb->screen_base, 0, fix->smem_len);
+	memset(fb->screen_base, 0, fix->smem_len);
 	win->owner = DMA_MEM_FIMD;
 
 	return 0;
@@ -859,11 +861,12 @@ int s3cfb_blank(int blank_mode, struct fb_info *fb)
 	struct s3c_platform_fb *pdata = to_fb_plat(fbdev->dev);
 	int enabled_win = 0;
 	int i;
-#if defined(CONFIG_CPU_EXYNOS4212) || defined(CONFIG_CPU_EXYNOS4412) || defined(CONFIG_CPU_EXYNOS4210)
+#if defined(CONFIG_CPU_EXYNOS4212) || defined(CONFIG_CPU_EXYNOS4412)\
+	|| defined(CONFIG_CPU_EXYNOS4210)
 	int win_status;
 #endif
 
-	dev_info(fbdev->dev, "change blank mode=%d, fb%d\n", blank_mode, win->id);
+	dev_dbg(fbdev->dev, "change blank mode\n");
 
 #ifdef CONFIG_EXYNOS_DEV_PD
 	if (unlikely(fbdev->system_state == POWER_OFF)) {
@@ -1031,7 +1034,7 @@ int s3cfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *fb)
 	struct s3cfb_global *fbdev = get_fimd_global(win->id);
 
 #ifdef CONFIG_EXYNOS_DEV_PD
-	if (unlikely(fbdev->system_state == POWER_OFF) || fbdev->regs == 0) {
+	if (unlikely(fbdev->system_state == POWER_OFF)) {
 		dev_err(fbdev->dev, "%s::system_state is POWER_OFF, fb%d\n", __func__, win->id);
 		return 0;
 	}
@@ -1086,7 +1089,7 @@ int s3cfb_ioctl(struct fb_info *fb, unsigned int cmd, unsigned long arg)
 	void *argp = (void *)arg;
 	int ret = 0;
 #if defined(CONFIG_CPU_EXYNOS4210)
-	unsigned int addr = 0;
+    unsigned int addr = 0;
 #endif
 	dma_addr_t start_addr = 0;
 	struct fb_fix_screeninfo *fix = &fb->fix;

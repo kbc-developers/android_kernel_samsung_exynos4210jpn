@@ -32,8 +32,7 @@ enum iommu_types {
 	IOMMU_G2D,
 	IOMMU_FIMC,
 	IOMMU_G3D,
-	IOMMU_ROTATOR,
-	IOMMU_MASK	= 0x3f
+	IOMMU_MASK	= 0x1f
 };
 
 struct iommu_gem_map_params {

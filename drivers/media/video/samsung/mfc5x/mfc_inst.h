@@ -130,7 +130,7 @@ struct mfc_inst_ctx {
 	unsigned int width;
 	unsigned int height;
 	volatile unsigned char *shm;
-	long shmofs;
+	unsigned int shmofs;
 	unsigned int ctxbufofs;
 	unsigned int ctxbufsize;
 	unsigned int descbufofs;	/* FIXME: move to decoder context */

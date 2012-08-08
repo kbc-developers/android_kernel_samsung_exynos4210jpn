@@ -910,8 +910,10 @@ CommTransp_DequeueCommit(CommTransp transp)
    } else {
       rc = -1;
    }
-   /* coverity[deref_after_free] */
-   transp->readSize = 0;
+
+   if (!transp)
+      transp->readSize = 0;
+
    return rc;
 }
 

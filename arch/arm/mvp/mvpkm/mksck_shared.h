@@ -42,7 +42,7 @@
 #define MKSCK_MAX_SHARES_LOG2  4 // 16: one per VM + one per VCPU
 #define MKSCK_MAX_SHARES       (1U << MKSCK_MAX_SHARES_LOG2)
 #define MKSCK_VMID2IDX(idx)    ((idx)%MKSCK_MAX_SHARES)
-#define MKSCK_TGID2VMID(tgid)  (((((tgid)<<1)^((tgid)>>15))&0xfffe)|1)
+#define MKSCK_TGID2VMID(tgid)  ((((tgid)<<1)^((tgid)>>15))&0xfffe)
 /*
  * The size of a shared page determines how many sockets can be open
  * concurrently.

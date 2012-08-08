@@ -470,6 +470,7 @@ static void mixer_graph_buffer(struct mixer_context *ctx, int win)
 	struct mixer_resources *res = &ctx->mixer_res;
 	unsigned long flags;
 	struct hdmi_win_data *win_data;
+	unsigned int width, height;
 	unsigned int x_ratio, y_ratio;
 	unsigned int src_x_offset, src_y_offset, dst_x_offset, dst_y_offset;
 	dma_addr_t dma_addr;
@@ -493,6 +494,9 @@ static void mixer_graph_buffer(struct mixer_context *ctx, int win)
 	default:
 		fmt = ARGB8888;
 	}
+
+	width = win_data->crtc_width;
+	height = win_data->crtc_height;
 
 	/* 2x scaling feature */
 	x_ratio = 0;
@@ -523,8 +527,8 @@ static void mixer_graph_buffer(struct mixer_context *ctx, int win)
 	/* setup geometry */
 	mixer_reg_write(res, MXR_GRAPHIC_SPAN(win), win_data->fb_width);
 
-	val  = MXR_GRP_WH_WIDTH(win_data->crtc_width);
-	val |= MXR_GRP_WH_HEIGHT(win_data->crtc_height);
+	val  = MXR_GRP_WH_WIDTH(width);
+	val |= MXR_GRP_WH_HEIGHT(height);
 	val |= MXR_GRP_WH_H_SCALE(x_ratio);
 	val |= MXR_GRP_WH_V_SCALE(y_ratio);
 	mixer_reg_write(res, MXR_GRAPHIC_WH(win), val);
@@ -601,19 +605,17 @@ static void mixer_win_reset(struct mixer_context *ctx)
 	mixer_reg_write(res, MXR_BG_COLOR2, 0x008080);
 
 	/* setting graphical layers */
+
 	val  = MXR_GRP_CFG_COLOR_KEY_DISABLE; /* no blank key */
 	val |= MXR_GRP_CFG_WIN_BLEND_EN;
-	val |= MXR_GRP_CFG_BLEND_PRE_MUL;
-	val |= MXR_GRP_CFG_PIXEL_BLEND_EN;
 	val |= MXR_GRP_CFG_ALPHA_VAL(0xff); /* non-transparent alpha */
 
 	/* the same configuration for both layers */
 	mixer_reg_write(res, MXR_GRAPHIC_CFG(0), val);
-	mixer_reg_write(res, MXR_GRAPHIC_CFG(1), val);
 
-	/* setting video layers */
-	val = MXR_GRP_CFG_ALPHA_VAL(0);
-	mixer_reg_write(res, MXR_VIDEO_CFG, val);
+	val |= MXR_GRP_CFG_BLEND_PRE_MUL;
+	val |= MXR_GRP_CFG_PIXEL_BLEND_EN;
+	mixer_reg_write(res, MXR_GRAPHIC_CFG(1), val);
 
 	/* configuration of Video Processor Registers */
 	vp_win_reset(ctx);
@@ -866,7 +868,7 @@ static irqreturn_t mixer_irq_handler(int irq, void *arg)
 	struct exynos_drm_hdmi_context *drm_hdmi_ctx = arg;
 	struct mixer_context *ctx = drm_hdmi_ctx->ctx;
 	struct mixer_resources *res = &ctx->mixer_res;
-	u32 val, base, shadow;
+	u32 val, val_base;
 
 	spin_lock(&res->reg_slock);
 
@@ -877,14 +879,12 @@ static irqreturn_t mixer_irq_handler(int irq, void *arg)
 	if (val & MXR_INT_STATUS_VSYNC) {
 		/* interlace scan need to check shadow register */
 		if (ctx->interlace) {
-			base = mixer_reg_read(res, MXR_GRAPHIC_BASE(0));
-			shadow = mixer_reg_read(res, MXR_GRAPHIC_BASE_S(0));
-			if (base != shadow)
+			val_base = mixer_reg_read(res, MXR_GRAPHIC_BASE_S(0));
+			if (ctx->win_data[0].dma_addr != val_base)
 				goto out;
 
-			base = mixer_reg_read(res, MXR_GRAPHIC_BASE(1));
-			shadow = mixer_reg_read(res, MXR_GRAPHIC_BASE_S(1));
-			if (base != shadow)
+			val_base = mixer_reg_read(res, MXR_GRAPHIC_BASE_S(1));
+			if (ctx->win_data[1].dma_addr != val_base)
 				goto out;
 		}
 

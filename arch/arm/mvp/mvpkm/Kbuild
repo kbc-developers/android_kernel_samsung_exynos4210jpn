@@ -16,8 +16,8 @@ $(error "Unable to find lowmemorykiller.c at $(LOWMEMKILLER_PATH)")
 endif
 LOWMEMKILLER_MD5 := $(shell md5sum $(LOWMEMKILLER_PATH) | cut -f1 -d\ )
 LOWMEMKILLER_SUPPORT := $(srctree)/arch/arm/mvp/mvpkm/lowmemkiller_variant.sh
-LOWMEMKILLER_SHRINK_MD5 := $(shell $(SHELL) $(LOWMEMKILLER_SUPPORT) $(LOWMEMKILLER_PATH) | cut -f1 -d\ )
-LOWMEMKILLER_VARIANT := $(shell $(SHELL) $(LOWMEMKILLER_SUPPORT) $(LOWMEMKILLER_PATH) | cut -f2 -d\ )
+LOWMEMKILLER_SHRINK_MD5 := $(shell $(SHELL) $(LOWMEMKILLER_SUPPORT) $(LOWMEMKILLER_PATH) "md5" | cut -f1 -d\ )
+LOWMEMKILLER_VARIANT := $(shell $(SHELL) $(LOWMEMKILLER_SUPPORT) $(LOWMEMKILLER_PATH) "var" | cut -f2 -d\ )
 ccflags-y += \
         -DLOWMEMKILLER_VARIANT=$(LOWMEMKILLER_VARIANT) \
         -DLOWMEMKILLER_SHRINK_MD5=$(LOWMEMKILLER_SHRINK_MD5) \

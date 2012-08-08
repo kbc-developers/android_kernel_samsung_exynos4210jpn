@@ -39,7 +39,7 @@ mali_bool mali_gp_core_set_counter_src0(struct mali_gp_core *core, u32 counter);
 mali_bool mali_gp_core_set_counter_src1(struct mali_gp_core *core, u32 counter);
 u32 mali_gp_core_get_counter_src0(struct mali_gp_core *core);
 u32 mali_gp_core_get_counter_src1(struct mali_gp_core *core);
-struct mali_gp_core *mali_gp_get_global_gp_core(void);
+struct mali_gp_core* mali_gp_get_global_gp_core(void);
 
 u32 mali_gp_dump_state(struct mali_gp_core *core, char *buf, u32 size);
 

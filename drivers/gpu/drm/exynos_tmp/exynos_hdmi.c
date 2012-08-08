@@ -60,7 +60,6 @@ struct hdmi_context {
 	bool				hpd;
 	bool				powered;
 	bool				is_v13;
-	bool				dvi_mode;
 	struct mutex			hdmi_mutex;
 
 	struct resource			*regs_res;
@@ -360,13 +359,6 @@ static const u8 hdmiphy_conf27_027[32] = {
 	0x43, 0xa0, 0x0e, 0xd9, 0x45, 0xa0, 0xac, 0x80,
 	0x08, 0x80, 0x11, 0x04, 0x02, 0x22, 0x44, 0x86,
 	0x54, 0xe3, 0x24, 0x00, 0x00, 0x00, 0x01, 0x00,
-};
-
-static const u8 hdmiphy_conf74_176[32] = {
-	0x01, 0xd1, 0x1f, 0x10, 0x40, 0x5b, 0xef, 0x08,
-	0x81, 0xa0, 0xb9, 0xd8, 0x45, 0xa0, 0xac, 0x80,
-	0x5a, 0x80, 0x11, 0x04, 0x02, 0x22, 0x44, 0x86,
-	0x54, 0xa6, 0x24, 0x01, 0x00, 0x00, 0x01, 0x00,
 };
 
 static const u8 hdmiphy_conf74_25[32] = {
@@ -758,63 +750,6 @@ static const struct hdmi_preset_conf hdmi_conf_1080i60 = {
 	},
 };
 
-static const struct hdmi_preset_conf hdmi_conf_1080p30 = {
-	.core = {
-		.h_blank = {0x18, 0x01},
-		.v2_blank = {0x65, 0x04},
-		.v1_blank = {0x2d, 0x00},
-		.v_line = {0x65, 0x04},
-		.h_line = {0x98, 0x08},
-		.hsync_pol = {0x00},
-		.vsync_pol = {0x00},
-		.int_pro_mode = {0x00},
-		.v_blank_f0 = {0xff, 0xff},
-		.v_blank_f1 = {0xff, 0xff},
-		.h_sync_start = {0x56, 0x00},
-		.h_sync_end = {0x82, 0x00},
-		.v_sync_line_bef_2 = {0x09, 0x00},
-		.v_sync_line_bef_1 = {0x04, 0x00},
-		.v_sync_line_aft_2 = {0xff, 0xff},
-		.v_sync_line_aft_1 = {0xff, 0xff},
-		.v_sync_line_aft_pxl_2 = {0xff, 0xff},
-		.v_sync_line_aft_pxl_1 = {0xff, 0xff},
-		.v_blank_f2 = {0xff, 0xff},
-		.v_blank_f3 = {0xff, 0xff},
-		.v_blank_f4 = {0xff, 0xff},
-		.v_blank_f5 = {0xff, 0xff},
-		.v_sync_line_aft_3 = {0xff, 0xff},
-		.v_sync_line_aft_4 = {0xff, 0xff},
-		.v_sync_line_aft_5 = {0xff, 0xff},
-		.v_sync_line_aft_6 = {0xff, 0xff},
-		.v_sync_line_aft_pxl_3 = {0xff, 0xff},
-		.v_sync_line_aft_pxl_4 = {0xff, 0xff},
-		.v_sync_line_aft_pxl_5 = {0xff, 0xff},
-		.v_sync_line_aft_pxl_6 = {0xff, 0xff},
-		.vact_space_1 = {0xff, 0xff},
-		.vact_space_2 = {0xff, 0xff},
-		.vact_space_3 = {0xff, 0xff},
-		.vact_space_4 = {0xff, 0xff},
-		.vact_space_5 = {0xff, 0xff},
-		.vact_space_6 = {0xff, 0xff},
-		/* other don't care */
-	},
-	.tg = {
-		0x00, /* cmd */
-		0x98, 0x08, /* h_fsz */
-		0x18, 0x01, 0x80, 0x07, /* hact */
-		0x65, 0x04, /* v_fsz */
-		0x01, 0x00, 0x33, 0x02, /* vsync */
-		0x2d, 0x00, 0x38, 0x04, /* vact */
-		0x33, 0x02, /* field_chg */
-		0x48, 0x02, /* vact_st2 */
-		0x00, 0x00, /* vact_st3 */
-		0x00, 0x00, /* vact_st4 */
-		0x01, 0x00, 0x01, 0x00, /* vsync top/bot */
-		0x01, 0x00, 0x33, 0x02, /* field top/bot */
-		0x00, /* 3d FP */
-	},
-};
-
 static const struct hdmi_preset_conf hdmi_conf_1080p50 = {
 	.core = {
 		.h_blank = {0xd0, 0x02},
@@ -929,7 +864,8 @@ static const struct hdmi_conf hdmi_confs[] = {
 	{ 1280, 720, 60, false, hdmiphy_conf74_25, &hdmi_conf_720p60 },
 	{ 1920, 1080, 50, true, hdmiphy_conf74_25, &hdmi_conf_1080i50 },
 	{ 1920, 1080, 60, true, hdmiphy_conf74_25, &hdmi_conf_1080i60 },
-	{ 1920, 1080, 30, false, hdmiphy_conf74_176, &hdmi_conf_1080p30 },
+	{ 1920, 1080, 50, false, hdmiphy_conf148_5, &hdmi_conf_1080p50 },
+	{ 1920, 1080, 60, false, hdmiphy_conf148_5, &hdmi_conf_1080p60 },
 };
 
 
@@ -1275,12 +1211,10 @@ static int hdmi_get_edid(void *ctx, struct drm_connector *connector,
 
 	raw_edid = drm_get_edid(connector, hdata->ddc_port->adapter);
 	if (raw_edid) {
-		hdata->dvi_mode = !drm_detect_hdmi_monitor(raw_edid);
 		memcpy(edid, raw_edid, min((1 + raw_edid->extensions)
 					* EDID_LENGTH, len));
-		DRM_DEBUG_KMS("%s : width[%d] x height[%d]\n",
-			(hdata->dvi_mode ? "dvi monitor" : "hdmi monitor"),
-			raw_edid->width_cm, raw_edid->height_cm);
+		DRM_DEBUG_KMS("width[%d] x height[%d]\n",
+				raw_edid->width_cm, raw_edid->height_cm);
 	} else {
 		return -ENODEV;
 	}
@@ -1503,7 +1437,10 @@ static void hdmi_audio_init(struct hdmi_context *hdata)
 
 static void hdmi_audio_control(struct hdmi_context *hdata, bool onoff)
 {
-	if (hdata->dvi_mode)
+	u32 mod;
+
+	mod = hdmi_reg_read(hdata, HDMI_MODE_SEL);
+	if (mod & HDMI_DVI_MODE_EN)
 		return;
 
 	hdmi_reg_writeb(hdata, HDMI_AUI_CON, onoff ? 2 : 0);
@@ -1541,14 +1478,6 @@ static void hdmi_conf_init(struct hdmi_context *hdata)
 		HDMI_MODE_HDMI_EN, HDMI_MODE_MASK);
 	/* disable bluescreen */
 	hdmi_reg_writemask(hdata, HDMI_CON_0, 0, HDMI_BLUE_SCR_EN);
-
-	if (hdata->dvi_mode) {
-		/* choose DVI mode */
-		hdmi_reg_writemask(hdata, HDMI_MODE_SEL,
-				HDMI_MODE_DVI_EN, HDMI_MODE_MASK);
-		hdmi_reg_writeb(hdata, HDMI_CON_2,
-				HDMI_VID_PREAMBLE_DIS | HDMI_GUARD_BAND_DIS);
-	}
 
 	if (hdata->is_v13) {
 		/* choose bluescreen (fecal) color */
@@ -2016,16 +1945,6 @@ static void hdmi_poweron(struct hdmi_context *hdata)
 	DRM_DEBUG_KMS("[%d] %s\n", __LINE__, __func__);
 
 	mutex_lock(&hdata->hdmi_mutex);
-	if (hdata->powered) {
-		mutex_unlock(&hdata->hdmi_mutex);
-		return;
-	}
-
-	hdata->powered = true;
-
-	if (hdata->cfg_hpd)
-		hdata->cfg_hpd(true);
-	mutex_unlock(&hdata->hdmi_mutex);
 
 	pm_runtime_get_sync(hdata->dev);
 
@@ -2033,6 +1952,13 @@ static void hdmi_poweron(struct hdmi_context *hdata)
 	clk_enable(res->hdmiphy);
 	clk_enable(res->hdmi);
 	clk_enable(res->sclk_hdmi);
+
+	if (hdata->cfg_hpd)
+		hdata->cfg_hpd(true);
+
+	hdata->powered = true;
+
+	mutex_unlock(&hdata->hdmi_mutex);
 }
 
 static void hdmi_poweroff(struct hdmi_context *hdata)
@@ -2042,15 +1968,12 @@ static void hdmi_poweroff(struct hdmi_context *hdata)
 	DRM_DEBUG_KMS("[%d] %s\n", __LINE__, __func__);
 
 	mutex_lock(&hdata->hdmi_mutex);
-	if (!hdata->powered)
-		goto out;
-	mutex_unlock(&hdata->hdmi_mutex);
 
-	/*
-	 * The TV power domain needs any condition of hdmiphy to turn off and
-	 * its reset state seems to meet the condition.
-	 */
+	if (hdata->cfg_hpd)
+		hdata->cfg_hpd(false);
+
 	hdmiphy_conf_reset(hdata);
+	hdmi_conf_reset(hdata);
 
 	clk_disable(res->sclk_hdmi);
 	clk_disable(res->hdmi);
@@ -2059,13 +1982,8 @@ static void hdmi_poweroff(struct hdmi_context *hdata)
 
 	pm_runtime_put_sync(hdata->dev);
 
-	mutex_lock(&hdata->hdmi_mutex);
-	if (hdata->cfg_hpd)
-		hdata->cfg_hpd(false);
-
 	hdata->powered = false;
 
-out:
 	mutex_unlock(&hdata->hdmi_mutex);
 }
 
@@ -2113,7 +2031,13 @@ static irqreturn_t hdmi_external_irq_thread(int irq, void *arg)
 		goto out;
 
 	mutex_lock(&hdata->hdmi_mutex);
+
 	hdata->hpd = hdata->get_hpd();
+	if (!hdata->powered && !hdata->hpd) {
+		mutex_unlock(&hdata->hdmi_mutex);
+		goto out;
+	}
+
 	mutex_unlock(&hdata->hdmi_mutex);
 
 	if (ctx->drm_dev)
@@ -2143,11 +2067,13 @@ static irqreturn_t hdmi_internal_irq_thread(int irq, void *arg)
 	}
 
 	mutex_lock(&hdata->hdmi_mutex);
+
 	hdata->hpd = hdmi_reg_read(hdata, HDMI_HPD_STATUS);
 	if (hdata->powered && hdata->hpd) {
 		mutex_unlock(&hdata->hdmi_mutex);
 		goto out;
 	}
+
 	mutex_unlock(&hdata->hdmi_mutex);
 
 	if (ctx->drm_dev)
@@ -2439,43 +2365,11 @@ static int __devexit hdmi_remove(struct platform_device *pdev)
 	return 0;
 }
 
-#ifdef CONFIG_PM_SLEEP
-static int hdmi_suspend(struct device *dev)
-{
-	struct exynos_drm_hdmi_context *ctx = get_hdmi_context(dev);
-	struct hdmi_context *hdata = ctx->ctx;
-
-	disable_irq(hdata->internal_irq);
-	disable_irq(hdata->external_irq);
-
-	hdata->hpd = false;
-	if (ctx->drm_dev)
-		drm_helper_hpd_irq_event(ctx->drm_dev);
-
-	hdmi_poweroff(hdata);
-
-	return 0;
-}
-
-static int hdmi_resume(struct device *dev)
-{
-	struct exynos_drm_hdmi_context *ctx = get_hdmi_context(dev);
-	struct hdmi_context *hdata = ctx->ctx;
-
-	enable_irq(hdata->external_irq);
-	enable_irq(hdata->internal_irq);
-	return 0;
-}
-#endif
-
-static SIMPLE_DEV_PM_OPS(hdmi_pm_ops, hdmi_suspend, hdmi_resume);
-
 struct platform_driver hdmi_driver = {
 	.probe		= hdmi_probe,
 	.remove		= __devexit_p(hdmi_remove),
 	.driver		= {
 		.name	= "exynos4-hdmi",
 		.owner	= THIS_MODULE,
-		.pm	= &hdmi_pm_ops,
 	},
 };

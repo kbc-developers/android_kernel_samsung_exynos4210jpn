@@ -28,7 +28,7 @@
 
 #include <drm/exynos_drm.h>
 
-#include <plat/s5p-iovmm.h>
+#include <plat/iovmm.h>
 
 #include "exynos_drm_drv.h"
 #include "exynos_drm_gem.h"

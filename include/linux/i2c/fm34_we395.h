@@ -22,9 +22,17 @@
 #ifndef __FEM34_WE395_PDATA_H__
 #define __FM34_WE395_PDATA_H__
 
-#if defined(CONFIG_MACH_C1_KOR_LGT) || defined(CONFIG_MACH_C1VZW) || defined(CONFIG_MACH_C2)
+#if defined(CONFIG_MACH_C1_KOR_LGT)
 int fm34_set_mode(int mode);
 #endif
+
+enum fm34_we395_mode {
+	fm34_bypass_mode = 0,
+	fm34_handset_mode,
+	fm34_loud_mode,
+	fm34_ftm_loopback_mode,
+	fm34_mode_max,
+};
 
 struct fm34_platform_data {
 	void (*set_mclk) (bool, bool);

@@ -34,10 +34,12 @@ struct mali_gp_job
 	u32 perf_counter_src1;                             /**< source id for performance counter 1 (see ARM DDI0415A, Table 3-60) */
 	u32 perf_counter_value0;                           /**< Value of performance counter 0 (to be returned to user space) */
 	u32 perf_counter_value1;                           /**< Value of performance counter 1 (to be returned to user space) */
+#if MALI_TIMELINE_PROFILING_ENABLED
 	u32 pid;                                           /**< Process ID of submitting process */
 	u32 tid;                                           /**< Thread ID of submitting thread */
 	u32 frame_builder_id;                              /**< id of the originating frame builder */
 	u32 flush_id;                                      /**< flush id within the originating frame builder */
+#endif
 };
 
 struct mali_gp_job *mali_gp_job_create(struct mali_session_data *session, _mali_uk_gp_start_job_s *args, u32 id);
@@ -51,16 +53,6 @@ MALI_STATIC_INLINE u32 mali_gp_job_get_id(struct mali_gp_job *job)
 MALI_STATIC_INLINE u32 mali_gp_job_get_user_id(struct mali_gp_job *job)
 {
 	return job->user_id;
-}
-
-MALI_STATIC_INLINE u32 mali_gp_job_get_frame_builder_id(struct mali_gp_job *job)
-{
-	return job->frame_builder_id;
-}
-
-MALI_STATIC_INLINE u32 mali_gp_job_get_flush_id(struct mali_gp_job *job)
-{
-	return job->flush_id;
 }
 
 MALI_STATIC_INLINE u32* mali_gp_job_get_frame_registers(struct mali_gp_job *job)

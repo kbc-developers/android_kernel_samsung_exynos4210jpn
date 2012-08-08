@@ -20,7 +20,7 @@ struct mali_pp_job *mali_pp_job_create(struct mali_session_data *session, _mali_
 
 	if (args->num_cores > _MALI_PP_MAX_SUB_JOBS)
 	{
-		MALI_PRINT_ERROR(("Mali PP job: Too many sub jobs specified in job object\n"));
+		MALI_PRINT_ERROR(("Mali PP job: To many sub jobs specified in job object\n"));
 		return NULL;
 	}
 
@@ -66,10 +66,12 @@ struct mali_pp_job *mali_pp_job_create(struct mali_session_data *session, _mali_
 		job->sub_jobs_completed = 0;
 		job->sub_job_errors = 0;
 
+#if MALI_TIMELINE_PROFILING_ENABLED
 		job->pid = _mali_osk_get_pid();
 		job->tid = _mali_osk_get_tid();
 		job->frame_builder_id = args->frame_builder_id;
 		job->flush_id = args->flush_id;
+#endif
 
 		return job;
 	}

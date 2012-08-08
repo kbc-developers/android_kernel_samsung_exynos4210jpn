@@ -147,20 +147,6 @@ static int mxt_backup(struct mxt_data *data)
 	return mxt_write_mem(data, data->cmd_proc + CMD_BACKUP_OFFSET, 1, &buf);
 }
 
-static void mxt_start(struct mxt_data *data)
-{
-	/* Touch report enable */
-	mxt_write_object(data,
-		TOUCH_MULTITOUCHSCREEN_T9,	0, 139);
-}
-
-static void mxt_stop(struct mxt_data *data)
-{
-	/* Touch report disable */
-	mxt_write_object(data,
-		TOUCH_MULTITOUCHSCREEN_T9, 0, 0);
-}
-
 static int mxt_check_instance(struct mxt_data *data, u8 object_type)
 {
 	int i;
@@ -302,20 +288,24 @@ static int mxt_get_object_table(struct mxt_data *data)
 						(data->objects[i].instances);
 
 		switch (data->objects[i].object_type) {
+		case TOUCH_MULTITOUCHSCREEN_T9:
+			data->finger_report_id = type_count + 1;
+#if TSP_DEBUG_INFO
+			dev_info(&data->client->dev, "Finger report id: %d\n",
+						data->finger_report_id);
+#endif
+			break;
 		case GEN_MESSAGEPROCESSOR_T5:
 			data->msg_object_size = data->objects[i].size;
 			data->msg_proc = data->objects[i].start_address;
-			dev_dbg(&data->client->dev, "mesage object size: %d"
+#if TSP_DEBUG_INFO
+			dev_info(&data->client->dev, "mesage object size: %d"
 				" message address: 0x%x\n",
 				data->msg_object_size, data->msg_proc);
+#endif
 			break;
 		case GEN_COMMANDPROCESSOR_T6:
 			data->cmd_proc = data->objects[i].start_address;
-			break;
-		case TOUCH_MULTITOUCHSCREEN_T9:
-			data->finger_report_id = type_count + 1;
-			dev_dbg(&data->client->dev, "Finger report id: %d\n",
-						data->finger_report_id);
 			break;
 		}
 
@@ -664,32 +654,15 @@ static int mxt_internal_suspend(struct mxt_data *data)
 	}
 #endif
 
-	/*
-	* CAUTION : P10 rev 0.1 has circuit problem
-	* so should not turn off the DVDD1.8
-	* to ensure charging during sleep
-	* it will be removed when rev 0.1 not used
-	*/
-	if (system_rev == 2)
-		mxt_stop(data);
-	else
-		data->pdata->power_off();
+	data->pdata->power_off();
 
 	return 0;
 }
 
 static int mxt_internal_resume(struct mxt_data *data)
 {
-	/*
-	* CAUTION : P10 rev 0.1 has circuit problem
-	* so should not turn off the DVDD1.8
-	* to ensure charging during sleep
-	* it will be removed when rev 0.1 not used
-	*/
-	if (system_rev == 2)
-		mxt_start(data);
-	else
-		data->pdata->power_on();
+	data->pdata->power_on();
+
 	return 0;
 }
 
@@ -796,14 +769,37 @@ static int mxt_fw_write(struct i2c_client *client,
 	return 0;
 }
 
-static int mxt_flash_fw(struct mxt_data *data,
-		const u8 *fw_data, size_t fw_size)
+static int mxt_load_fw(struct mxt_data *data,
+		const char *fn, bool is_bootmode)
 {
 	struct device *dev = &data->client->dev;
 	struct i2c_client *client = data->client_boot;
 	unsigned int frame_size;
 	unsigned int pos = 0;
 	int ret;
+
+	const struct firmware *fw = NULL;
+
+	dev_info(dev,	"Enter updating firmware from %s\n",
+		is_bootmode ? "Boot" : "App");
+
+	ret = request_firmware(&fw, fn, dev);
+	if (ret) {
+		dev_err(dev, "Unable to open firmware %s\n", fn);
+		return ret;
+	}
+
+	if (!is_bootmode) {
+		/* Change to the bootloader mode */
+		ret = mxt_write_object(data, GEN_COMMANDPROCESSOR_T6,
+				CMD_RESET_OFFSET, MXT_BOOT_VALUE);
+		if (ret) {
+			dev_err(dev, "Fail to change bootloader mode\n");
+			release_firmware(fw);
+			return ret;
+		}
+		msleep(MXT_1664S_SW_RESET_TIME);
+	}
 
 	ret = mxt_check_bootloader(client, MXT_WAITING_BOOTLOAD_CMD);
 	if (ret) {
@@ -816,7 +812,7 @@ static int mxt_flash_fw(struct mxt_data *data,
 		/* Unlock bootloader */
 		mxt_unlock_bootloader(client);
 	}
-	while (pos < fw_size) {
+	while (pos < fw->size) {
 		ret = mxt_check_bootloader(client,
 					MXT_WAITING_FRAME_DATA);
 		if (ret) {
@@ -824,7 +820,7 @@ static int mxt_flash_fw(struct mxt_data *data,
 			goto out;
 		}
 
-		frame_size = ((*(fw_data + pos) << 8) | *(fw_data + pos + 1));
+		frame_size = ((*(fw->data + pos) << 8) | *(fw->data + pos + 1));
 
 		/*
 		* We should add 2 at frame size as the the firmware data is not
@@ -834,7 +830,7 @@ static int mxt_flash_fw(struct mxt_data *data,
 		frame_size += 2;
 
 		/* Write one frame to device */
-		mxt_fw_write(client, fw_data + pos, frame_size);
+		mxt_fw_write(client, fw->data + pos, frame_size);
 
 		ret = mxt_check_bootloader(client,
 						MXT_FRAME_CRC_PASS);
@@ -846,62 +842,30 @@ static int mxt_flash_fw(struct mxt_data *data,
 		pos += frame_size;
 
 		dev_info(dev, "Updated %d bytes / %zd bytes\n",
-				pos, fw_size);
+				pos, fw->size);
 
 		msleep(20);
 	}
 
 	dev_info(dev, "Sucess updating firmware\n");
 out:
-	return ret;
-}
-
-static int mxt_load_fw(struct mxt_data *data, bool is_bootmode)
-{
-	struct i2c_client *client = data->client;
-	struct device *dev = &client->dev;
-	const struct firmware *fw = NULL;
-	char *fw_path;
-	int ret;
-
-	dev_info(dev,	"Enter updating firmware from %s\n",
-		is_bootmode ? "Boot" : "App");
-
-	fw_path = kzalloc(MXT_MAX_FW_PATH, GFP_KERNEL);
-	if (fw_path == NULL) {
-		dev_err(dev, "failed to allocate firmware path.\n");
-		return -ENOMEM;
-	}
-
-	snprintf(fw_path, MXT_MAX_FW_PATH, "tsp_atmel/%s", MXT_FW_NAME);
-	ret = request_firmware(&fw, fw_path, dev);
-	if (ret) {
-		dev_err(dev, "Unable to open firmware %s\n", fw_path);
-		goto out;
-	}
-
-	if (!is_bootmode) {
-		/* Change to the bootloader mode */
-		ret = mxt_write_object(data, GEN_COMMANDPROCESSOR_T6,
-				CMD_RESET_OFFSET, MXT_BOOT_VALUE);
-		if (ret) {
-			dev_err(dev, "Fail to change bootloader mode\n");
-			goto out;
-		}
-		msleep(MXT_1664S_SW_RESET_TIME);
-	}
-
-	ret = mxt_flash_fw(data, fw->data, fw->size);
-	if (ret)
-		goto out;
-	else
-		msleep(MXT_1664S_FW_RESET_TIME);
-
-out:
-	kfree(fw_path);
 	release_firmware(fw);
 
 	return ret;
+}
+
+static void mxt_start(struct mxt_data *data)
+{
+	/* Touch report enable */
+	mxt_write_object(data,
+		TOUCH_MULTITOUCHSCREEN_T9,	0, 139);
+}
+
+static void mxt_stop(struct mxt_data *data)
+{
+	/* Touch report disable */
+	mxt_write_object(data,
+		TOUCH_MULTITOUCHSCREEN_T9, 0, 0);
 }
 
 static int mxt_input_open(struct input_dev *dev)
@@ -1009,10 +973,12 @@ static int  mxt_init_touch(struct mxt_data *data)
 			dev_err(dev, "Failed to verify bootloader's status\n");
 				goto out;
 		} else {
-			ret = mxt_load_fw(data, true);
+			ret = mxt_load_fw(data, MXT_FW_NAME, true);
 			if (ret) {
 				dev_err(dev, "Failed updating firmware\n");
 				goto out;
+			} else {
+				msleep(MXT_1664S_FW_RESET_TIME);
 			}
 		}
 		ret = mxt_get_id_info(data);
@@ -1101,11 +1067,13 @@ static int  mxt_rest_init_touch(struct mxt_data *data)
 		if (data->info.version != MXT_FIRM_VERSION
 			|| (data->info.version == MXT_FIRM_VERSION
 				&& data->info.build != MXT_FIRM_BUILD)) {
-			if (mxt_load_fw(data, false))
+			if (mxt_load_fw(data, MXT_FW_NAME, false)) {
 				goto out;
-			else
+			} else {
+				msleep(MXT_1664S_FW_RESET_TIME);
 				mxt_init_touch(data);
 			}
+		}
 #endif
 	} else {
 		dev_err(dev, "There is no valid TSP ID\n");
@@ -1133,60 +1101,6 @@ static int  mxt_rest_init_touch(struct mxt_data *data)
 out:
 	return ret;
 }
-
-#if TSP_SEC_SYSFS
-int mxt_flash_fw_from_sysfs(struct mxt_data *data,
-		const u8 *fw_data, size_t fw_size)
-{
-	struct i2c_client *client = data->client;
-	int ret;
-
-	/* Change to the bootloader mode */
-	ret = mxt_write_object(data, GEN_COMMANDPROCESSOR_T6,
-			CMD_RESET_OFFSET, MXT_BOOT_VALUE);
-	if (ret) {
-		dev_err(&client->dev, "Fail to change bootloader mode\n");
-		goto out;
-	}
-	msleep(MXT_1664S_SW_RESET_TIME);
-
-	/* writing firmware */
-	ret = mxt_flash_fw(data, fw_data, fw_size);
-	if (ret) {
-		dev_err(&client->dev, "Failed updating firmware: %s\n",
-			__func__);
-		goto out;
-	}
-	msleep(MXT_1664S_FW_RESET_TIME);
-
-	ret = mxt_init_touch(data);
-	if (ret) {
-		dev_err(&client->dev, "initialization failed: %s\n", __func__);
-		goto out;
-	}
-
-	/* rest touch ic such as write config and backup */
-	ret = mxt_write_configuration(data);
-	if (ret) {
-		dev_err(&client->dev, "Failed init write config\n");
-		goto out;
-	}
-	ret = mxt_backup(data);
-	if (ret) {
-		dev_err(&client->dev, "Failed backup NV data\n");
-		goto out;
-	}
-	/* reset the touch IC. */
-	ret = mxt_reset(data);
-	if (ret) {
-		dev_err(&client->dev, "Failed Reset IC\n");
-		goto out;
-	}
-	msleep(MXT_1664S_SW_RESET_TIME);
-out:
-	return ret;
-}
-#endif
 
 static int __devinit mxt_probe(struct i2c_client *client,
 		const struct i2c_device_id *id)

@@ -393,8 +393,7 @@ static int proc_pending_irqs(struct ath6kl_device *dev, bool *done)
 	u8 host_int_status = 0;
 	u32 lk_ahd = 0;
 	u8 htc_mbox = 1 << HTC_MAILBOX;
-	struct ath6kl_vif *vif;
-	vif = ath6kl_vif_first(dev->ar);
+
 	ath6kl_dbg(ATH6KL_DBG_IRQ, "proc_pending_irqs: (dev: 0x%p)\n", dev);
 
 	/*
@@ -453,12 +452,7 @@ static int proc_pending_irqs(struct ath6kl_device *dev, bool *done)
 				lk_ahd = le32_to_cpu(rg->rx_lkahd[HTC_MAILBOX]);
 				if (!lk_ahd) {
 					ath6kl_err("lookAhead is zero!\n");
-#ifdef CONFIG_MACH_PX
-					cfg80211_priv_event(vif->ndev, "HANG", GFP_ATOMIC);
-					ath6kl_hif_rx_control(dev, false);
-					ssleep(3);
-					status = -ENOMEM;
-#endif
+					panic("lookahead is zero");
 				}
 			}
 		}
@@ -709,44 +703,4 @@ int ath6kl_hif_setup(struct ath6kl_device *dev)
 fail_setup:
 	return status;
 
-}
-
-int ath6kl_hif_wait_for_pending_recv(struct ath6kl *ar)
-{
-	int loop_cnt = 5;
-	u8 host_int_status;
-	int status = 0;
-
-	struct ath6kl_sdio *ar_sdio = ath6kl_sdio_priv(ar);
-
-	do {
-		int irq_cnt = 10;
-		while (atomic_read(&ar_sdio->irq_handling) && --irq_cnt > 0) {
-			/* wait until irq handler finished all the jobs */
-			schedule_timeout_interruptible(HZ / 10);
-		}
-		/* check if there is any pending irq due to force done */
-		host_int_status = 0;
-		status = hif_read_write_sync(ar, HOST_INT_STATUS_ADDRESS,
-			(u8 *)&host_int_status, sizeof(host_int_status),
-			HIF_RD_SYNC_BYTE_INC);
-		/* force it to query again due to resources issue*/
-		if (status)
-			host_int_status = 1;
-		else
-			host_int_status = (host_int_status & (1 << 0));
-
-		if (host_int_status) {
-			/* Wait until irq handler finishes its job */
-			schedule_timeout_interruptible(1);
-		}
-	} while (host_int_status && --loop_cnt > 0);
-
-	if (host_int_status || loop_cnt == 0) {
-		ath6kl_err("%s(), Unable clear up pending IRQ"
-				"before the system suspended\n", __func__);
-		return -1;
-	}
-
-	return 0;
 }

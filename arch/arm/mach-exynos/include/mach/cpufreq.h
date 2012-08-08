@@ -64,8 +64,6 @@ enum cpufreq_lock_ID {
 
 int exynos_cpufreq_get_level(unsigned int freq,
 			unsigned int *level);
-int exynos_find_cpufreq_level_by_volt(unsigned int arm_volt,
-			unsigned int *level);
 int exynos_cpufreq_lock(unsigned int nId,
 			enum cpufreq_level_index cpufreq_level);
 void exynos_cpufreq_lock_free(unsigned int nId);
@@ -107,6 +105,7 @@ struct exynos_dvfs_info {
 	unsigned int	*volt_table;
 	struct cpufreq_frequency_table	*freq_table;
 	void (*set_freq)(unsigned int, unsigned int);
+	int (*check_tc_volt)(unsigned int *);
 	bool (*need_apll_change)(unsigned int, unsigned int);
 
 #ifdef CONFIG_SLP

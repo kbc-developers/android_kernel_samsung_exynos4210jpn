@@ -137,6 +137,29 @@ static int exynos4x12_asv_store_result(struct samsung_asv *asv_info)
 	return 0;
 }
 
+#if defined(CONFIG_EXYNOS4_SETUP_THERMAL)
+extern unsigned int get_curr_temp_extend(void);
+#define VOLTAGE_TC 900000 /* Voltatge for tempearature compensation */
+#define TEMPERATURE_TC 10 /* Temperature for temperature compensation */
+int exynos4x12_compensate_temp(unsigned int *voltage)
+{
+	if (*voltage < VOLTAGE_TC) {
+		if (get_curr_temp_extend() <= TEMPERATURE_TC) {
+			pr_info("Applying Low Temp(%d) Compensation %d -> %d\n",
+				get_curr_temp_extend(), *voltage, VOLTAGE_TC);
+			*voltage = VOLTAGE_TC;
+			return 1;
+		}
+	}
+	return 0;
+}
+#else
+int exynos4x12_compensate_temp(unsigned int *voltage)
+{
+	return 0;
+}
+#endif
+
 int exynos4x12_asv_init(struct samsung_asv *asv_info)
 {
 	unsigned int tmp;

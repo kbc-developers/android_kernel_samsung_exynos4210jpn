@@ -336,7 +336,8 @@ static DEVICE_ATTR(reset, 0664, NULL, reset_store);
 int usb3503_suspend(struct i2c_client *client, pm_message_t mesg)
 {
 	struct usb3503_hubctl *hc = i2c_get_clientdata(client);
-#if defined(CONFIG_MACH_C1)
+#if defined(CONFIG_MACH_C1_KOR_SKT) || defined(CONFIG_MACH_C1_KOR_KT) || \
+	defined(CONFIG_MACH_C1_KOR_LGT)
 	struct regulator *regulator;
 #endif
 
@@ -345,7 +346,8 @@ int usb3503_suspend(struct i2c_client *client, pm_message_t mesg)
 	hc->reset_n(0);
 	pr_info(HUB_TAG "suspended\n");
 
-#if defined(CONFIG_MACH_C1)
+#if defined(CONFIG_MACH_C1_KOR_SKT) || defined(CONFIG_MACH_C1_KOR_KT) || \
+	defined(CONFIG_MACH_C1_KOR_LGT)
 
 	if (system_rev >= 0x6) {
 		regulator = regulator_get(NULL, "vusbhub_osc_1.8v");
@@ -369,7 +371,8 @@ int usb3503_resume(struct i2c_client *client)
 	return 0;
 #endif
 
-#if defined(CONFIG_MACH_C1)
+#if defined(CONFIG_MACH_C1_KOR_SKT) || defined(CONFIG_MACH_C1_KOR_KT) || \
+	defined(CONFIG_MACH_C1_KOR_LGT)
 
 	struct regulator *regulator;
 
@@ -401,7 +404,8 @@ int usb3503_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	struct usb3503_hubctl *hc;
 	struct usb3503_platform_data *pdata;
 
-#if defined(CONFIG_MACH_C1)
+#if defined(CONFIG_MACH_C1_KOR_SKT) || defined(CONFIG_MACH_C1_KOR_KT) || \
+	defined(CONFIG_MACH_C1_KOR_LGT)
 
 	struct regulator *regulator;
 

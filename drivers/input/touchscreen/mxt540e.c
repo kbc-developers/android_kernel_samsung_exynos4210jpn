@@ -42,10 +42,7 @@
 #define PRESS_MSG_MASK			0x40
 #define RELEASE_MSG_MASK		0x20
 #define MOVE_MSG_MASK			0x10
-#define VECTOR_MSG_MASK			0x08
-#define AMP_MSG_MASK			0x04
 #define SUPPRESS_MSG_MASK		0x02
-#define UNGRIP_MSG_MASK			0x01
 
 /* Version */
 #define MXT540E_VER_10			0x10
@@ -1091,9 +1088,9 @@ static void report_input_data(struct mxt540e_data *data)
 					 data->fingers[i].x);
 			input_report_abs(data->input_dev, ABS_MT_POSITION_Y,
 					 data->fingers[i].y);
-			input_report_abs(data->input_dev, ABS_MT_PRESSURE,
-					 data->fingers[i].z);
 			input_report_abs(data->input_dev, ABS_MT_TOUCH_MAJOR,
+					 data->fingers[i].z);
+			input_report_abs(data->input_dev, ABS_MT_PRESSURE,
 					 data->fingers[i].w);
 			input_report_abs(data->input_dev, ABS_MT_COMPONENT,
 					 data->fingers[i].component);
@@ -1258,8 +1255,7 @@ static irqreturn_t mxt540e_irq_thread(int irq, void *ptr)
 				data->finger_mask |= 1U << id;
 				data->fingers[id].state = MXT540E_STATE_RELEASE;
 			} else if ((msg[1] & DETECT_MSG_MASK) &&
-				(msg[1] & (PRESS_MSG_MASK | MOVE_MSG_MASK
-					| VECTOR_MSG_MASK))) {
+				(msg[1] & (PRESS_MSG_MASK | MOVE_MSG_MASK))) {
 				if (data->cpu_freq_lock != -1) {
 					if (touch_cpu_lock_status == 0) {
 						exynos_cpufreq_lock
@@ -2570,9 +2566,9 @@ static int __devinit mxt540e_probe(struct i2c_client *client,
 				pdata->max_x, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_POSITION_Y, pdata->min_y,
 				pdata->max_y, 0, 0);
-	input_set_abs_params(input_dev, ABS_MT_PRESSURE, pdata->min_z,
+	input_set_abs_params(input_dev, ABS_MT_TOUCH_MAJOR, pdata->min_z,
 				pdata->max_z, 0, 0);
-	input_set_abs_params(input_dev, ABS_MT_TOUCH_MAJOR, pdata->min_w,
+	input_set_abs_params(input_dev, ABS_MT_PRESSURE, pdata->min_w,
 				pdata->max_w, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_COMPONENT, 0, 255, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_SUMSIZE, 0, 16 * 26, 0, 0);

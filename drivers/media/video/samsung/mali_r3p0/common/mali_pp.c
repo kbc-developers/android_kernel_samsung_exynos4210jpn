@@ -46,8 +46,8 @@ struct mali_pp_core
 	u32                  counter_src1_used; /**< The selected performance counter 1 when a job is running */
 };
 
-static struct mali_pp_core* mali_global_pp_cores[MALI_MAX_NUMBER_OF_PP_CORES];
-static u32 mali_global_num_pp_cores = 0;
+static struct mali_pp_core* global_pp_cores[MALI_MAX_NUMBER_OF_PP_CORES];
+static u32 global_num_pp_cores = 0;
 
 /* Interrupt handlers */
 static _mali_osk_errcode_t mali_pp_upper_half(void *data);
@@ -57,24 +57,17 @@ static _mali_osk_errcode_t mali_pp_irq_probe_ack(void *data);
 static void mali_pp_post_process_job(struct mali_pp_core *core);
 static void mali_pp_timeout(void *data);
 
-struct mali_pp_core *mali_pp_create(const _mali_osk_resource_t *resource, struct mali_group *group)
+struct mali_pp_core *mali_pp_create(const _mali_osk_resource_t * resource, struct mali_group *group)
 {
 	struct mali_pp_core* core = NULL;
 
 	MALI_DEBUG_PRINT(2, ("Mali PP: Creating Mali PP core: %s\n", resource->description));
-	MALI_DEBUG_PRINT(2, ("Mali PP: Base address of PP core: 0x%x\n", resource->base));
-
-	if (mali_global_num_pp_cores >= MALI_MAX_NUMBER_OF_PP_CORES)
-	{
-		MALI_PRINT_ERROR(("Mali PP: Too many PP core objects created\n"));
-		return NULL;
-	}
 
 	core = _mali_osk_malloc(sizeof(struct mali_pp_core));
 	if (NULL != core)
 	{
 		core->group = group;
-		core->core_id = mali_global_num_pp_cores;
+		core->core_id = global_num_pp_cores;
 		core->running_job = NULL;
 		core->counter_src0 = MALI_HW_CORE_NO_COUNTER;
 		core->counter_src1 = MALI_HW_CORE_NO_COUNTER;
@@ -106,8 +99,16 @@ struct mali_pp_core *mali_pp_create(const _mali_osk_resource_t *resource, struct
 					{
 						_mali_osk_timer_setcallback(core->timeout_timer, mali_pp_timeout, (void *)core);
 
-						mali_global_pp_cores[mali_global_num_pp_cores] = core;
-						mali_global_num_pp_cores++;
+						if(global_num_pp_cores < MALI_MAX_NUMBER_OF_PP_CORES-1)
+						{
+							MALI_DEBUG_PRINT(4, ("Mali PP: set global pp core no %d from 0x%08X to 0x%08X\n", global_num_pp_cores, global_pp_cores[global_num_pp_cores], core));
+							global_pp_cores[global_num_pp_cores] = core;
+							global_num_pp_cores++;
+						}
+						else
+						{
+							MALI_PRINT_ERROR(("Mali PP: Wrong number of global pp cores\n"));
+						}
 
 						return core;
 					}
@@ -130,7 +131,7 @@ struct mali_pp_core *mali_pp_create(const _mali_osk_resource_t *resource, struct
 	}
 	else
 	{
-		MALI_PRINT_ERROR(("Mali PP: Failed to allocate memory for PP core\n"));
+		MALI_PRINT_ERROR(("Mali PP: Failed to allocate memory for PP core %s\n", core->hw_core.description));
 	}
 
 	return NULL;
@@ -138,23 +139,34 @@ struct mali_pp_core *mali_pp_create(const _mali_osk_resource_t *resource, struct
 
 void mali_pp_delete(struct mali_pp_core *core)
 {
-	u32 i;
-
 	MALI_DEBUG_ASSERT_POINTER(core);
 
 	_mali_osk_timer_term(core->timeout_timer);
 	_mali_osk_irq_term(core->irq);
 	mali_hw_core_delete(&core->hw_core);
 
-	/* Remove core from global list */
-	for (i = 0; i < mali_global_num_pp_cores; i++)
+	if (global_num_pp_cores > 0)
 	{
-		if (mali_global_pp_cores[i] == core)
+		u32 i,j;
+
+		for(i=0; i<global_num_pp_cores; i++)
 		{
-			mali_global_pp_cores[i] = NULL;
-			mali_global_num_pp_cores--;
-			break;
+			if(global_pp_cores[i] == core)
+			{
+				MALI_DEBUG_PRINT(4, ("Mali PP: set global pp core no %d from 0x%08X to NULL\n", i, global_pp_cores[i]));
+				global_pp_cores[i] = NULL;
+				for (j = i; j < global_num_pp_cores-1; j++)
+				{
+					global_pp_cores[j] = global_pp_cores[j+1];
+				}
+				global_pp_cores[global_num_pp_cores-1] = NULL;
+			}
 		}
+		global_num_pp_cores--;
+	}
+	else
+	{
+		MALI_PRINT_ERROR(("Mali PP: Wrong number of global pp cores\n"));
 	}
 
 	_mali_osk_free(core);
@@ -451,7 +463,7 @@ struct mali_pp_core* mali_pp_get_global_pp_core(u32 index)
 {
 	if (MALI_MAX_NUMBER_OF_PP_CORES > index)
 	{
-		return mali_global_pp_cores[index];
+		return global_pp_cores[index];
 	}
 
 	return NULL;
@@ -459,7 +471,7 @@ struct mali_pp_core* mali_pp_get_global_pp_core(u32 index)
 
 u32 mali_pp_get_glob_num_pp_cores(void)
 {
-	return mali_global_num_pp_cores;
+	return global_num_pp_cores;
 }
 
 u32 mali_pp_get_max_num_pp_cores(void)
@@ -607,9 +619,6 @@ static void mali_pp_post_process_job(struct mali_pp_core *core)
 	{
 		u32 val0 = 0;
 		u32 val1 = 0;
-#if MALI_TIMELINE_PROFILING_ENABLED
-		int counter_index = COUNTER_FP0_C0 + (2 * core->core_id);
-#endif
 
 		if (MALI_HW_CORE_NO_COUNTER != core->counter_src0_used)
 		{
@@ -625,10 +634,6 @@ static void mali_pp_post_process_job(struct mali_pp_core *core)
 				/* User space asked for a counter, but this is not what we retrived (overridden by counter src set on core) */
 				mali_pp_job_set_perf_counter_value0(core->running_job, core->running_sub_job, MALI_HW_CORE_INVALID_VALUE);
 			}
-
-#if MALI_TIMELINE_PROFILING_ENABLED
-			_mali_osk_profiling_report_hw_counter(counter_index, val0);
-#endif
 		}
 
 		if (MALI_HW_CORE_NO_COUNTER != core->counter_src1_used)
@@ -645,10 +650,6 @@ static void mali_pp_post_process_job(struct mali_pp_core *core)
 				/* User space asked for a counter, but this is not what we retrived (overridden by counter src set on core) */
 				mali_pp_job_set_perf_counter_value1(core->running_job, core->running_sub_job, MALI_HW_CORE_INVALID_VALUE);
 			}
-
-#if MALI_TIMELINE_PROFILING_ENABLED
-			_mali_osk_profiling_report_hw_counter(counter_index + 1, val1);
-#endif
 		}
 
 #if MALI_TIMELINE_PROFILING_ENABLED

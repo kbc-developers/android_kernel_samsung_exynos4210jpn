@@ -11,8 +11,6 @@
 #ifndef __ARCH_CONFIG_H__
 #define __ARCH_CONFIG_H__
 
-#include <mach/irqs.h>
-
 /* Configuration for the EB platform with ZBT memory enabled */
 /*zepplin added 2010.08.17 for orion configuration*/
 #define MALI_BASE_ADDR 		   0x13000000
@@ -35,6 +33,8 @@
 #define MEM_MALI_OS_SIZE 0x40000000
 
 /*for dedicated memory*/
+//#define MEM_MALI_BASE    0x58000000
+//#define MEM_MALI_SIZE 	 0x08000000
 #define MEM_MALI_SIZE 	 CONFIG_MALI_MEM_SIZE*1024*1024
 #define MEM_MALI_BASE    0x80000000 - MEM_MALI_SIZE 
 

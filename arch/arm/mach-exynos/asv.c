@@ -31,10 +31,8 @@ static int __init exynos4_asv_init(void)
 	int ret = -EINVAL;
 
 	exynos_asv = kzalloc(sizeof(struct samsung_asv), GFP_KERNEL);
-	if (!exynos_asv) {
-		ret = -ENOMEM;
+	if (!exynos_asv)
 		goto out1;
-	}
 
 	if (soc_is_exynos4210())
 		ret = exynos4210_asv_init(exynos_asv);
@@ -97,11 +95,13 @@ static int __init exynos4_asv_init(void)
 		pr_info("EXYNOS: No store_result function\n");
 		goto out2;
 	}
+	
+	kfree(exynos_asv);
 
 	return 0;
 out2:
 	kfree(exynos_asv);
 out1:
-	return ret;
+	return -EINVAL;
 }
 device_initcall_sync(exynos4_asv_init);

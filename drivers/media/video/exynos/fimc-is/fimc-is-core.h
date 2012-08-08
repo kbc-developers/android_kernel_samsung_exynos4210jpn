@@ -69,11 +69,9 @@
 #define FIMC_IS_FW_VERSION_LENGTH	7
 #define FIMC_IS_SETFILE_INFO_LENGTH	39
 
-#define FIMC_IS_EXTRA_MEM_SIZE	(FIMC_IS_EXTRA_FW_SIZE +	\
-				 FIMC_IS_EXTRA_SETFILE_SIZE +	\
-				 0x1000)
+#define FIMC_IS_EXTRA_MEM_SIZE		0x1B3000
 #define FIMC_IS_EXTRA_FW_SIZE		0x180000
-#define FIMC_IS_EXTRA_SETFILE_SIZE	0x4B000
+#define FIMC_IS_EXTRA_SETFILE_SIZE	0x32000
 
 #define GED_FD_RANGE			1000
 
@@ -430,7 +428,6 @@ extern void fimc_is_hw_a5_power(struct fimc_is_dev *dev, int on);
 extern int fimc_is_hw_io_init(struct fimc_is_dev *dev);
 extern void fimc_is_hw_open_sensor(struct fimc_is_dev *dev,
 					u32 id, u32 sensor_index);
-extern void fimc_is_hw_close_sensor(struct fimc_is_dev *dev, u32 id);
 extern void fimc_is_hw_set_stream(struct fimc_is_dev *dev, int on);
 extern void fimc_is_hw_set_init(struct fimc_is_dev *dev);
 extern void fimc_is_hw_change_mode(struct fimc_is_dev *dev, int val);

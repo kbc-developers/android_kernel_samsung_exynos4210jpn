@@ -43,7 +43,6 @@ else
 ath6kl_sdio-y += msm.o
 endif
 ath6kl_sdio-y += softmac.o
-ath6kl_sdio-y += wmiconfig.o
 ath6kl_sdio-$(CONFIG_NL80211_TESTMODE) += testmode.o
 
 obj-$(CONFIG_ATH6KL_USB) += ath6kl_usb.o
@@ -60,7 +59,6 @@ ath6kl_usb-y += txrx.o
 ath6kl_usb-y += wmi.o
 ath6kl_usb-y += wmi_btcoex.o
 ath6kl_usb-y += usb.o
-ath6kl_usb-y += wmiconfig.o
 ath6kl_usb-$(CONFIG_NL80211_TESTMODE) += testmode.o
 
 ccflags-y += -D__CHECK_ENDIAN__

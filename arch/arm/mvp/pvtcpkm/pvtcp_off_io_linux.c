@@ -31,96 +31,7 @@
  */
 
 /* Used to check if OutputAIO()-ing is likely in progress. */
-
 CommOSAtomic PvtcpOutputAIOSection;
-
-
-/*
- * Large datagram bounce buffer (PVTCP_SOCK_BUF_SIZE < size <= 64K).
- * Only one such buffer is available, shared across cpus via get/put.
- * A preallocated, smaller buffer is used for most over-size 'allocs'.
- * A larger, 64K-buffer may need to be __vmalloc()-ed.
- */
-
-typedef struct LargeDgramBuf {
-   unsigned char buf[PVTCP_SOCK_BUF_SIZE << 1]; /* Fast buffer. */
-   void *spareBuf;                              /* Dynamically allocated. */
-   CommOSMutex lock;
-} LargeDgramBuf;
-
-static LargeDgramBuf largeDgramBuf;
-
-
-/**
- * @brief One time initialization of large datagram buffer.
- */
-
-void
-PvtcpOffLargeDgramBufInit(void)
-{
-   largeDgramBuf.spareBuf = NULL;
-   CommOS_MutexInit(&largeDgramBuf.lock);
-}
-
-
-/**
- * @brief Reserves/holds the large datagram buffer.
- * @param size size of buffer.
- * @sizeeffect may sleep until the buffer is available.
- * @return address of buffer, or NULL if size too large or allocation failed.
- */
-
-static inline void *
-LargeDgramBufGet(int size)
-{
-   static const unsigned int maxSize = 64 * 1024;
-
-   /* coverity[alloc_fn] */
-   /* coverity[var_assign] */
-
-   CommOS_MutexLockUninterruptible(&largeDgramBuf.lock);
-
-   if (size <= sizeof largeDgramBuf.buf) {
-      return largeDgramBuf.buf;
-   }
-
-   if (size <= maxSize) {
-      if (!largeDgramBuf.spareBuf) {
-         largeDgramBuf.spareBuf = __vmalloc(maxSize,
-                                            (GFP_ATOMIC | __GFP_HIGHMEM),
-                                            PAGE_KERNEL);
-      }
-      if (largeDgramBuf.spareBuf) {
-         return largeDgramBuf.spareBuf;
-      }
-   }
-
-   CommOS_MutexUnlock(&largeDgramBuf.lock);
-   return NULL;
-}
-
-
-/**
- * @brief Releases hold on the large datagram buffer.
- * @param buf buffer to put back.
- */
-
-static inline void
-LargeDgramBufPut(void *buf)
-{
-   static unsigned int spareBufPuts = 0;
-
-   BUG_ON((buf != largeDgramBuf.buf) && (buf != largeDgramBuf.spareBuf));
-
-   if (largeDgramBuf.spareBuf && (++spareBufPuts % 2) == 0) {
-      /* Deallocate the spare buffer every now and then. */
-
-      vfree(largeDgramBuf.spareBuf);
-      largeDgramBuf.spareBuf = NULL;
-   }
-
-   CommOS_MutexUnlock(&largeDgramBuf.lock);
-}
 
 
 /*
@@ -350,14 +261,8 @@ enqueueBytes:
             struct kvec dummy = { .iov_base = NULL, .iov_len = 0 };
 
             rc = kernel_sendmsg(sock, &msg, &dummy, 0, 0);
-            if (rc != dummy.iov_len) {
-#if defined(PVTCP_FULL_DEBUG)
-               CommOS_Debug(("%s: Dgram [0x%p] sent [%d], expected [%d]\n",
-                             __FUNCTION__, sk, rc, dummy.iov_len));
-#endif
-               if (rc == -EAGAIN) { /* As if lost on the wire. */
-                  rc = 0;
-               }
+            if (rc == -EAGAIN) { /* As if lost on the wire. */
+               rc = 0;
             }
          }
 
@@ -381,10 +286,6 @@ enqueueBytes:
 
             PvskSetOpFlag(pvsk, PVTCP_OP_BIND);
             PvtcpSchedSock(pvsk);
-         }
-      } else {
-         for ( vecOff = 0; vecOff < vecLen; vecOff++) {
-            PvtcpBufFree(vec[vecOff].iov_base);
          }
       }
    }
@@ -693,7 +594,7 @@ PvtcpInputAIO(PvtcpSock *pvsk,
       tmpSize = CommOS_ReadAtomic(&pvsk->rcvdSize);
       while ((tmpSize < PVTCP_SOCK_SAFE_RCVSIZE) && pvsk->peerSockSet) {
          if (ioBuf != perCpuBuf) {
-            LargeDgramBufPut(ioBuf);
+            CommOS_Kfree(ioBuf);
             ioBuf = perCpuBuf;
          }
          vec[0].iov_base = (char *)ioBuf;
@@ -736,7 +637,7 @@ PvtcpInputAIO(PvtcpSock *pvsk,
                 */
 
                pvtcpOffDgramAllocations++;
-               ioBuf = LargeDgramBufGet(rc);
+               ioBuf = CommOS_KmallocNoSleep(rc);
                if (!ioBuf) {
                   /*
                    * We reset it to the per-cpu buffer such that we can still
@@ -824,7 +725,7 @@ PvtcpInputAIO(PvtcpSock *pvsk,
          }
       }
       if (ioBuf != perCpuBuf) {
-         LargeDgramBufPut(ioBuf);
+         CommOS_Kfree(ioBuf);
       }
    }
    return err;

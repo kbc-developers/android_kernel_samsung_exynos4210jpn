@@ -83,8 +83,7 @@
 #endif
 
 #define PROX_READ_NUM	40
- /*lightsnesor log time 6SEC 200mec X 30*/
-#define LIGHT_LOG_TIME	30
+
 enum {
 	LIGHT_ENABLED = BIT(0),
 	PROXIMITY_ENABLED = BIT(1),
@@ -134,7 +133,6 @@ struct cm36651_data {
 	u8 power_state;
 	int avg[3];
 	u16 color[4];
-	int count_log_time;
 #ifdef CM36651_CANCELATION
 	u8 default_threshold;
 #endif
@@ -867,15 +865,6 @@ static void cm36651_work_func_light(struct work_struct *work)
 	input_report_rel(cm36651->light_input_dev, REL_WHITE,
 		cm36651->color[3]+1);
 	input_sync(cm36651->light_input_dev);
-
-	if (cm36651->count_log_time >= LIGHT_LOG_TIME) {
-		pr_info("%s, red = %u green = %u blue = %u white = %u\n",
-			__func__, cm36651->color[0]+1, cm36651->color[1]+1,
-			cm36651->color[2]+1, cm36651->color[3]+1);
-		cm36651->count_log_time = 0;
-	} else
-		cm36651->count_log_time++;
-
 #ifdef CM36651_DEBUG
 	pr_info("%s, red = %u green = %u blue = %u white = %u\n",
 		__func__, cm36651->color[0]+1, cm36651->color[1]+1,

@@ -27,11 +27,7 @@
 #define G2D_HW_MAJOR_VER		4
 #define G2D_HW_MINOR_VER		1
 
-/* vaild register range set from user: 0x0104 ~ 0x0880 */
-#define G2D_VALID_START			0x0104
-#define G2D_VALID_END			0x0880
-
-/* general registers */
+/* Registers */
 #define G2D_SOFT_RESET			0x0000
 #define G2D_INTEN			0x0004
 #define G2D_INTC_PEND			0x000C
@@ -39,17 +35,8 @@
 #define G2D_DMA_COMMAND			0x0084
 #define G2D_DMA_STATUS			0x008C
 #define G2D_DMA_HOLD_CMD		0x0090
-
-/* command registers */
 #define G2D_BITBLT_START		0x0100
-
-/* registers for base address */
 #define G2D_SRC_BASE_ADDR		0x0304
-#define G2D_SRC_PLANE2_BASE_ADDR	0x0318
-#define G2D_DST_BASE_ADDR		0x0404
-#define G2D_DST_PLANE2_BASE_ADDR	0x0418
-#define G2D_PAT_BASE_ADDR		0x0500
-#define G2D_MSK_BASE_ADDR		0x0520
 
 /* G2D_SOFT_RESET */
 #define G2D_SFRCLEAR			(1 << 1)
@@ -93,7 +80,7 @@
 #define G2D_CMDLIST_POOL_SIZE		(G2D_CMDLIST_SIZE * G2D_CMDLIST_NUM)
 #define G2D_CMDLIST_DATA_NUM		(G2D_CMDLIST_SIZE / sizeof(u32) - 2)
 
-#define MAX_BUF_ADDR_NR			6
+#define MAX_BUF_ADDR_NR			5
 
 /* cmdlist data structure */
 struct g2d_cmdlist {
@@ -151,6 +138,22 @@ struct g2d_data {
 	struct mutex			runqueue_mutex;
 	struct kmem_cache		*runqueue_slab;
 };
+
+/* cmdlist functions */
+static void g2d_print_cmdlist(struct device *dev, struct g2d_cmdlist_node *node)
+{
+	struct g2d_cmdlist *cmdlist = node->cmdlist;
+	int nr;
+	int index;
+
+	dev_dbg(dev, "Head: %d\n", cmdlist->head);
+	for (nr = 0, index = 0; nr < cmdlist->last; nr += 2) {
+		dev_dbg(dev, "%02d: [0x%08x] 0x%08x\n", index,
+				cmdlist->data[nr], cmdlist->data[nr + 1]);
+		index++;
+	}
+	dev_dbg(dev, "Tail: 0x%08x\n", cmdlist->data[cmdlist->last]);
+}
 
 static int g2d_init_cmdlist(struct g2d_data *g2d)
 {
@@ -271,49 +274,67 @@ static int g2d_map_cmdlist_gem(struct g2d_data *g2d,
 {
 	struct drm_exynos_file_private *file_priv = file->driver_priv;
 	struct exynos_drm_g2d_private *g2d_priv = file_priv->g2d_priv;
-	struct exynos_drm_subdrv *subdrv = &g2d->subdrv;
 	struct g2d_cmdlist *cmdlist = node->cmdlist;
+	struct iommu_gem_map_params params;
+	unsigned int gem_handle;
 	dma_addr_t addr;
 	int offset;
 	int i;
 
+	params.dev = g2d->dev;
+	params.drm_dev = drm_dev;
+	params.file = file;
+
 	for (i = 0; i < node->map_nr; i++) {
-		struct exynos_iommu_gem_data gem_data;
-
 		offset = cmdlist->last - (i * 2 + 1);
-		gem_data.gem_handle_in = cmdlist->data[offset];
+		gem_handle = cmdlist->data[offset];
 
-		addr = exynos_drm_iommu_map_gem(subdrv, file,
+		addr = exynos_drm_iommu_map_gem(&params,
 						&g2d_priv->iommu_map_list,
-						&gem_data);
+						gem_handle,
+						IOMMU_G2D);
 		if (!addr) {
 			node->map_nr = i;
 			return -EFAULT;
 		}
 
 		cmdlist->data[offset] = addr;
-		node->gem_obj[i] = gem_data.gem_obj_out;
+		node->gem_obj[i] = params.gem_obj;
 	}
 
 	return 0;
 }
 
-static void g2d_unmap_cmdlist_gem(struct g2d_data *g2d,
+static void g2d_unmap_cmdlist_gem(struct drm_device *drm_dev,
 				  struct g2d_cmdlist_node *node,
 				  struct drm_file *file, int dec)
 {
-	struct exynos_drm_subdrv *subdrv = &g2d->subdrv;
+	struct drm_exynos_file_private *file_priv = file->driver_priv;
+	struct exynos_drm_g2d_private *g2d_priv = file_priv->g2d_priv;
+	struct device *dev = g2d_priv->dev;
 	struct g2d_cmdlist *cmdlist = node->cmdlist;
+	struct iommu_gem_map_params params;
+	struct g2d_data *g2d;
 	dma_addr_t addr;
 	int offset;
 	int i;
+
+	g2d = dev_get_drvdata(dev);
+	if (!g2d)
+		return;
+
+	params.dev = dev;
+	params.drm_dev = drm_dev;
+	params.file = file;
 
 	for (i = 0; i < node->map_nr; i++) {
 		offset = cmdlist->last - (i * 2 + 1) - dec;
 		addr = cmdlist->data[offset];
 
-		exynos_drm_iommu_unmap_gem(subdrv, file, node->gem_obj[i],
-						addr);
+		params.gem_obj = node->gem_obj[i];
+
+		exynos_drm_iommu_unmap_gem(&params, addr,
+						IOMMU_G2D);
 	}
 }
 
@@ -428,8 +449,7 @@ static irqreturn_t g2d_irq_handler(int irq, void *dev_id)
 	if (pending & G2D_INTP_GCMD_FIN) {
 		u32 cmdlist_no = readl_relaxed(g2d->regs + G2D_DMA_STATUS);
 
-		cmdlist_no = (cmdlist_no & G2D_DMA_LIST_DONE_COUNT) >>
-						G2D_DMA_LIST_DONE_COUNT_OFFSET;
+		cmdlist_no = (cmdlist_no & G2D_DMA_LIST_DONE_COUNT) >> 17;
 
 		g2d_finish_event(g2d, cmdlist_no);
 
@@ -444,46 +464,6 @@ static irqreturn_t g2d_irq_handler(int irq, void *dev_id)
 		queue_work(g2d->g2d_workq, &g2d->runqueue_work);
 
 	return IRQ_HANDLED;
-}
-
-static int g2d_check_reg_offset(struct device *dev, struct g2d_cmdlist *cmdlist,
-				int nr, bool for_addr)
-{
-	int reg_offset;
-	int index;
-	int i;
-
-	for (i = 0; i < nr; i++) {
-		index = cmdlist->last - 2 * (i + 1);
-		reg_offset = cmdlist->data[index] & ~0xfffff000;
-
-		if (reg_offset < G2D_VALID_START || reg_offset > G2D_VALID_END)
-			goto err;
-		if (reg_offset % 4)
-			goto err;
-
-		switch (reg_offset) {
-		case G2D_SRC_BASE_ADDR:
-		case G2D_SRC_PLANE2_BASE_ADDR:
-		case G2D_DST_BASE_ADDR:
-		case G2D_DST_PLANE2_BASE_ADDR:
-		case G2D_PAT_BASE_ADDR:
-		case G2D_MSK_BASE_ADDR:
-			if (!for_addr)
-				goto err;
-			break;
-		default:
-			if (for_addr)
-				goto err;
-			break;
-		}
-	}
-
-	return 0;
-
-err:
-	dev_err(dev, "Bad register offset: 0x%x\n", cmdlist->data[index]);
-	return -EINVAL;
 }
 
 /* ioctl functions */
@@ -511,7 +491,6 @@ int exynos_g2d_set_cmdlist_ioctl(struct drm_device *drm_dev, void *data,
 	struct g2d_cmdlist_node *node;
 	struct g2d_cmdlist *cmdlist;
 	unsigned long flags;
-	int size;
 	int ret;
 
 	if (!dev)
@@ -563,6 +542,7 @@ int exynos_g2d_set_cmdlist_ioctl(struct drm_device *drm_dev, void *data,
 
 	cmdlist->last = 0;
 
+	/* TODO: check cmdlist size */
 	/*
 	 * If don't clear SFR registers, the cmdlist is affected by register
 	 * values of previous cmdlist. G2D hw executes SFR clear command and
@@ -580,14 +560,6 @@ int exynos_g2d_set_cmdlist_ioctl(struct drm_device *drm_dev, void *data,
 		cmdlist->data[cmdlist->last++] = G2D_LIST_HOLD;
 	}
 
-	/* Check size of cmdlist: last 2 is about G2D_BITBLT_START */
-	size = cmdlist->last + req->cmd_nr * 2 + req->cmd_gem_nr * 2 + 2;
-	if (size > G2D_CMDLIST_DATA_NUM) {
-		dev_err(dev, "cmdlist size is too big\n");
-		ret = -EINVAL;
-		goto err_free_event;
-	}
-
 	if (copy_from_user(cmdlist->data + cmdlist->last,
 				(void __user *)req->cmd,
 				sizeof(*req->cmd) * req->cmd_nr)) {
@@ -595,10 +567,6 @@ int exynos_g2d_set_cmdlist_ioctl(struct drm_device *drm_dev, void *data,
 		goto err_free_event;
 	}
 	cmdlist->last += req->cmd_nr * 2;
-
-	ret = g2d_check_reg_offset(dev, cmdlist, req->cmd_nr, false);
-	if (ret < 0)
-		goto err_free_event;
 
 	node->map_nr = req->cmd_gem_nr;
 	if (req->cmd_gem_nr) {
@@ -611,10 +579,6 @@ int exynos_g2d_set_cmdlist_ioctl(struct drm_device *drm_dev, void *data,
 			goto err_free_event;
 		}
 		cmdlist->last += req->cmd_gem_nr * 2;
-
-		ret = g2d_check_reg_offset(dev, cmdlist, req->cmd_gem_nr, true);
-		if (ret < 0)
-			goto err_free_event;
 
 		ret = g2d_map_cmdlist_gem(g2d, node, drm_dev, file);
 		if (ret < 0)
@@ -635,7 +599,7 @@ int exynos_g2d_set_cmdlist_ioctl(struct drm_device *drm_dev, void *data,
 	return 0;
 
 err_unmap:
-	g2d_unmap_cmdlist_gem(g2d, node, file, 0);
+	g2d_unmap_cmdlist_gem(drm_dev, node, file, 0);
 err_free_event:
 	if (node->event) {
 		spin_lock_irqsave(&drm_dev->event_lock, flags);
@@ -714,7 +678,7 @@ static int g2d_open(struct drm_device *drm_dev, struct device *dev,
 
 	g2d_priv = kzalloc(sizeof(*g2d_priv), GFP_KERNEL);
 	if (!g2d_priv) {
-		dev_err(dev, "failed to allocate g2d private data\n");
+		dev_err(dev, "failed to allocate g2d_priv.\n");
 		return -ENOMEM;
 	}
 
@@ -734,9 +698,9 @@ static void g2d_close(struct drm_device *drm_dev, struct device *dev,
 	struct drm_exynos_file_private *file_priv = file->driver_priv;
 	struct exynos_drm_g2d_private *g2d_priv = file_priv->g2d_priv;
 	struct g2d_data *g2d;
-	struct exynos_drm_subdrv *subdrv;
 	struct g2d_cmdlist_node *node, *n;
 	struct iommu_info_node *im, *t_im;
+	struct iommu_gem_map_params params;
 
 	if (!dev)
 		return;
@@ -745,26 +709,35 @@ static void g2d_close(struct drm_device *drm_dev, struct device *dev,
 	if (!g2d)
 		return;
 
-	subdrv = &g2d->subdrv;
-
 	mutex_lock(&g2d->cmdlist_mutex);
 	list_for_each_entry_safe(node, n, &g2d_priv->inuse_cmdlist, list)
 		list_move_tail(&node->list, &g2d->free_cmdlist);
 	mutex_unlock(&g2d->cmdlist_mutex);
+
+	params.dev = dev;
+	params.drm_dev = drm_dev;
+	params.file = file;
 
 	/*
 	 * unmap all device address spaces from iommu table and
 	 * release all lists.
 	 */
 	list_for_each_entry_safe(im, t_im, &g2d_priv->iommu_map_list, list) {
-		exynos_drm_iommu_unmap_gem(subdrv, file, im->gem_obj,
-						im->dma_addr);
+		params.gem_obj = im->gem_obj;
+
+		exynos_drm_iommu_unmap_gem(&params, im->dma_addr,
+						IOMMU_G2D);
 		list_del(&im->list);
 		kfree(im);
 		im = NULL;
 	}
 
 	kfree(file_priv->g2d_priv);
+}
+
+static int g2d_subdrv_probe(struct drm_device *drm_dev, struct device *dev)
+{
+	return 0;
 }
 
 static int __devinit g2d_probe(struct platform_device *pdev)
@@ -774,6 +747,8 @@ static int __devinit g2d_probe(struct platform_device *pdev)
 	struct g2d_data *g2d;
 	struct exynos_drm_subdrv *subdrv;
 	int ret;
+
+	/* TODO: platform data */
 
 	g2d = kzalloc(sizeof(*g2d), GFP_KERNEL);
 	if (!g2d) {
@@ -821,6 +796,8 @@ static int __devinit g2d_probe(struct platform_device *pdev)
 	ret = g2d_init_cmdlist(g2d);
 	if (ret < 0)
 		goto err_iommu_deactivate;
+
+	/* TODO: source clk */
 
 	g2d->gate_clk = clk_get(dev, "fimg2d");
 	if (IS_ERR(g2d->gate_clk)) {
@@ -870,6 +847,7 @@ static int __devinit g2d_probe(struct platform_device *pdev)
 
 	subdrv = &g2d->subdrv;
 	subdrv->dev = dev;
+	subdrv->probe = g2d_subdrv_probe;
 	subdrv->open = g2d_open;
 	subdrv->close = g2d_close;
 
@@ -956,7 +934,6 @@ static int g2d_suspend(struct device *dev)
 		usleep_range(500, 1000);
 
 	flush_work_sync(&g2d->runqueue_work);
-	exynos_drm_iommu_deactivate(dev);
 
 	return 0;
 }
@@ -965,7 +942,6 @@ static int g2d_resume(struct device *dev)
 {
 	struct g2d_data *g2d = dev_get_drvdata(dev);
 
-	exynos_drm_iommu_activate(dev);
 	g2d->suspended = false;
 	g2d_exec_runqueue(g2d);
 

@@ -26,6 +26,111 @@
 
 #ifdef CONFIG_S3C_ADC
 #if defined(CONFIG_MACH_M0) || defined(CONFIG_MACH_P4NOTE)
+#if defined(CONFIG_MACH_M0_CTC)
+static struct adc_table_data ap_adc_temper_table_battery[] = {
+	{  204,	 800 },
+	{  210,	 790 },
+	{  216,	 780 },
+	{  223,	 770 },
+	{  230,	 760 },
+	{  237,	 750 },
+	{  244,	 740 },
+	{  252,	 730 },
+	{  260,	 720 },
+	{  267,	 710 },
+	{  274,	 700 },
+	{  281,	 690 },
+	{  288,	 680 },
+	{  295,	 670 },
+	{  302,	 660 },
+	{  309,	 650 },
+	{  316,	 640 },
+	{  324,	 630 },
+	{  333,	 620 },
+	{  344,	 610 },
+	{  357,	 600 },
+	{  372,	 590 },
+	{  387,	 580 },
+	{  402,	 570 },
+	{  417,	 560 },
+	{  432,	 550 },
+	{  447,	 540 },
+	{  462,	 530 },
+	{  477,	 520 },
+	{  492,	 510 },
+	{  507,	 500 },
+	{  522,	 490 },
+	{  537,	 480 },
+	{  553,	 470 },
+	{  569,	 460 },
+	{  586,	 450 },
+	{  603,	 440 },
+	{  621,	 430 },
+	{  638,	 420 },
+	{  657,	 410 },
+	{  675,	 400 },
+	{  694,	 390 },
+	{  713,	 380 },
+	{  733,	 370 },
+	{  753,	 360 },
+	{  773,	 350 },
+	{  794,	 340 },
+	{  815,	 330 },
+	{  836,	 320 },
+	{  858,	 310 },
+	{  880,	 300 },
+	{  902,	 290 },
+	{  924,	 280 },
+	{  947,	 270 },
+	{  969,	 260 },
+	{  992,	 250 },
+	{ 1015,	 240 },
+	{ 1039,	 230 },
+	{ 1062,	 220 },
+	{ 1086,	 210 },
+	{ 1109,	 200 },
+	{ 1133,	 190 },
+	{ 1156,	 180 },
+	{ 1180,	 170 },
+	{ 1204,	 160 },
+	{ 1227,	 150 },
+	{ 1250,	 140 },
+	{ 1274,	 130 },
+	{ 1297,	 120 },
+	{ 1320,	 110 },
+	{ 1343,	 100 },
+	{ 1366,	  90 },
+	{ 1388,	  80 },
+	{ 1410,	  70 },
+	{ 1432,	  60 },
+	{ 1454,	  50 },
+	{ 1475,	  40 },
+	{ 1496,	  30 },
+	{ 1516,	  20 },
+	{ 1536,	  10 },
+	{ 1556,	   0 },
+	{ 1576,	 -10 },
+	{ 1595,	 -20 },
+	{ 1613,	 -30 },
+	{ 1631,	 -40 },
+	{ 1649,	 -50 },
+	{ 1666,	 -60 },
+	{ 1683,	 -70 },
+	{ 1699,  -80 },
+	{ 1714,  -90 },
+	{ 1730, -100 },
+	{ 1744, -110 },
+	{ 1759, -120 },
+	{ 1773, -130 },
+	{ 1786, -140 },
+	{ 1799, -150 },
+	{ 1811, -160 },
+	{ 1823, -170 },
+	{ 1835, -180 },
+	{ 1846, -190 },
+	{ 1856, -200 },
+};
+#else
 static struct adc_table_data ap_adc_temper_table_battery[] = {
 	{  204,	 800 },
 	{  210,	 790 },
@@ -129,7 +234,9 @@ static struct adc_table_data ap_adc_temper_table_battery[] = {
 	{ 1846, -190 },
 	{ 1856, -200 },
 };
+#endif
 #elif defined(CONFIG_MACH_C1)
+#if defined(CONFIG_TARGET_LOCALE_KOR)
 static struct adc_table_data ap_adc_temper_table_battery[] = {
 	{  178,	 800 },
 	{  186,	 790 },
@@ -232,6 +339,21 @@ static struct adc_table_data ap_adc_temper_table_battery[] = {
 	{ 1789, -180 },
 	{ 1805, -190 },
 	{ 1824, -200 },
+};
+#else
+static struct adc_table_data ap_adc_temper_table_battery[] = {
+	{ 305,  650 },
+	{ 566,  430 },
+	{ 1494,   0 },
+	{ 1571, -50 },
+};
+#endif
+#elif defined(CONFIG_MACH_S2PLUS)
+static struct adc_table_data ap_adc_temper_table_battery[] = {
+	{ 305,  650 },
+	{ 566,  430 },
+	{ 1494,   0 },
+	{ 1571, -50 },
 };
 #else	/* sample */
 static struct adc_table_data ap_adc_temper_table_battery[] = {
@@ -358,62 +480,6 @@ static int get_midas_siop_level(int temp)
 	static int prev_level = 0;
 	int level = -1;
 
-#if defined(CONFIG_MACH_C1_KOR_SKT) || defined(CONFIG_MACH_C1_KOR_KT) || \
-	defined(CONFIG_MACH_C1_KOR_LGT)
-	if (temp > prev_temp) {
-		if (temp >= 490)
-			level = 4;
-		else if (temp >= 480)
-			level = 3;
-		else if (temp >= 450)
-			level = 2;
-		else if (temp >= 420)
-			level = 1;
-		else
-			level = 0;
-	} else {
-		if (temp < 400)
-			level = 0;
-		else if (temp < 420)
-			level = 1;
-		else if (temp < 450)
-			level = 2;
-		else if (temp < 480)
-			level = 3;
-		else
-			level = 4;
-
-		if (level > prev_level)
-			level = prev_level;
-	}
-#elif defined(CONFIG_MACH_P4NOTE)
-	if (temp > prev_temp) {
-		if (temp >= 620)
-			level = 4;
-		else if (temp >= 610)
-			level = 3;
-		else if (temp >= 580)
-			level = 2;
-		else if (temp >= 550)
-			level = 1;
-		else
-			level = 0;
-	} else {
-		if (temp < 520)
-			level = 0;
-		else if (temp < 550)
-			level = 1;
-		else if (temp < 580)
-			level = 2;
-		else if (temp < 610)
-			level = 3;
-		else
-			level = 4;
-
-		if (level > prev_level)
-			level = prev_level;
-	}
-#else
 	if (temp > prev_temp) {
 		if (temp >= 540)
 			level = 4;
@@ -440,7 +506,6 @@ static int get_midas_siop_level(int temp)
 		if (level > prev_level)
 			level = prev_level;
 	}
-#endif
 
 	prev_temp = temp;
 	if (prev_level == level)

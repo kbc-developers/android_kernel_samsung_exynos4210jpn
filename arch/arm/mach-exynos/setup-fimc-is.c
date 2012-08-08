@@ -668,11 +668,6 @@ void exynos5_fimc_is_cfg_gpio(struct platform_device *pdev)
 	/* gpio_direction_output(GPIO_CAM_FLASH_EN_T, 1); */
 	gpio_free(GPIO_CAM_FLASH_EN_T);
 #endif
-
-#if defined(CONFIG_MACH_P10)
-	/* CAM A port : POWER */
-	gpio_set_value(GPIO_CAM_IO_EN, 0);
-#endif
 }
 
 int exynos5_fimc_is_cfg_clk(struct platform_device *pdev)
@@ -863,9 +858,6 @@ int exynos5_fimc_is_clk_on(struct platform_device *pdev)
 	printk(KERN_DEBUG "exynos5_fimc_is_clk_on\n");
 
 #if defined(CONFIG_MACH_P10)
-	/* CAM A port : POWER */
-	gpio_set_value(GPIO_CAM_IO_EN, 1);
-
 	/* ISP */
 	regulator = regulator_get(NULL, "cam_core_1.8v");
 	if (IS_ERR(regulator)) {
@@ -904,77 +896,60 @@ int exynos5_fimc_is_clk_on(struct platform_device *pdev)
 #endif
 
 	gsc_ctrl = clk_get(&pdev->dev, "gscl");
-	if (IS_ERR(gsc_ctrl)) {
-		printk(KERN_ERR "%s : clk_get(gscl) failed\n", __func__);
+	if (IS_ERR(gsc_ctrl))
 		return PTR_ERR(gsc_ctrl);
-	}
 
 	clk_enable(gsc_ctrl);
 	clk_put(gsc_ctrl);
 
 	isp_ctrl = clk_get(&pdev->dev, "isp0");
-	if (IS_ERR(isp_ctrl)) {
-		printk(KERN_ERR "%s : clk_get(isp0) failed\n", __func__);
+	if (IS_ERR(isp_ctrl))
 		return PTR_ERR(isp_ctrl);
-	}
 
 	clk_enable(isp_ctrl);
 	clk_put(isp_ctrl);
 
 	isp_ctrl = clk_get(&pdev->dev, "isp1");
-	if (IS_ERR(isp_ctrl)) {
-		printk(KERN_ERR "%s : clk_get(isp1) failed\n", __func__);
+	if (IS_ERR(isp_ctrl))
 		return PTR_ERR(isp_ctrl);
-	}
 
 	clk_enable(isp_ctrl);
 	clk_put(isp_ctrl);
 
 	mipi_ctrl = clk_get(&pdev->dev, "gscl_wrap0");
-	if (IS_ERR(mipi_ctrl)) {
-		printk(KERN_ERR "%s : clk_get(gscl_wrap0) failed\n", __func__);
+	if (IS_ERR(mipi_ctrl))
 		return PTR_ERR(mipi_ctrl);
-	}
 
 	clk_enable(mipi_ctrl);
 	clk_put(mipi_ctrl);
 
 	mipi_ctrl = clk_get(&pdev->dev, "gscl_wrap1");
-	if (IS_ERR(mipi_ctrl)) {
-		printk(KERN_ERR "%s : clk_get(gscl_wrap1) failed\n", __func__);
+	if (IS_ERR(mipi_ctrl))
 		return PTR_ERR(mipi_ctrl);
-	}
 
 	clk_enable(mipi_ctrl);
 	clk_put(mipi_ctrl);
 
 	cam_if_top = clk_get(&pdev->dev, "camif_top");
-	if (IS_ERR(cam_if_top)) {
-		printk(KERN_ERR "%s : clk_get(camif_top) failed\n", __func__);
+	if (IS_ERR(cam_if_top))
 		return PTR_ERR(cam_if_top);
-	}
 
 	clk_enable(cam_if_top);
 	clk_put(cam_if_top);
 
 	cam_A_clk = clk_get(&pdev->dev, "sclk_cam0");
-	if (IS_ERR(cam_A_clk)) {
-		printk(KERN_ERR "%s : clk_get(sclk_cam0) failed\n", __func__);
+	if (IS_ERR(cam_A_clk))
 		return PTR_ERR(cam_A_clk);
-	}
 
 	clk_enable(cam_A_clk);
 	clk_put(cam_A_clk);
 
 	cam_A_clk = clk_get(&pdev->dev, "sclk_cam1");
-	if (IS_ERR(cam_A_clk)) {
-		printk(KERN_ERR "%s : clk_get(sclk_cam1) failed\n", __func__);
+	if (IS_ERR(cam_A_clk))
 		return PTR_ERR(cam_A_clk);
-	}
 
 	clk_enable(cam_A_clk);
 	clk_put(cam_A_clk);
-
 	return 0;
 }
 
@@ -989,77 +964,54 @@ int exynos5_fimc_is_clk_off(struct platform_device *pdev)
 
 	printk(KERN_DEBUG "exynos5_fimc_is_clk_on\n");
 
-	cam_A_clk = clk_get(&pdev->dev, "sclk_cam1");
-	if (IS_ERR(cam_A_clk)) {
-		printk(KERN_ERR "%s : clk_get(sclk_cam1) failed\n", __func__);
-		return PTR_ERR(cam_A_clk);
-	}
+	gsc_ctrl = clk_get(&pdev->dev, "gscl");
+	if (IS_ERR(gsc_ctrl))
+		return PTR_ERR(gsc_ctrl);
 
-	clk_disable(cam_A_clk);
-	clk_put(cam_A_clk);
+	clk_disable(gsc_ctrl);
+	clk_put(gsc_ctrl);
 
-   	cam_A_clk = clk_get(&pdev->dev, "sclk_cam0");
-	if (IS_ERR(cam_A_clk)) {
-		printk(KERN_ERR "%s : clk_get(sclk_cam0) failed\n", __func__);
-		return PTR_ERR(cam_A_clk);
-	}
+	isp_ctrl = clk_get(&pdev->dev, "isp0");
+	if (IS_ERR(isp_ctrl))
+		return PTR_ERR(isp_ctrl);
 
-	clk_disable(cam_A_clk);
-	clk_put(cam_A_clk);
+	clk_disable(isp_ctrl);
+	clk_put(isp_ctrl);
+
+	isp_ctrl = clk_get(&pdev->dev, "isp1");
+	if (IS_ERR(isp_ctrl))
+		return PTR_ERR(isp_ctrl);
+
+	clk_disable(isp_ctrl);
+	clk_put(isp_ctrl);
+
+	mipi_ctrl = clk_get(&pdev->dev, "gscl_wrap");
+	if (IS_ERR(mipi_ctrl))
+		return PTR_ERR(mipi_ctrl);
+
+	clk_disable(mipi_ctrl);
+	clk_put(mipi_ctrl);
 
 	cam_if_top = clk_get(&pdev->dev, "camif_top");
-	if (IS_ERR(cam_if_top)) {
-		printk(KERN_ERR "%s : clk_get(camif_top) failed\n", __func__);
+	if (IS_ERR(cam_if_top))
 		return PTR_ERR(cam_if_top);
-	}
 
 	clk_disable(cam_if_top);
 	clk_put(cam_if_top);
 
-	mipi_ctrl = clk_get(&pdev->dev, "gscl_wrap1");
-	if (IS_ERR(mipi_ctrl)) {
-		printk(KERN_ERR "%s : clk_get(gscl_wrap1) failed\n", __func__);
-		return PTR_ERR(mipi_ctrl);
-	}
+	cam_A_clk = clk_get(&pdev->dev, "sclk_cam0");
+	if (IS_ERR(cam_A_clk))
+		return PTR_ERR(cam_A_clk);
 
-	clk_disable(mipi_ctrl);
-	clk_put(mipi_ctrl);
+	clk_disable(cam_A_clk);
+	clk_put(cam_A_clk);
 
-	mipi_ctrl = clk_get(&pdev->dev, "gscl_wrap0");
-	if (IS_ERR(mipi_ctrl)) {
-		printk(KERN_ERR "%s : clk_get(gscl_wrap0) failed\n", __func__);
-		return PTR_ERR(mipi_ctrl);
-	}
+	cam_A_clk = clk_get(&pdev->dev, "sclk_cam1");
+	if (IS_ERR(cam_A_clk))
+		return PTR_ERR(cam_A_clk);
 
-	clk_disable(mipi_ctrl);
-	clk_put(mipi_ctrl);
-
-   	isp_ctrl = clk_get(&pdev->dev, "isp1");
-	if (IS_ERR(isp_ctrl)) {
-		printk(KERN_ERR "%s : clk_get(isp1) failed\n", __func__);
-		return PTR_ERR(isp_ctrl);
-	}
-
-	clk_disable(isp_ctrl);
-	clk_put(isp_ctrl);
-
-	isp_ctrl = clk_get(&pdev->dev, "isp0");
-	if (IS_ERR(isp_ctrl)) {
-		printk(KERN_ERR "%s : clk_get(isp0) failed\n", __func__);
-		return PTR_ERR(isp_ctrl);
-	}
-
-	clk_disable(isp_ctrl);
-	clk_put(isp_ctrl);
-
-	gsc_ctrl = clk_get(&pdev->dev, "gscl");
-	if (IS_ERR(gsc_ctrl)) {
-		printk(KERN_ERR "%s : clk_get(gscl) failed\n", __func__);
-		return PTR_ERR(gsc_ctrl);
-	}
-
-	clk_disable(gsc_ctrl);
-	clk_put(gsc_ctrl);
+	clk_disable(cam_A_clk);
+	clk_put(cam_A_clk);
 
 #if defined(CONFIG_MACH_P10)
 	/* ldo19 */
@@ -1101,11 +1053,7 @@ int exynos5_fimc_is_clk_off(struct platform_device *pdev)
 	if (regulator_is_enabled(regulator))
 		regulator_force_disable(regulator);
 	regulator_put(regulator);
-
-	/* CAM A port : POWER */
-	gpio_set_value(GPIO_CAM_IO_EN, 0);
 #endif
-
 	return 0;
 }
 #endif

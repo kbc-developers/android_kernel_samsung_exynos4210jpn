@@ -373,7 +373,6 @@ const struct dev_pm_ops max77686_pm = {
 	.resume = max77686_resume,
 #ifdef CONFIG_HIBERNATION
 	.freeze =  max77686_freeze,
-	.thaw = max77686_restore,
 	.restore = max77686_restore,
 #endif
 };
@@ -394,11 +393,7 @@ static int __init max77686_i2c_init(void)
 	return i2c_add_driver(&max77686_i2c_driver);
 }
 /* init early so consumer devices can complete system boot */
-#ifdef CONFIG_FAST_RESUME
-beforeresume_initcall(max77686_i2c_init);
-#else
 subsys_initcall(max77686_i2c_init);
-#endif
 
 static void __exit max77686_i2c_exit(void)
 {

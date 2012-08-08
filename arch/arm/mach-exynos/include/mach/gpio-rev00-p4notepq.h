@@ -276,7 +276,6 @@ extern void midas_config_sleep_gpio_table(void);
 #define GPIO_CP_RST		EXYNOS4_GPX3(2)
 #define GPIO_SIM_DETECT		EXYNOS4_GPX1(7)
 #define GPIO_FM_RST EXYNOS4_GPC1(1)
-#define GPIO_AP_DUMP_INT	EXYNOS4212_GPM3(4)
 #else
 
 /* Modem Interface GPIOs - M0 SPI */

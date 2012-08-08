@@ -297,13 +297,12 @@ static int try_charger_enable(struct charger_manager *cm, bool enable)
 	if (enable) {
 		if (cm->emergency_stop || cm->user_prohibit)
 			return -EAGAIN; /* Do it again later */
-		for (i = 0 ; i < desc->num_charger_regulators ; i++)
-			regulator_enable(desc->charger_regulators[i].consumer);
+		err = regulator_bulk_enable(desc->num_charger_regulators,
+					desc->charger_regulators);
 	} else {
-		for (i = 0 ; i < desc->num_charger_regulators ; i++) {
-			regulator_force_disable(
-					desc->charger_regulators[i].consumer);
-		}
+		for (i = 0; i < desc->num_charger_regulators; i++)
+			regulator_force_disable(desc->charger_regulators[i].
+						consumer);
 	}
 
 	if (!err)
@@ -1082,93 +1081,66 @@ bool is_charger_manager_active(void)
 }
 EXPORT_SYMBOL_GPL(is_charger_manager_active);
 
-#ifdef CONFIG_EXTCON
-/*
- * This function enable or disable charger for charging according to
- * cable state when charger cable is attached or detached. So, each
- * cable has requested different current limit to protect over-current
- * issue and then it set current limit of charger(regulator) according to
- * a kind of charger cable before enabling charger.
- */
-static void charger_extcon_work(struct work_struct *work)
+static void cm_check_extcon_state(struct charger_manager *cm)
 {
-	struct charger_cable *cable =
-			container_of(work, struct charger_cable, wq);
-	int ret;
+	bool attached = false;
 
-	if (cable->attached && cable->min_uA != 0 && cable->max_uA != 0) {
-		ret = regulator_set_current_limit(cable->charger->consumer,
-					cable->min_uA, cable->max_uA);
-		if (ret < 0) {
-			pr_err("Cannot set current limit of %s (%s)\n",
-				cable->charger->regulator_name, cable->name);
-			return;
+	if (cm->usb_mask > 0) {
+		if (cm->edev->state & cm->usb_mask) {
+			try_charger_enable(cm, true);
+			attached = true;
 		}
-
-		pr_info("Set current limit of %s : %duA ~ %duA\n",
-					cable->charger->regulator_name,
-					cable->min_uA, cable->max_uA);
+		if ((cm->old_state & cm->usb_mask) && !cm->edev->state) {
+			try_charger_enable(cm, false);
+			attached = false;
+		}
 	}
 
-	try_charger_enable(cable->cm, cable->attached);
-
+	if (cm->ta_mask > 0) {
+		if (cm->edev->state & cm->ta_mask) {
+			try_charger_enable(cm, true);
+			attached = true;
+		}
+		if ((cm->old_state & cm->ta_mask) && !cm->edev->state) {
+			try_charger_enable(cm, false);
+			attached = false;
+		}
+	}
 #ifdef CONFIG_JACK_MON
-	/*
-	 * FIXME: Extcon framework will be used instead of jack handler(
-	 * CONFIG_JACK_MON). But, SLP Platform have still used jack handler
-	 * for external connector (e.g., TA, USB and so on).
-	 * The jack handler will be removed after replacing from jack handler
-	 * to Extcon framework.
-	 */
-	jack_event_handler("charger", cable->attached);
+	jack_event_handler("charger", attached);
 #endif
 }
 
-/* This function executes workqueue when charger cable is attached/detached. */
-static int charger_extcon_notifier(struct notifier_block *self,
-			unsigned long event, void *ptr)
+static void cm_extcon_notifier_work(struct work_struct *work)
 {
-	struct charger_cable *cable =
-		container_of(self, struct charger_cable, nb);
+	struct charger_manager *cm =
+		container_of(work, struct charger_manager, notifier_work);
 
-	cable->attached = event;
-	schedule_work(&cable->wq);
+	cm_check_extcon_state(cm);
+}
+
+static int cm_extcon_notifier(struct notifier_block *self,
+		unsigned long event, void *ptr)
+{
+	struct charger_manager *cm =
+			container_of(self, struct charger_manager, nb);
+
+	cm->old_state = event;
+
+	schedule_work(&cm->notifier_work);
 
 	return NOTIFY_DONE;
 }
 
-/* This function initialize charger cable with Extcon framework */
-static int charger_extcon_init(struct charger_manager *cm,
-		struct charger_cable *cable)
-{
-	int ret = 0;
-
-	/*
-	 * Charger manager use Extcon framework to identify
-	 * the charger cable among various external connector
-	 * cable (e.g., TA, USB, Dock and so on).
-	 */
-	INIT_WORK(&cable->wq, charger_extcon_work);
-	cable->nb.notifier_call = charger_extcon_notifier;
-	ret = extcon_register_interest(&cable->extcon_dev,
-			cable->extcon_name, cable->name, &cable->nb);
-	if (ret < 0) {
-		pr_info("Cannot register extcon_dev for %s(cable: %s).\n",
-				cable->extcon_name,
-				cable->name);
-		ret = -EINVAL;
-	}
-
-	return ret;
-}
-
-#endif	/* CONFIG_EXTCON */
+static struct notifier_block cm_extcon_nb = {
+	.notifier_call = cm_extcon_notifier,
+};
 
 static int charger_manager_probe(struct platform_device *pdev)
 {
 	struct charger_desc *desc = dev_get_platdata(&pdev->dev);
 	struct charger_manager *cm;
-	int ret = 0, i, j;
+	int ret = 0, i;
 	union power_supply_propval val;
 
 	if (g_desc && !rtc_dev && g_desc->rtc) {
@@ -1224,38 +1196,17 @@ static int charger_manager_probe(struct platform_device *pdev)
 		goto err_no_charger;
 	}
 
-	for (i = 0 ; i < desc->num_charger_regulators ; i++) {
-		struct charger_regulator *charger
-					= &desc->charger_regulators[i];
-
-		charger->consumer = regulator_get(&pdev->dev,
-					charger->regulator_name);
-		if (charger->consumer == NULL) {
-			dev_err(&pdev->dev, "Cannot find charger(%s)n",
-						charger->regulator_name);
-			ret = -EINVAL;
-			goto err_no_charger_stat;
-		}
-#ifdef CONFIG_EXTCON
-		for (j = 0 ; j < charger->num_cables ; j++) {
-			struct charger_cable *cable = &charger->cables[j];
-
-			ret = charger_extcon_init(cm, cable);
-			if (ret < 0) {
-				dev_err(&pdev->dev, "Cannot find charger(%s)n",
-						charger->regulator_name);
-				goto err_extcon;
-			}
-			cable->charger = charger;
-			cable->cm = cm;
-		}
-#endif
+	ret = regulator_bulk_get(&pdev->dev, desc->num_charger_regulators,
+				 desc->charger_regulators);
+	if (ret) {
+		dev_err(&pdev->dev, "Cannot get charger regulators.\n");
+		goto err_no_charger;
 	}
 
 	if (!desc->psy_charger_stat || !desc->psy_charger_stat[0]) {
 		dev_err(&pdev->dev, "No power supply defined.\n");
 		ret = -EINVAL;
-		goto err_extcon;
+		goto err_no_charger_stat;
 	}
 
 	for (i = 0; desc->psy_charger_stat[i]; i++)
@@ -1265,7 +1216,7 @@ static int charger_manager_probe(struct platform_device *pdev)
 				   GFP_KERNEL);
 	if (!cm->charger_stat) {
 		ret = -ENOMEM;
-		goto err_extcon;
+		goto err_no_charger_stat;
 	}
 
 	for (i = 0; desc->psy_charger_stat[i]; i++) {
@@ -1357,7 +1308,7 @@ static int charger_manager_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Cannot register charger-manager with"
 				" name \"%s\".\n", cm->charger_psy.name);
 		ret = -EINVAL;
-		goto err_psy;
+		goto err;
 	}
 
 	/* Fullbat vchk should be ready before registering irq handlers */
@@ -1370,26 +1321,36 @@ static int charger_manager_probe(struct platform_device *pdev)
 
 	schedule_work(&setup_polling);
 
-	return 0;
+	cm->nb = cm_extcon_nb;
+	INIT_WORK(&cm->notifier_work, cm_extcon_notifier_work);
 
-err_psy:
+	cm->edev = extcon_get_extcon_dev("usb-connector");
+	if (cm->edev) {
+		unsigned long usb_index, ta_index;
+
+		usb_index = extcon_find_cable_index(cm->edev, "USB");
+		ta_index = extcon_find_cable_index(cm->edev, "TA");
+		cm->usb_mask = usb_index >= 0 ? 1 << usb_index : 0;
+		cm->ta_mask = ta_index >= 0 ? 1 << ta_index : 0;
+		if (cm->usb_mask || cm->ta_mask) {
+			extcon_register_notifier(cm->edev, &cm->nb);
+			/*
+			 * Enable/disable regulators
+			 * depending on cable state
+			 */
+			cm_check_extcon_state(cm);
+		}
+	}
+
+	return 0;
+err:
 	kfree(cm->charger_psy.properties);
 err_chg_stat:
 	kfree(cm->charger_stat);
-#ifdef CONFIG_EXTCON
-err_extcon:
-	for (i = 0 ; i < desc->num_charger_regulators ; i++) {
-		struct charger_regulator *charger
-				= &desc->charger_regulators[i];
-		for (j = 0 ; j < charger->num_cables ; j++) {
-			struct charger_cable *cable = &charger->cables[j];
-			extcon_unregister_interest(&cable->extcon_dev);
-		}
-	}
-#endif
 err_no_charger_stat:
-	for (i = 0 ; i < desc->num_charger_regulators ; i++)
-		regulator_put(desc->charger_regulators[i].consumer);
+	if (desc->charger_regulators)
+		regulator_bulk_free(desc->num_charger_regulators,
+					desc->charger_regulators);
 err_no_charger:
 	kfree(cm);
 err_alloc:
@@ -1400,8 +1361,9 @@ static int __devexit charger_manager_remove(struct platform_device *pdev)
 {
 	struct charger_manager *cm = platform_get_drvdata(pdev);
 	struct charger_desc *desc = cm->desc;
-	int i, j;
 
+	if (cm->usb_mask || cm->ta_mask)
+		extcon_unregister_notifier(cm->edev, &cm->nb);
 	/* Remove from the list */
 	mutex_lock(&cm_list_mtx);
 	list_del(&cm->entry);
@@ -1411,23 +1373,11 @@ static int __devexit charger_manager_remove(struct platform_device *pdev)
 
 	power_supply_unregister(&cm->charger_psy);
 
-#ifdef CONFIG_EXTCON
-	for (i = 0 ; i < desc->num_charger_regulators ; i++) {
-		struct charger_regulator *charger
-				= &desc->charger_regulators[i];
-		for (j = 0 ; j < charger->num_cables ; j++) {
-			struct charger_cable *cable = &charger->cables[j];
-			extcon_unregister_interest(&cable->extcon_dev);
-		}
-	}
-#endif
-
-	for (i = 0 ; i < desc->num_charger_regulators ; i++)
-		regulator_put(desc->charger_regulators[i].consumer);
-
 	kfree(cm->charger_psy.properties);
 	kfree(cm->charger_stat);
-
+	if (desc->charger_regulators)
+		regulator_bulk_free(desc->num_charger_regulators,
+					desc->charger_regulators);
 	kfree(cm);
 	return 0;
 }

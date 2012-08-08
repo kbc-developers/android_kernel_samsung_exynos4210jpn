@@ -70,22 +70,15 @@
 #define MXT_STATE_PRESS			1
 #define MXT_STATE_MOVE			2
 
-/* Diagnostic cmds  */
-#define MXT_DIAG_PAGE_UP		0x01
-#define MXT_DIAG_PAGE_DOWN		0x02
-#define MXT_DIAG_DELTA_MODE		0x10
-#define MXT_DIAG_REFERENCE_MODE		0x11
-#define MXT_DIAG_CTE_MODE		0x31
-#define MXT_DIAG_IDENTIFICATION_MODE	0x80
-#define MXT_DIAG_TOCH_THRESHOLD_MODE	0xF4
-
-#define MXT_DIAG_MODE_MASK	0xFC
-#define MXT_DIAGNOSTIC_MODE	0
-#define MXT_DIAGNOSTIC_PAGE	1
+/* Debug cmds  */
+#define MXT_PAGE_UP			0x01
+#define MXT_PAGE_DOWN			0x02
+#define MXT_DELTA_MODE		0x10
+#define MXT_REFERENCE_MODE	0x11
+#define MXT_CTE_MODE			0x31
 
 /* Firmware name */
-#define MXT_FW_NAME		"mXT1664S.fw"
-#define MXT_MAX_FW_PATH		255
+#define MXT_FW_NAME			"tsp_atmel/mXT1664S.fw"
 
 /* Firmware version */
 #define MXT_FIRM_VERSION	0x9
@@ -104,19 +97,15 @@
 #define TSP_ITDEV		1
 
 #if TSP_SEC_SYSFS
-#define TSP_BUF_SIZE	 1024
+#define TSP_BUF_SIZE 1024
 
-#define NODE_NUM	1664
+#define TX_NUM		26
+#define RX_NUM		14
+#define NODE_NUM	(TX_NUM*RX_NUM)
 
-#define NODE_PER_PAGE	64
-#define DATA_PER_NODE	2
-
-#define REF_MIN_VALUE	19744
-#define REF_MAX_VALUE	28884
-
-#define TSP_CMD_STR_LEN		32
-#define TSP_CMD_RESULT_STR_LEN	512
-#define TSP_CMD_PARAM_NUM	8
+#define TSP_CMD_STR_LEN 32
+#define TSP_CMD_RESULT_STR_LEN 512
+#define TSP_CMD_PARAM_NUM 8
 
 enum CMD_STATUS {
 	CMD_STATUS_WAITING = 0,
@@ -124,12 +113,6 @@ enum CMD_STATUS {
 	CMD_STATUS_OK,
 	CMD_STATUS_FAIL,
 	CMD_STATUS_NOT_APPLICABLE,
-};
-
-enum {
-	MXT_FW_FROM_BUILT_IN = 0,
-	MXT_FW_FROM_UMS,
-	MXT_FW_FROM_REQ_FW,
 };
 #endif
 
@@ -189,13 +172,8 @@ struct mxt_data_sysfs {
 	struct mutex			cmd_lock;
 	bool			cmd_is_running;
 
-	u16 reference[NODE_NUM];
-	s16 delta[NODE_NUM];
-
-	u32 ref_max_data;
-	u32 ref_min_data;
-	s16 delta_max_data;
-	u16 delta_max_node;
+	unsigned int reference[NODE_NUM];
+	unsigned int delta[NODE_NUM];
 };
 #endif
 
@@ -247,10 +225,5 @@ extern int mxt_read_object(struct mxt_data *data,
 				u8 type, u8 offset, u8 *val);
 extern int mxt_write_object(struct mxt_data *data,
 				 u8 type, u8 offset, u8 val);
-
-#if TSP_SEC_SYSFS
-extern int mxt_flash_fw_from_sysfs(struct mxt_data *data,
-		const u8 *fw_data, size_t fw_size);
-#endif
 
 #endif /* __MXT_1664S_DEV_H */

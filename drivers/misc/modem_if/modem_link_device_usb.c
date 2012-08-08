@@ -262,8 +262,8 @@ static void usb_tx_complete(struct urb *urb)
 
 	usb_mark_last_busy(urb->dev);
 	ret = pm_runtime_put_autosuspend(&urb->dev->dev);
-	if (ret < 0 && ret != -EAGAIN)
-		mif_debug("pm_runtime_put_autosuspend failed: %d\n", ret);
+	if (ret < 0)
+		mif_debug("pm_runtime_put_autosuspend failed : ret(%d)\n", ret);
 	usb_free_urb(urb);
 	dev_kfree_skb_any(skb);
 }
@@ -274,18 +274,9 @@ static void if_usb_force_disconnect(struct work_struct *work)
 		container_of(work, struct usb_link_device, disconnect_work);
 	struct usb_device *udev = usb_ld->usbdev;
 
-	/* if already disconnected before run this workqueue */
-	if (!udev || !(&udev->dev) || !usb_ld->if_usb_connected)
-		return;
-
-	/* disconnect udev's parent if usb hub used */
-	if (has_hub(usb_ld))
-		udev = udev->parent;
-
 	pm_runtime_get_sync(&udev->dev);
 	if (udev->state != USB_STATE_NOTATTACHED) {
-		usb_force_disconnect(udev);
-		mif_info("force disconnect\n");
+		mif_info("force disconnect by modem not responding!!\n");
 	}
 	pm_runtime_put_autosuspend(&udev->dev);
 }
@@ -541,11 +532,10 @@ static int if_usb_resume(struct usb_interface *intf)
 				skb = urb->context;
 				dev_kfree_skb_any(skb);
 				usb_free_urb(urb);
-				ret = pm_runtime_put_autosuspend(
-						&usb_ld->usbdev->dev);
-				if (ret < 0 && ret != -EAGAIN)
-					mif_debug("pm_runtime_put_autosuspend "
-							"failed: %d\n", ret);
+				if (pm_runtime_put_autosuspend(
+					&usb_ld->usbdev->dev) < 0)
+					mif_debug(
+					"pm_runtime_put_autosuspend fail\n");
 			}
 		}
 		SET_SLAVE_WAKEUP(usb_ld->pdata, 1);
@@ -652,6 +642,7 @@ static int __devinit if_usb_probe(struct usb_interface *intf,
 				dev_id, id, usb_ld);
 
 	usb_ld->usbdev = usbdev;
+
 	usb_get_dev(usbdev);
 
 	for (i = 0; i < IF_USB_DEVNUM_MAX; i++) {
@@ -735,8 +726,7 @@ static int __devinit if_usb_probe(struct usb_interface *intf,
 	usb_ld->host_wake_timeout_flag = 0;
 
 	if (gpio_get_value(usb_ld->pdata->gpio_phone_active)) {
-		struct link_pm_data *pm_data = usb_ld->link_pm_data;
-		int delay = pm_data->autosuspend_delay_ms ?:
+		int delay = usb_ld->link_pm_data->autosuspend_delay_ms ?:
 				DEFAULT_AUTOSUSPEND_DELAY_MS;
 		pm_runtime_set_autosuspend_delay(&usbdev->dev, delay);
 		dev = &usbdev->dev;
@@ -751,13 +741,13 @@ static int __devinit if_usb_probe(struct usb_interface *intf,
 					dev_name(ehci_dev));
 			pm_runtime_allow(ehci_dev);
 
-			if (pm_data->block_autosuspend)
-				pm_runtime_forbid(dev);
+			if (has_hub(usb_ld)) {
+				usb_ld->link_pm_data->hub_status =
+					(usb_ld->link_pm_data->root_hub) ?
+					HUB_STATE_PREACTIVE : HUB_STATE_ACTIVE;
+			}
 
-			if (has_hub(usb_ld))
-				link_pm_preactive(pm_data);
-
-			pm_data->root_hub = root_hub;
+			usb_ld->link_pm_data->root_hub = root_hub;
 		}
 
 		usb_ld->flow_suspend = 0;
@@ -772,14 +762,6 @@ static int __devinit if_usb_probe(struct usb_interface *intf,
 		usb_change_modem_state(usb_ld, STATE_ONLINE);
 	} else {
 		usb_change_modem_state(usb_ld, STATE_LOADER_DONE);
-	}
-
-	/* check dynamic switching gpio received
-	 * before usb enumeration is completed
-	 */
-	if (ld->mc->need_switch_to_usb) {
-		ld->mc->need_switch_to_usb = false;
-		rawdevs_set_tx_link(ld->msd, LINKDEV_USB);
 	}
 
 	return 0;
@@ -798,16 +780,9 @@ irqreturn_t usb_resume_irq(int irq, void *data)
 	int ret;
 	struct usb_link_device *usb_ld = data;
 	int hwup;
-	static int wake_status = -1;
 	struct device *dev;
 
 	hwup = gpio_get_value(usb_ld->pdata->gpio_host_wakeup);
-	if (hwup == wake_status) {
-		mif_err("Received spurious wake irq: %d", hwup);
-		return IRQ_HANDLED;
-	}
-	wake_status = hwup;
-
 	irq_set_irq_type(irq, hwup ? IRQF_TRIGGER_LOW : IRQF_TRIGGER_HIGH);
 	wake_lock_timeout(&usb_ld->gpiolock, 100);
 
@@ -961,15 +936,6 @@ static struct usb_driver if_usb_driver = {
 static void __exit if_usb_exit(void)
 {
 	usb_deregister(&if_usb_driver);
-}
-
-bool usb_is_enumerated(struct modem_shared *msd)
-{
-	struct link_device *ld = find_linkdev(msd, LINKDEV_USB);
-	if (ld)
-		return to_usb_link_device(ld)->usbdev != NULL;
-	else
-		return false;
 }
 
 

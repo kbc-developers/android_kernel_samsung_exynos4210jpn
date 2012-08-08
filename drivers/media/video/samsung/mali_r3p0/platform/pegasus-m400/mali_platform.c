@@ -33,6 +33,7 @@
 
 #if MALI_INTERNAL_TIMELINE_PROFILING_ENABLED
 #include "mali_osk_profiling.h"
+#include "mali_cinstr_profiling_events_m200.h"
 #endif
 
 #include <asm/io.h>
@@ -346,7 +347,6 @@ void mali_clk_put(mali_bool binc_mali_clock)
 mali_bool mali_clk_set_rate(unsigned int clk, unsigned int mhz)
 {
 	unsigned long rate = 0;
-	unsigned long previous_rate = 0;
 	mali_bool bis_vpll = MALI_TRUE;
 
 #ifndef CONFIG_VPLL_USE_FOR_TVENC
@@ -384,8 +384,9 @@ mali_bool mali_clk_set_rate(unsigned int clk, unsigned int mhz)
 		return MALI_FALSE;
 
 #if MALI_INTERNAL_TIMELINE_PROFILING_ENABLED
-	previous_rate = clk_get_rate(mali_clock);
-	_mali_osk_profiling_add_event( MALI_PROFILING_EVENT_TYPE_SINGLE |
+    unsigned long previous_rate = 0;
+    previous_rate = clk_get_rate(mali_clock);
+    _mali_osk_profiling_add_event( MALI_PROFILING_EVENT_TYPE_SINGLE |
                                MALI_PROFILING_EVENT_CHANNEL_SOFTWARE |
                                MALI_PROFILING_EVENT_REASON_SINGLE_SW_GPU_FREQ,
                                previous_rate, 0, 0, 0, 0);
@@ -395,7 +396,7 @@ mali_bool mali_clk_set_rate(unsigned int clk, unsigned int mhz)
 	rate = clk_get_rate(mali_clock);
 
 #if MALI_INTERNAL_TIMELINE_PROFILING_ENABLED
-	_mali_osk_profiling_add_event( MALI_PROFILING_EVENT_TYPE_SINGLE |
+    _mali_osk_profiling_add_event( MALI_PROFILING_EVENT_TYPE_SINGLE |
                                MALI_PROFILING_EVENT_CHANNEL_SOFTWARE |
                                MALI_PROFILING_EVENT_REASON_SINGLE_SW_GPU_FREQ,
                                rate, 1, 0, 0, 0);
@@ -543,9 +544,9 @@ void set_mali_parent_power_domain(void *dev)
 {
 #if MALI_PMM_RUNTIME_JOB_CONTROL_ON
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,36)
-	((struct platform_device *)dev)->dev.parent = &s5pv310_device_pd[PD_G3D].dev;
+	((struct platform_device *)dev)->dev.parent = (struct platform_device*)&s5pv310_device_pd[PD_G3D].dev;
 #else
-	((struct platform_device *)dev)->dev.parent = &exynos4_device_pd[PD_G3D].dev;
+	((struct platform_device *)dev)->dev.parent = (struct platform_device*)&exynos4_device_pd[PD_G3D].dev;
 #endif
 #endif
 }

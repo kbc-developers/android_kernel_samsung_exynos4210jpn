@@ -675,12 +675,6 @@ static inline void gsc_hw_enable_control(struct gsc_dev *dev, bool on)
 	writel(cfg, dev->regs + GSC_ENABLE);
 }
 
-static inline int gsc_hw_get_curr_in_buf_idx(struct gsc_dev *dev)
-{
-	u32 cfg = readl(dev->regs + GSC_IN_BASE_ADDR_Y_MASK);
-	return GSC_IN_CURR_GET_INDEX(cfg);
-}
-
 static inline int gsc_hw_get_irq_status(struct gsc_dev *dev)
 {
 	u32 cfg = readl(dev->regs + GSC_IRQ);
@@ -753,7 +747,10 @@ active_queue_pop(struct gsc_output_device *vid_out, struct gsc_dev *dev)
 static inline void active_queue_push(struct gsc_output_device *vid_out,
 				     struct gsc_input_buf *buf, struct gsc_dev *dev)
 {
+	unsigned long flags;
+	spin_lock_irqsave(&dev->slock, flags);
 	list_add_tail(&buf->list, &vid_out->active_buf_q);
+	spin_unlock_irqrestore(&dev->slock, flags);
 }
 
 static inline struct gsc_dev *entity_to_gsc(struct media_entity *me)

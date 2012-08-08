@@ -18,6 +18,7 @@
 #include <linux/version.h>
 
 #include "mali_osk.h"
+#include "mali_kernel_core.h"
 #include "mali_kernel_common.h"
 #include "mali_kernel_license.h"
 #include "mali_kernel_linux.h"

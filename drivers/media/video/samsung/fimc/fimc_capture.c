@@ -263,7 +263,7 @@ static int fimc_init_camera(struct fimc_control *ctrl)
 		cam->window.height = cam->height;
 		cam->initialized = 1;
 
-		return ret;
+		return 0;
 	}
 
 retry:
@@ -278,17 +278,8 @@ retry:
 	/* enable camera power if needed */
 	if (cam->cam_power) {
 		ret = cam->cam_power(1);
-		if (unlikely(ret < 0)) {
+		if (unlikely(ret < 0))
 			fimc_err("\nfail to power on\n");
-			if (fimc->mclk_status == CAM_MCLK_ON) {
-				clk_disable(ctrl->cam->clk);
-				fimc->mclk_status = CAM_MCLK_OFF;
-			}
-#if (defined(CONFIG_EXYNOS_DEV_PD) && defined(CONFIG_PM_RUNTIME))
-			pm_runtime_put_sync(&pdev->dev);
-#endif
-			return ret;
-		}
 	}
 
 	/* "0" argument means preview init for s5k4ea */
@@ -753,7 +744,6 @@ static int fimc_configure_subdev(struct fimc_control *ctrl)
 {
 	struct i2c_adapter *i2c_adap;
 	struct i2c_board_info *i2c_info;
-	struct i2c_client *client;
 	struct v4l2_subdev *sd;
 	unsigned short addr;
 	char *name;
@@ -801,13 +791,6 @@ static int fimc_configure_subdev(struct fimc_control *ctrl)
 		ret = fimc_init_camera(ctrl);
 		if (ret < 0) {
 			fimc_err("%s: fail to initialize subdev\n", __func__);
-
-#ifndef CONFIG_MACH_GC1			
-			client = v4l2_get_subdevdata(sd);
-			i2c_unregister_device(client);
-			ctrl->cam->sd = NULL;
-#endif			
-
 			return ret;
 		}
 	}
@@ -1042,25 +1025,23 @@ int fimc_s_input(struct file *file, void *fh, unsigned int i)
 			CAMERA_WB_B) && (!ctrl->cam->use_isp) && fimc_cam_use) {
 			ret = fimc_configure_subdev(ctrl);
 			if (ret < 0) {
-#ifdef CONFIG_MACH_GC1
+			#ifdef CONFIG_MACH_GC1
 				if (ret == -ENOSYS) {
 					/* return no error If firmware is bad.
 					Because F/W update app should access the sensor through HAL instance */
 					fimc_err("%s: please update the F/W\n", __func__);
 				} else {
-					ctrl->cam = NULL;
 					mutex_unlock(&ctrl->v4l2_lock);
 					fimc_err("%s: Could not register camera" \
 						" sensor with V4L2.\n", __func__);
 					return -ENODEV;
 				}
-#else
-				ctrl->cam = NULL;
+			#else
 				mutex_unlock(&ctrl->v4l2_lock);
 				fimc_err("%s: Could not register camera" \
 					" sensor with V4L2.\n", __func__);
 				return -ENODEV;
-#endif
+			#endif
 			}
 		}
 		fimc->active_camera = i;
@@ -1309,7 +1290,7 @@ int fimc_s_fmt_vid_private(struct file *file, void *fh, struct v4l2_format *f)
  */
 		mbus_fmt->field = pix->field;
 #endif
-#if defined(CONFIG_MACH_GC1)
+#if (defined(CONFIG_MACH_S2PLUS) || defined(CONFIG_MACH_GC1))
 		mbus_fmt->field = pix->priv;
 #endif
 		printk(KERN_INFO "%s mbus_fmt->width = %d, height = %d,\n",
@@ -1430,19 +1411,7 @@ int fimc_s_fmt_vid_capture(struct file *file, void *fh, struct v4l2_format *f)
 		cap->lastirq = 0;
 		fimc_info1("fimc_s_fmt_vid_capture V4L2_COLORSPACE_JPEG or INTERLEAVED\n");
 	} else {
-#ifdef CONFIG_MACH_GC1
-	/*
-	 Fimc scaler input Hsize is restricted to 4224 pixels.
-	 So, GC1 has to bypass fimc scaler to use more than 12M YUV.
-	 */
-		if (cap->fmt.width > ctrl->limit->pre_dst_w)
-			ctrl->sc.bypass = 1;
-		else
-			ctrl->sc.bypass = 0;
-
-#else
 		ctrl->sc.bypass = 0;
-#endif
 		cap->lastirq = 0;
 	}
 
@@ -1670,13 +1639,6 @@ int fimc_reqbufs_capture_mmap(void *fh, struct v4l2_requestbuffers *b)
 			fimc_dma_free(ctrl, &ctrl->cap->bufs[i], 1);
 			fimc_dma_free(ctrl, &ctrl->cap->bufs[i], 2);
 		}
-#ifdef CONFIG_VIDEO_SAMSUNG_USE_DMA_MEM
-		if (ctrl->mem.base) {
-			cma_free(ctrl->mem.base);
-			ctrl->mem.base = 0;
-			ctrl->mem.size = 0;
-		}
-#endif
 
 		mutex_unlock(&ctrl->v4l2_lock);
 		return 0;
@@ -1691,13 +1653,6 @@ int fimc_reqbufs_capture_mmap(void *fh, struct v4l2_requestbuffers *b)
 			fimc_dma_free(ctrl, &cap->bufs[i], 2);
 			fimc_dma_free(ctrl, &cap->bufs[i], 3);
 		}
-#ifdef CONFIG_VIDEO_SAMSUNG_USE_DMA_MEM
-		if (ctrl->mem.base) {
-			cma_free(ctrl->mem.base);
-			ctrl->mem.base = 0;
-			ctrl->mem.size = 0;
-		}
-#endif
 	}
 	fimc_free_buffers(ctrl);
 
@@ -2211,12 +2166,6 @@ int fimc_s_ctrl_capture(void *fh, struct v4l2_control *c)
 		break;
 #endif
 
-	case V4L2_CID_CAMERA_SET_DUAL_CAPTURE:
-	case V4L2_CID_CAMERA_DUAL_CAPTURE:
-	case V4L2_CID_CAMERA_DUAL_POSTVIEW:
-		ret = v4l2_subdev_call(ctrl->cam->sd, core, s_ctrl, c);
-		break;
-
 	case V4L2_CID_IS_CAMERA_FLASH_MODE:
 	case V4L2_CID_CAMERA_SCENE_MODE:
 	default:
@@ -2512,12 +2461,7 @@ int fimc_streamon_capture(void *fh)
 				}
 			}
 
-#ifdef CONFIG_MACH_P4NOTE
-#ifdef CONFIG_VIDEO_IMPROVE_STREAMOFF
-			v4l2_subdev_call(cam->sd, video, s_stream,
-				STREAM_MODE_WAIT_OFF);
-#endif /* CONFIG_VIDEO_IMPROVE_STREAMOFF */
-#else /* !CONFIG_MACH_P4NOTE */
+#if !defined(CONFIG_MACH_P4NOTE)
 			if (cap->fmt.priv == V4L2_PIX_FMT_MODE_CAPTURE) {
 				ret = v4l2_subdev_call(cam->sd, video, s_stream, 1);
 				if (ret < 0) {
@@ -2751,11 +2695,6 @@ int fimc_streamoff_capture(void *fh)
 	ctrl->status = FIMC_READY_OFF;
 
 	fimc_stop_capture(ctrl);
-#ifdef CONFIG_VIDEO_IMPROVE_STREAMOFF
-	if ((get_fimc_dev()->active_camera == 0) &&
-	    fimc_cam_use && ctrl->cam->sd)
-		v4l2_subdev_call(ctrl->cam->sd, video, s_stream, 0);
-#endif
 
 	/* wait for stop hardware */
 	fimc_wait_disable_capture(ctrl);
@@ -2780,11 +2719,7 @@ int fimc_streamoff_capture(void *fh)
 		}
 		fimc_hwset_reset(ctrl);
 
-#ifdef CONFIG_VIDEO_IMPROVE_STREAMOFF
-		if (ctrl->cam->sd && (get_fimc_dev()->active_camera != 0))
-#else
 		if (ctrl->cam->sd)
-#endif
 			v4l2_subdev_call(ctrl->cam->sd, video, s_stream, 0);
 	} else {
 		fimc_hwset_reset(ctrl);

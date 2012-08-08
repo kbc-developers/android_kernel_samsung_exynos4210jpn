@@ -1498,14 +1498,6 @@ static struct clk exynos4_init_clocks[] = {
 		.ctrlbit	= (1 << 5),
 	},
 #endif
-#ifdef CONFIG_INTERNAL_MODEM_IF
-	{
-		.name		= "modem",
-		.id		= -1,
-		.enable		= exynos4_clk_ip_peril_ctrl,
-		.ctrlbit	= (1 << 28),
-	},
-#endif
 };
 
 struct clk *exynos4_clkset_group_list[] = {
@@ -2350,13 +2342,6 @@ void __init_or_cpufreq exynos4_setup_clocks(void)
 
 	clk_fout_epll.ops = &exynos4_epll_ops;
 
-#if (defined(CONFIG_MACH_M0) && defined(CONFIG_TARGET_LOCALE_EUR)) || \
-	((defined(CONFIG_MACH_C1) || defined(CONFIG_MACH_M0)) && \
-	defined(CONFIG_TARGET_LOCALE_KOR))
-	if (clk_set_parent(&exynos4_clk_dout_mmc3.clk, &exynos4_clk_mout_epll.clk))
-		printk(KERN_ERR "Unable to set parent %s of clock %s.\n",
-				 exynos4_clk_mout_epll.clk.name, exynos4_clk_dout_mmc3.clk.name);
-#endif
 #ifdef CONFIG_EXYNOS4_MSHC_EPLL_45MHZ
 	if (clk_set_parent(&exynos4_clk_dout_mmc4.clk, &exynos4_clk_mout_epll.clk))
 		printk(KERN_ERR "Unable to set parent %s of clock %s.\n",

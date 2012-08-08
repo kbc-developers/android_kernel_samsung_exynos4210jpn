@@ -20,7 +20,6 @@
 #include <media/v4l2-subdev.h>
 #include <linux/workqueue.h>
 #ifdef CONFIG_VIDEO_SAMSUNG_V4L2
-#include <linux/videodev2_exynos_media.h>
 #include <linux/videodev2_exynos_camera.h>
 #endif
 #include <media/s5k4ecgx_platform.h>

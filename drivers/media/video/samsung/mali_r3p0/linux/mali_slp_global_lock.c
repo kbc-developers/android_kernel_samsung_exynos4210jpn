@@ -1,13 +1,3 @@
-/*
- * Copyright (c) 2012 Samsung Electronics Co., Ltd.
- *
- * This program is free software and is provided to you under the terms of the GNU General Public License version 2
- * as published by the Free Software Foundation, and any use by you of this program is subject to the terms of such GNU licence.
- *
- * A copy of the licence is included with the program, and can also be obtained from Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
- */
-
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/fs.h>
@@ -25,7 +15,6 @@
 #include "mali_slp_global_lock.h"
 
 #if MALI_INTERNAL_TIMELINE_PROFILING_ENABLED
-#include "mali_osk.h"
 #include "mali_osk_profiling.h"
 #endif
 
@@ -67,10 +56,6 @@ struct sgl_lock {
 	struct mutex		waiting_list_mutex;
 	unsigned int		locked;			/* flag if this lock is locked */
 	unsigned int		owner;			/* session data */
-
-	struct mutex		data_mutex;
-	unsigned int		user_data1;
-	unsigned int		user_data2;
 };
 
 /**************** hash code start ***************/
@@ -348,9 +333,7 @@ static int sgl_lock_lock(struct sgl_session_data *session_data, unsigned int key
 	SGL_LOG();
 
 	lock->owner = (unsigned int)session_data;
-	mutex_lock(&lock->data_mutex);
 	lock->locked = 1;
-	mutex_unlock(&lock->data_mutex);
 	lock->refcnt++;
 
 	mutex_lock(&lock->waiting_list_mutex);
@@ -387,9 +370,7 @@ static int _sgl_unlock_lock(struct sgl_lock *lock)
 	}
 
 	lock->owner = 0;
-	mutex_lock(&lock->data_mutex);
 	lock->locked = 0;
-	mutex_unlock(&lock->data_mutex);
 	lock->refcnt--;
 
 	if (waitqueue_active(&lock->waiting_queue)) {
@@ -480,7 +461,6 @@ static int sgl_init_lock(struct sgl_session_data *session_data, struct sgl_attri
 		init_waitqueue_head(&lock->waiting_queue);
 		INIT_LIST_HEAD(&lock->waiting_list);
 		mutex_init(&lock->waiting_list_mutex);
-		mutex_init(&lock->data_mutex);
 	}
 
 	lock->refcnt++;
@@ -564,61 +544,6 @@ out_unlock:
 	return err;
 }
 
-static int sgl_set_data(struct sgl_session_data *session_data, struct sgl_user_data *user_data)
-{
-	struct sgl_lock *lock;
-	int ret = 0;
-	unsigned int key = user_data->key;
-
-	SGL_LOG("key: %d", key);
-
-	mutex_lock(&sgl_global.mutex);
-
-	lock = sgl_get_lock(sgl_global.locks, key);
-	if (lock == NULL) {
-		SGL_WARN("lock is not in the inited locks");
-		mutex_unlock(&sgl_global.mutex);
-		return -ENOENT;
-	}
-	mutex_lock(&lock->data_mutex);
-	lock->user_data1 = user_data->data1;
-	lock->user_data2 = user_data->data2;
-	user_data->locked = lock->locked;
-	mutex_unlock(&lock->data_mutex);
-	mutex_unlock(&sgl_global.mutex);
-
-	SGL_LOG();
-
-	return ret;
-}
-
-static int sgl_get_data(struct sgl_session_data *session_data, struct sgl_user_data *user_data)
-{
-	struct sgl_lock *lock;
-	int ret = 0;
-	unsigned int key = user_data->key;
-
-	SGL_LOG("key: %d", key);
-	mutex_lock(&sgl_global.mutex);
-
-	lock = sgl_get_lock(sgl_global.locks, key);
-	if (lock == NULL) {
-		SGL_WARN("lock is not in the inited locks");
-		mutex_unlock(&sgl_global.mutex);
-		return -ENOENT;
-	}
-	mutex_lock(&lock->data_mutex);
-	user_data->data1 = lock->user_data1;
-	user_data->data2 = lock->user_data2;
-	user_data->locked = lock->locked;
-	mutex_unlock(&lock->data_mutex);
-	mutex_unlock(&sgl_global.mutex);
-
-	SGL_LOG();
-
-	return ret;
-}
-
 #ifdef HAVE_UNLOCKED_IOCTL
 static long sgl_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 #else
@@ -647,12 +572,6 @@ static int sgl_ioctl(struct inode *inode, struct file *file, unsigned int cmd, u
 	case SGL_IOC_UNLOCK_LOCK:
 		/* unlock lock with id(=arg) */
 		err = sgl_unlock_lock(session_data, (unsigned int)arg);
-		break;
-	case SGL_IOC_SET_DATA:
-		err = sgl_set_data(session_data, (struct sgl_user_data *)arg);
-		break;
-	case SGL_IOC_GET_DATA:
-		err = sgl_get_data(session_data, (struct sgl_user_data *)arg);
 		break;
 	default:
 			SGL_WARN("unknown type of ioctl command");

@@ -347,16 +347,6 @@ static int exynos4_usb_phy1_resume(struct platform_device *pdev)
 	u32 phypwr;
 	int err;
 
-#if defined(CONFIG_LINK_DEVICE_HSIC) || defined(CONFIG_LINK_DEVICE_USB)
-	/* HSIC LPA: reset-resume, let cp know pda active from LPA */
-	/* slave wake at lpa wake ??? */
-	/* 12.04.27 Move start of phy1_resume, If usb cable power on the
-	 * host phy, EHCI resume miss the PDA_ACTVIE, then CP can't send Host
-	 * wakeup Irq */
-	if (!strcmp(pdev->name, "s5p-ehci"))
-		set_hsic_lpa_states(STATE_HSIC_LPA_WAKE);
-#endif
-
 	if (exynos4_usb_host_phy_is_on()) {
 		/* set to resume HSIC 0 and 1 and standard of PHY1 */
 		phypwr = readl(EXYNOS4_PHYPWR);
@@ -377,6 +367,12 @@ static int exynos4_usb_phy1_resume(struct platform_device *pdev)
 		} else
 			err = 0;
 	} else {
+#if defined(CONFIG_LINK_DEVICE_HSIC) || defined(CONFIG_LINK_DEVICE_USB)
+		/* HSIC LPA: reset-resume, let cp know pda active from LPA */
+		/* slave wake at lpa wake ??? */
+		if (!strcmp(pdev->name, "s5p-ehci"))
+			set_hsic_lpa_states(STATE_HSIC_LPA_WAKE);
+#endif
 		phypwr = readl(EXYNOS4_PHYPWR);
 		/* set to normal HSIC 0 and 1 of PHY1 */
 		if (soc_is_exynos4210()) {
@@ -1172,19 +1168,9 @@ int s5p_usb_phy_suspend(struct platform_device *pdev, int type)
 	if (type == S5P_USB_PHY_HOST) {
 		if (soc_is_exynos4210() ||
 			soc_is_exynos4212() ||
-			soc_is_exynos4412()) {
-#ifdef CONFIG_USB_OHCI_S5P
-			/* Set OHCI clock off when ohci_hcd is suspended */
-			if (ohci_hcd->state == HC_STATE_SUSPENDED) {
-				phyclk = readl(EXYNOS4_PHYCLK);
-				phyclk &= ~(PHY1_COMMON_ON_N);
-				writel(phyclk, EXYNOS4_PHYCLK);
-			}
-			dev_info(&pdev->dev, "host_phy_susp:%d\n",
-					ohci_hcd->state);
-#endif
+			soc_is_exynos4412())
 			ret = exynos4_usb_phy1_suspend(pdev);
-		} else
+		else
 			ret = exynos5_usb_phy_host_suspend(pdev);
 	}
 done:
@@ -1210,14 +1196,9 @@ int s5p_usb_phy_resume(struct platform_device *pdev, int type)
 	if (type == S5P_USB_PHY_HOST) {
 		if (soc_is_exynos4210() ||
 			soc_is_exynos4212() ||
-			soc_is_exynos4412()) {
-#ifdef CONFIG_USB_OHCI_S5P
-			phyclk = readl(EXYNOS4_PHYCLK);
-			phyclk |= PHY1_COMMON_ON_N;
-			writel(phyclk, EXYNOS4_PHYCLK);
-#endif
+			soc_is_exynos4412())
 			ret = exynos4_usb_phy1_resume(pdev);
-		} else
+		else
 			ret = exynos5_usb_phy_host_resume(pdev);
 	}
 done:

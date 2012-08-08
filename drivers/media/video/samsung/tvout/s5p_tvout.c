@@ -64,7 +64,7 @@ int tvout_dbg_flag;
 
 
 #ifdef CONFIG_HDMI_EARJACK_MUTE
-bool hdmi_audio_ext;
+int hdmi_audio_ext;
 
 /* To provide an interface fo Audio path control */
 static ssize_t hdmi_set_audio_read(struct device *dev,
@@ -80,18 +80,16 @@ static ssize_t hdmi_set_audio_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t size)
 {
 	char *after;
-	bool value = !strncmp(buf, "1", 1) ? true : false;
+	unsigned long value = !strncmp(buf, "1", 1) ? true : false;
 
-	printk(KERN_ERR "[HDMI] Change AUDIO PATH: %d\n", (int)value);
+	printk(KERN_ERR "[HDMI] Change AUDIO PATH: %ld\n", value);
 
-	if (value == hdmi_audio_ext) {
-		if (value) {
-			hdmi_audio_ext = 0;
-			s5p_hdmi_ctrl_set_audio(1);
-		} else {
-			hdmi_audio_ext = 1;
-			s5p_hdmi_ctrl_set_audio(0);
-		}
+	if (value) {
+		s5p_hdmi_ctrl_set_audio(1);
+		hdmi_audio_ext = 0;
+	} else {
+		s5p_hdmi_ctrl_set_audio(0);
+		hdmi_audio_ext = 1;
 	}
 
 	return size;
@@ -441,8 +439,6 @@ static int __devinit s5p_tvout_probe(struct platform_device *pdev)
 		&dev_attr_hdmi_audio_set_ext) < 0)
 		printk(KERN_ERR "Failed to create device file(%s)!\n",
 			dev_attr_hdmi_audio_set_ext.attr.name);
-
-	hdmi_audio_ext = false;
 #endif
 
 	return 0;
@@ -496,7 +492,6 @@ static void s5p_tvout_early_suspend(struct early_suspend *h)
 {
 	tvout_dbg("\n");
 	mutex_lock(&s5p_tvout_mutex);
-	s5p_mixer_ctrl_set_vsync_interrupt(false);
 	s5p_vp_ctrl_suspend();
 	s5p_mixer_ctrl_suspend();
 	s5p_tvif_ctrl_suspend();
@@ -524,7 +519,6 @@ static void s5p_tvout_late_resume(struct early_suspend *h)
 	s5p_tvif_ctrl_resume();
 	s5p_mixer_ctrl_resume();
 	s5p_vp_ctrl_resume();
-	s5p_mixer_ctrl_set_vsync_interrupt(s5p_mixer_ctrl_get_vsync_interrupt());
 	mutex_unlock(&s5p_tvout_mutex);
 
 	return;

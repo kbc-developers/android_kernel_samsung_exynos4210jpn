@@ -608,11 +608,15 @@ static int lsm330dlc_gyro_set_delay_ns(struct lsm330dlc_gyro_data *k3\
 		delay_ns = odr_delay_table[odr_table_size].delay_ns;
 
 	if (delay_ns >= MAX_DELAY) {/* > max delay */
+		pr_info("%s, (delay_ns >= MAX_DELAY)\n",
+			__func__);
 		k3->entries = MAX_ENTRY;
 		odr_value = odr_delay_table[odr_table_size].odr;
 		k3->time_to_read = odr_delay_table[odr_table_size].delay_ns;
 		new_delay = MAX_DELAY;
 	} else if (delay_ns <= odr_delay_table[0].delay_ns) { /* < min delay */
+		pr_info("%s, (delay_ns < MIN_DELAY)\n",
+						__func__);
 		k3->entries = 1;
 		odr_value = odr_delay_table[0].odr;
 		k3->time_to_read = odr_delay_table[0].delay_ns;
@@ -620,6 +624,8 @@ static int lsm330dlc_gyro_set_delay_ns(struct lsm330dlc_gyro_data *k3\
 	} else {
 		for (i = odr_table_size; i >= 0; i--) {
 			if (delay_ns >= odr_delay_table[i].delay_ns) {
+				pr_info("%s, (delay_ns < MAX_DELAY)\n",
+					__func__);
 				new_delay = delay_ns;
 				do_div(delay_ns, odr_delay_table[i].delay_ns);
 				k3->entries = delay_ns;

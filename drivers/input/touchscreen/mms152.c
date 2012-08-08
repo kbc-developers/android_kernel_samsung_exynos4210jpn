@@ -106,7 +106,7 @@
 #define PRESS_KEY		1
 #define RELEASE_KEY		0
 
-#define SHOW_COORD		0
+#define SHOW_COORD		1
 #define DEBUG_PRINT		0
 #define DEBUG_MODE
 
@@ -117,11 +117,20 @@
 #define	Y_LINE			31
 #define	TSP_CHIP_VENDER_NAME	"MELFAS,MMS152"
 
-enum {
-	TSP_STATE_RELEASE = 0,
-	TSP_STATE_PRESS,
-	TSP_STATE_MOVE,
-};
+#define TSP_STATE_INACTIVE	-1
+#define TSP_STATE_RELEASE	0
+#define TSP_STATE_PRESS		1
+#define TSP_STATE_MOVE		2
+
+#define REPORT_MT(x, y, amplitude, width, strength) \
+do {     \
+	input_report_abs(ts->input_dev, ABS_MT_POSITION_X, x);	\
+	input_report_abs(ts->input_dev, ABS_MT_POSITION_Y, y);	\
+	input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, amplitude);	\
+	input_report_abs(ts->input_dev, ABS_MT_WIDTH_MAJOR, width);	\
+	input_report_key(ts->input_dev, BTN_TOUCH, !!strength);	\
+} while (0)
+
 
 #if SET_DOWNLOAD_BY_GPIO
 #include "mms152_download.h"
@@ -140,7 +149,6 @@ struct melfas_ts_data {
 	bool dvfs_lock_status;
 	int cpufreq_level;
 #endif
-	u8 finger_state[MELFAS_MAX_TOUCH];
 	uint32_t flags;
 	bool charging_status;
 	bool tsp_status;
@@ -867,11 +875,17 @@ static void release_all_fingers(struct melfas_ts_data *ts)
 	int i;
 
 	for (i = 0; i < MELFAS_MAX_TOUCH; i++) {
-		ts->finger_state[i] = TSP_STATE_RELEASE;
+		g_Mtouch_info[i].status = TSP_STATE_INACTIVE;
+		g_Mtouch_info[i].posX = 0;
+		g_Mtouch_info[i].posY = 0;
+		g_Mtouch_info[i].strength = 0;
+		g_Mtouch_info[i].width = 0;
+
 		input_mt_slot(ts->input_dev, i);
-		input_mt_report_slot_state(ts->input_dev, MT_TOOL_FINGER,
-									false);
+		input_mt_report_slot_state(ts->input_dev,
+			MT_TOOL_FINGER, 0);
 	}
+
 	input_sync(ts->input_dev);
 
 #if TOUCH_BOOSTER
@@ -931,8 +945,9 @@ static void melfas_ts_read_input(struct melfas_ts_data *ts)
 	int ret = 0, i;
 	uint8_t buf[TS_READ_REGS_LEN];
 	int touchStatus = 0;
-	int read_num, id, posX, posY, str, width;
-	int press_flag = 0;
+	int read_num, FingerID;
+	int press_count = 0;
+	int pre_str = 0;
 
 #if DEBUG_PRINT
 	pr_err("[TSP] melfas_ts_read_input\n");
@@ -970,99 +985,116 @@ static void melfas_ts_read_input(struct melfas_ts_data *ts)
 	pr_info("[TSP]touch count :[%d]", read_num/6);
 #endif
 
-	if (read_num <= 0) {
-		pr_err("[TSP] read_num error [%d]\n", read_num);
-		return;
-	}
-
-	ret = read_input_info(ts, buf, TS_READ_START_ADDR2, read_num);
-	if (ret < 0) {
-		pr_err("[TSP] Failed to read the touch info");
-		for (i = 0; i < P2_MAX_I2C_FAIL; i++) {
-			ret = read_input_info(ts, buf,
-				TS_READ_START_ADDR2, read_num);
-			if (ret >= 0)
-				break;
+	if (read_num > 0) {
+		ret = read_input_info(ts, buf, TS_READ_START_ADDR2, read_num);
+		if (ret < 0) {
+			pr_err("[TSP] Failed to read the touch info");
+			for (i = 0; i < P2_MAX_I2C_FAIL; i++) {
+				ret = read_input_info(ts, buf,
+					TS_READ_START_ADDR2, read_num);
+				if (ret >= 0)
+					break;
+			}
+			if (i == P2_MAX_I2C_FAIL) {
+				pr_err("[TSP] Melfas_ESD I2C FAIL\n");
+				reset_tsp(ts);
+				return ;
+			}
 		}
-		if (i == P2_MAX_I2C_FAIL) {
-			pr_err("[TSP] Melfas_ESD I2C FAIL\n");
+
+		touchStatus = buf[0] & 0xFF;
+
+		if (touchStatus == 0x0F) {
+			pr_info("[TSP] TSP ESD Detection [%x]", buf[0]);
 			reset_tsp(ts);
 			return ;
+		} else if (touchStatus == 0x1F) {
+			pr_info("[TSP] TSP RF Noise Detection [%x]", buf[0]);
+			return ;
 		}
-	}
 
-	touchStatus = buf[0] & 0xFF;
+		for (i = 0; i < read_num; i = i+6) {
+			FingerID = (buf[i] & 0x0F)-1;
+			g_Mtouch_info[FingerID].posX =
+				(uint16_t)(buf[i+1] & 0x0F) << 8 | buf[i+2];
+			g_Mtouch_info[FingerID].posY =
+				(uint16_t)(buf[i+1] & 0xF0) << 4 | buf[i+3];
+			g_Mtouch_info[FingerID].width = buf[i+5];
 
-	if (touchStatus == 0x0F) {
-		pr_info("[TSP] TSP ESD Detection [%x]", buf[0]);
-		reset_tsp(ts);
-		return ;
-	} else if (touchStatus == 0x1F) {
-		pr_info("[TSP] TSP RF Noise Detection [%x]", buf[0]);
-		return ;
-	}
+			if ((buf[i] & 0x80) == 0) {
+				g_Mtouch_info[FingerID].strength = 0;
+				g_Mtouch_info[FingerID].status =
+							TSP_STATE_RELEASE;
+			} else {
+				pre_str = g_Mtouch_info[FingerID].strength;
+				g_Mtouch_info[FingerID].strength = buf[i + 4];
 
-	for (i = 0; i < read_num; i = i+6) {
-		id = (buf[i] & 0x0F)-1;
-		posX = (u16)(buf[i+1] & 0x0F) << 8 | buf[i+2];
-		posY = (u16)(buf[i+1] & 0xF0) << 4 | buf[i+3];
-		str = buf[i + 4];
-		width = buf[i+5];
+				if (TSP_STATE_PRESS ==
+					g_Mtouch_info[FingerID].status)
+					g_Mtouch_info[FingerID].status =
+							TSP_STATE_MOVE;
+				else
+					g_Mtouch_info[FingerID].status =
+							TSP_STATE_PRESS;
+			}
 
-		if ((buf[i] & 0x80) == TSP_STATE_RELEASE) {
-			if (ts->finger_state[id] == TSP_STATE_RELEASE) {
-				pr_err("[TSP] abnormal release");
+#if SHOW_COORD
+			if (g_Mtouch_info[FingerID].status
+						== TSP_STATE_RELEASE)
+				pr_err("[TSP] R[%2d],([%4d],[%3d]),S:%d W:%d",
+					FingerID,
+					g_Mtouch_info[FingerID].posX,
+					g_Mtouch_info[FingerID].posY,
+					g_Mtouch_info[FingerID].strength,
+					g_Mtouch_info[FingerID].width);
+			else if (g_Mtouch_info[FingerID].status
+						== TSP_STATE_PRESS
+						&& pre_str == 0)
+				pr_err("[TSP] P[%2d],([%4d],[%3d]),S:%d W:%d",
+					FingerID,
+					g_Mtouch_info[FingerID].posX,
+					g_Mtouch_info[FingerID].posY,
+					g_Mtouch_info[FingerID].strength,
+					g_Mtouch_info[FingerID].width);
+#else
+			if (g_Mtouch_info[FingerID].status
+						== TSP_STATE_RELEASE)
+				pr_info("[TSP] R[%1d]\n", FingerID);
+			else if (g_Mtouch_info[FingerID].status
+						== TSP_STATE_PRESS
+						&& pre_str == 0)
+				pr_info("[TSP] P[%1d]\n", FingerID);
+#endif
+		}
+
+		for (i = 0; i < MELFAS_MAX_TOUCH; i++) {
+			if (TSP_STATE_INACTIVE == g_Mtouch_info[i].status)
+				continue;
+
+			input_mt_slot(ts->input_dev, i);
+			input_mt_report_slot_state(ts->input_dev,
+				MT_TOOL_FINGER, !!g_Mtouch_info[i].strength);
+
+			if (TSP_STATE_RELEASE == g_Mtouch_info[i].status) {
+				g_Mtouch_info[i].status = TSP_STATE_INACTIVE;
 				continue;
 			}
-			input_mt_slot(ts->input_dev, id);
-			input_mt_report_slot_state(ts->input_dev,
-						MT_TOOL_FINGER, false);
-#if SHOW_COORD
-			pr_info("[TSP] R [%d],([%4d],[%3d]),S:%d W:%d (%d)",
-					id, posX, posY, str, width,
-					ts->finger_state[id]);
-#else
-			pr_info("[TSP] R [%d] (%d)", id, ts->finger_state[id]);
-#endif
-			ts->finger_state[id] = TSP_STATE_RELEASE;
-		} else {
-			input_mt_slot(ts->input_dev, id);
-			input_mt_report_slot_state(ts->input_dev,
-						MT_TOOL_FINGER, true);
-			input_report_abs(ts->input_dev,
-						ABS_MT_POSITION_X, posX);
-			input_report_abs(ts->input_dev,
-						ABS_MT_POSITION_Y, posY);
-			input_report_abs(ts->input_dev,
-						ABS_MT_TOUCH_MAJOR, str);
-			input_report_abs(ts->input_dev,
-						ABS_MT_WIDTH_MAJOR, width);
 
-			if (ts->finger_state[id] == TSP_STATE_RELEASE) {
-#if SHOW_COORD
-				pr_info("[TSP] P [%d],([%4d],[%3d]),S:%d W:%d",
-						id, posX, posY, str, width);
-#else
-				pr_info("[TSP] P [%d]", id);
-#endif
-				ts->finger_state[id] = TSP_STATE_PRESS;
-			} else if (ts->finger_state[id] == TSP_STATE_PRESS)
-				ts->finger_state[id] = TSP_STATE_MOVE;
-		}
-	}
-	input_sync(ts->input_dev);
+			REPORT_MT(g_Mtouch_info[i].posX,
+				g_Mtouch_info[i].posY,
+				g_Mtouch_info[i].strength,
+				g_Mtouch_info[i].width,
+				g_Mtouch_info[i].strength);
 
-	for (i = 0 ; i < MELFAS_MAX_TOUCH ; i++) {
-		if (ts->finger_state[i] == TSP_STATE_PRESS
-			|| ts->finger_state[i] == TSP_STATE_MOVE) {
-			press_flag = 1;
-			break;
+			press_count++;
+
 		}
-	}
+		input_sync(ts->input_dev);
 
 #if TOUCH_BOOSTER
-	set_dvfs_lock(ts, press_flag);
+		set_dvfs_lock(ts, !!press_count);
 #endif
+	}
 }
 
 static irqreturn_t melfas_ts_irq_handler(int irq, void *handle)
@@ -2105,7 +2137,7 @@ static int melfas_ts_probe(struct i2c_client *client,
 #endif
 
 	for (i = 0; i < MELFAS_MAX_TOUCH; i++)
-		ts->finger_state[i] = TSP_STATE_RELEASE;
+		g_Mtouch_info[i].status = TSP_STATE_INACTIVE;
 
 #if DEBUG_PRINT
 	pr_err("[TSP] melfas_ts_probe: succeed to register input device\n");

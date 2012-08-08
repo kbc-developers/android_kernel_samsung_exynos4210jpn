@@ -20,7 +20,6 @@ struct jack_platform_data {
 	int cdrom_online;
 	int jig_online;
 	int host_online;
-	int cradle_online;
 };
 
 int jack_get_data(const char *name);

@@ -96,28 +96,6 @@ enum busfreq_qos_target {
 
 static enum busfreq_qos_target busfreq_qos = BUS_QOS_0;
 
-#if defined(CONFIG_BUSFREQ_QOS_1280X800) /* P4NOTE */
-static unsigned int exynos4_qos_value[BUS_QOS_MAX][LV_END][4] = {
-	{
-		{0x00, 0x00, 0x00, 0x00},
-		{0x00, 0x00, 0x00, 0x00},
-		{0x06, 0x03, 0x06, 0x0e},
-		{0x06, 0x03, 0x06, 0x0e},
-		{0x03, 0x03, 0x03, 0x0e},
-		{0x03, 0x03, 0x03, 0x0e},
-		{0x02, 0x0B, 0x00, 0x00},
-	},
-	{
-		{0x06, 0x0b, 0x06, 0x0f},
-		{0x06, 0x0b, 0x06, 0x0f},
-		{0x06, 0x0b, 0x06, 0x0f},
-		{0x06, 0x0b, 0x06, 0x0f},
-		{0x06, 0x03, 0x06, 0x0e},
-		{0x04, 0x03, 0x04, 0x0e},
-		{0x02, 0x0b, 0x00, 0x00},
-	},
-};
-#else
 static unsigned int exynos4_qos_value[BUS_QOS_MAX][LV_END][4] = {
 	{
 		{0x00, 0x00, 0x00, 0x00},
@@ -125,7 +103,7 @@ static unsigned int exynos4_qos_value[BUS_QOS_MAX][LV_END][4] = {
 		{0x00, 0x00, 0x00, 0x00},
 		{0x00, 0x00, 0x00, 0x00},
 		{0x06, 0x03, 0x06, 0x0e},
-		{0x04, 0x03, 0x04, 0x0e},
+		{0x06, 0x03, 0x04, 0x0e},
 		{0x03, 0x0B, 0x00, 0x00},
 	},
 	{
@@ -134,11 +112,10 @@ static unsigned int exynos4_qos_value[BUS_QOS_MAX][LV_END][4] = {
 		{0x06, 0x0b, 0x06, 0x0f},
 		{0x06, 0x0b, 0x06, 0x0f},
 		{0x06, 0x03, 0x06, 0x0e},
-		{0x04, 0x03, 0x04, 0x0e},
+		{0x06, 0x03, 0x04, 0x0e},
 		{0x03, 0x0b, 0x00, 0x00},
 	},
 };
-#endif
 
 #define ASV_GROUP	12
 
@@ -651,40 +628,6 @@ void exynos4x12_resume(void)
 	__raw_writel(dmc_pause_ctrl, EXYNOS4_DMC_PAUSE_CTRL);
 }
 
-/**
- * exynos4x12_find_busfreq_by_volt - find busfreq by requested
- * voltage.
- *
- * This function finds the busfreq to set for voltage above req_volt
- * and return its value.
- */
-int exynos4x12_find_busfreq_by_volt(unsigned int req_volt, unsigned int *freq)
-{
-	unsigned int volt_cmp;
-	int i;
-
-	/* check if req_volt has value or not */
-	if (!req_volt) {
-		pr_err("%s: req_volt has no value.\n", __func__);
-		return -EINVAL;
-	}
-
-	/* find busfreq level in busfreq_table */
-	for (i = LV_END - 1; i >= 0; i--) {
-		volt_cmp = min(exynos4_int_volt[asv_group_index][i],
-				exynos4_mif_volt[asv_group_index][i]);
-
-		if (volt_cmp >= req_volt) {
-			*freq = exynos4_busfreq_table[i].mem_clk;
-			return 0;
-		}
-	}
-	pr_err("%s: %u volt can't support\n", __func__, req_volt);
-
-	return -EINVAL;
-}
-EXPORT_SYMBOL_GPL(exynos4x12_find_busfreq_by_volt);
-
 unsigned int exynos4x12_get_int_volt(unsigned long index)
 {
 	return exynos4_int_volt[asv_group_index][index];
@@ -892,7 +835,7 @@ int exynos4x12_init(struct device *dev, struct busfreq_data *data)
 	}
 
 	/* Disable MIF 267 INT 200 Level */
-	/* opp_disable(dev, 267200); */
+	//opp_disable(dev, 267200);
 
 	data->table = exynos4_busfreq_table;
 	data->table_size = LV_END;

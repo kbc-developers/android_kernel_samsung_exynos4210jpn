@@ -61,13 +61,6 @@ static ssize_t store_usb_sel(struct device *dev,
 static ssize_t show_uart_sel(struct device *dev,
 			     struct device_attribute *attr, char *buf)
 {
-#ifdef CONFIG_MACH_P8LTE
-	/* 2 for LTE, 1 for AP, 0 for CP */
-	int val_sel1, val_sel2;
-	val_sel1 = gpio_get_value(GPIO_UART_SEL1);
-	val_sel2 = gpio_get_value(GPIO_UART_SEL2);
-	return sprintf(buf, "%d", val_sel1 << (1 - val_sel2));
-#else
 	int val_sel;
 	const char *mode;
 
@@ -84,49 +77,27 @@ static ssize_t show_uart_sel(struct device *dev,
 	pr_info("%s: %s\n", __func__, mode);
 
 	return sprintf(buf, "%s\n", mode);
-#endif
 }
 
 static ssize_t store_uart_sel(struct device *dev,
 			      struct device_attribute *attr,
 			      const char *buf, size_t count)
 {
-	int uart_sel = -1, ret = 0;
-#ifdef CONFIG_MACH_P8LTE
-	/* 2 for LTE, 1 for AP, 0 for CP */
-	int set_val1, set_val2;
-#endif
-	pr_err("%s: %s\n", __func__, buf);
-	ret = sscanf(buf, "%d", &uart_sel);
-
-	if (ret != 1)
-		return -EINVAL;
-
-#ifdef CONFIG_MACH_P8LTE
-	set_val1 = (uart_sel > 0) ? 1 : 0;
-	set_val2 = uart_sel & 0x0001;
+	int uart_sel = -1;
 
 	pr_info("%s: %s\n", __func__, buf);
 
-	/*if (!strncasecmp(buf, "AP", 2)) {
+	if (!strncasecmp(buf, "AP", 2)) {
 		uart_sel = 1;
 	} else if (!strncasecmp(buf, "CP", 2)) {
 		uart_sel = 0;
 	} else {
 		pr_err("%s: wrong uart_sel value(%s)!!\n", __func__, buf);
 		return -EINVAL;
-	}*/
+	}
 
-	gpio_set_value(GPIO_UART_SEL1, set_val1);
-	gpio_set_value(GPIO_UART_SEL2, set_val2);
-
-#else
 	/* 1 for AP, 0 for CP */
-	if (uart_sel == 1)
-		gpio_set_value(GPIO_UART_SEL, 1);
-	else if (uart_sel == 0)
-		gpio_set_value(GPIO_UART_SEL, 0);
-#endif
+	gpio_set_value(GPIO_UART_SEL, uart_sel);
 
 	return count;
 }
@@ -239,10 +210,7 @@ static void usb_apply_path(enum usb_path_t path)
 #else
 		gpio_set_value(GPIO_USB_SEL1, 0);
 		gpio_set_value(GPIO_USB_SEL2, 1);
-		/* don't care SEL3 */
-    #if defined(CONFIG_MACH_P8LTE)
 		gpio_set_value(GPIO_USB_SEL3, 1);
-#endif
 #endif
 		goto out_nochange;
 	}
@@ -254,10 +222,7 @@ static void usb_apply_path(enum usb_path_t path)
 #else
 		gpio_set_value(GPIO_USB_SEL1, 0);
 		gpio_set_value(GPIO_USB_SEL2, 0);
-		/* don't care SEL3 */
-#ifdef CONFIG_MACH_P8LTE
 		gpio_set_value(GPIO_USB_SEL3, 1);
-#endif
 #endif
 		mdelay(3);
 		goto out_cp;

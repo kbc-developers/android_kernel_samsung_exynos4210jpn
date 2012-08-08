@@ -1882,6 +1882,15 @@ int mfc_init_decoding(struct mfc_inst_ctx *ctx, union mfc_args *args)
 		dec_ctx->numtotaldpb);
 
 #if defined(CONFIG_BUSFREQ)
+#if defined(CONFIG_CPU_EXYNOS4210)
+	/* Fix MFC & Bus Frequency for better performance */
+	if (atomic_read(&ctx->dev->busfreq_lock_cnt) == 0) {
+		exynos4_busfreq_lock(DVFS_LOCK_ID_MFC, BUS_L1);
+		mfc_dbg("Bus FREQ locked to L1\n");
+	}
+	atomic_inc(&ctx->dev->busfreq_lock_cnt);
+	ctx->busfreq_flag = true;
+#else
 	/* Lock MFC & Bus FREQ for high resolution */
 	if (ctx->width >= MAX_HOR_RES || ctx->height >= MAX_VER_RES) {
 		if (atomic_read(&ctx->dev->busfreq_lock_cnt) == 0) {
@@ -1891,17 +1900,8 @@ int mfc_init_decoding(struct mfc_inst_ctx *ctx, union mfc_args *args)
 
 		atomic_inc(&ctx->dev->busfreq_lock_cnt);
 		ctx->busfreq_flag = true;
-	} else {
-#if defined(CONFIG_CPU_EXYNOS4210)
-		/* Fix MFC & Bus Frequency for better performance */
-		if (atomic_read(&ctx->dev->busfreq_lock_cnt) == 0) {
-			exynos4_busfreq_lock(DVFS_LOCK_ID_MFC, BUS_L1);
-			mfc_dbg("Bus FREQ locked to L1\n");
-		}
-		atomic_inc(&ctx->dev->busfreq_lock_cnt);
-		ctx->busfreq_flag = true;
-#endif
 	}
+#endif
 #endif
 
 #if defined(CONFIG_CPU_EXYNOS4210) && defined(CONFIG_EXYNOS4_CPUFREQ)
@@ -2126,7 +2126,7 @@ static int mfc_decoding_frame(struct mfc_inst_ctx *ctx, struct mfc_dec_exe_arg *
 	unsigned char *stream_vir;
 	int ret;
 	struct mfc_dec_ctx *dec_ctx = (struct mfc_dec_ctx *)ctx->c_priv;
-	long mem_ofs;
+	unsigned long mem_ofs;
 #ifdef CONFIG_VIDEO_MFC_VCM_UMP
 	void *ump_handle;
 #endif

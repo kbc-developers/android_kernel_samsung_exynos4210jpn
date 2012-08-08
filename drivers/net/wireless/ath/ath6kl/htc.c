@@ -1451,8 +1451,6 @@ static int ath6kl_htc_rx_alloc(struct htc_target *target,
 	struct htc_packet *packet, *tmp_pkt;
 	struct htc_frame_hdr *htc_hdr;
 	int i, n_msg;
-	struct ath6kl_vif *vif;
-	vif = ath6kl_vif_first(target->dev->ar);
 
 	spin_lock_bh(&target->rx_lock);
 
@@ -1464,6 +1462,7 @@ static int ath6kl_htc_rx_alloc(struct htc_target *target,
 			ath6kl_err("invalid ep in look-ahead: %d\n",
 				   htc_hdr->eid);
 			status = -ENOMEM;
+			panic("invalid ep in look-ahead due to out of index");
 			break;
 		}
 
@@ -1471,6 +1470,7 @@ static int ath6kl_htc_rx_alloc(struct htc_target *target,
 			ath6kl_err("invalid ep in look-ahead: %d should be : %d (index:%d)\n",
 				   htc_hdr->eid, endpoint->eid, i);
 			status = -ENOMEM;
+			panic("invalid ep in look-ahead due to wrong index");
 			break;
 		}
 
@@ -1478,11 +1478,6 @@ static int ath6kl_htc_rx_alloc(struct htc_target *target,
 			ath6kl_err("payload len %d exceeds max htc : %d !\n",
 				   htc_hdr->payld_len,
 				   (u32) HTC_MAX_PAYLOAD_LENGTH);
-#ifdef CONFIG_MACH_PX
-			cfg80211_priv_event(vif->ndev, "HANG", GFP_ATOMIC);
-			ath6kl_hif_rx_control(target->dev, false);
-			ssleep(3);
-#endif
 			status = -ENOMEM;
 			break;
 		}
@@ -2135,8 +2130,6 @@ int ath6kl_htc_rxmsg_pending_handler(struct htc_target *target,
 	int num_look_ahead = 1;
 	enum htc_endpoint_id id;
 	int n_fetched = 0;
-	struct ath6kl_vif *vif;
-	vif = ath6kl_vif_first(target->dev->ar);
 
 	INIT_LIST_HEAD(&comp_pktq);
 	*num_pkts = 0;
@@ -2159,12 +2152,8 @@ int ath6kl_htc_rxmsg_pending_handler(struct htc_target *target,
 		if (id >= ENDPOINT_MAX) {
 			ath6kl_err("MsgPend, invalid endpoint in look-ahead: %d\n",
 				   id);
-#ifdef CONFIG_MACH_PX
-			cfg80211_priv_event(vif->ndev, "HANG", GFP_ATOMIC);
-			ath6kl_hif_rx_control(target->dev, false);
-			ssleep(3);
-#endif
 			status = -ENOMEM;
+			panic("invalid endpoint in look-ahead");
 			break;
 		}
 

@@ -6,8 +6,6 @@
 #include <plat/gpio-cfg.h>
 #include <mach/board-gps.h>
 
-#if !defined(CONFIG_MACH_M0_GRANDECTC)
-
 static struct device *gps_dev;
 
 static int __init gps_bcm475x_init(void)
@@ -28,10 +26,11 @@ static int __init gps_bcm475x_init(void)
 	s3c_gpio_setpull(GPIO_GPS_RTS, S3C_GPIO_PULL_NONE);
 
 #ifdef CONFIG_MACH_P2
-	n_rst_pin = system_rev >= 5 ?
-		GPIO_GPS_nRST_28V : GPIO_GPS_nRST;
+	n_rst_pin = GPIO_GPS_nRST_28V;
+	n_rst_nc_pin = GPIO_GPS_nRST;
 #else
 	n_rst_pin = GPIO_GPS_nRST;
+	n_rst_nc_pin = 0;
 #endif
 
 	if (gpio_request(n_rst_pin, "GPS_nRST"))
@@ -43,6 +42,12 @@ static int __init gps_bcm475x_init(void)
 
 	if (gpio_request(GPIO_GPS_PWR_EN, "GPS_PWR_EN"))
 		WARN(1, "fail to request gpio (GPS_PWR_EN)\n");
+
+#ifdef CONFIG_MACH_P2
+	gpio_set_value(n_rst_nc_pin, 0);
+	s3c_gpio_cfgpin(n_rst_nc_pin, S3C_GPIO_OUTPUT);
+	s3c_gpio_setpull(n_rst_nc_pin, S3C_GPIO_PULL_NONE);
+#endif
 
 	s3c_gpio_setpull(GPIO_GPS_PWR_EN, S3C_GPIO_PULL_NONE);
 	s3c_gpio_cfgpin(GPIO_GPS_PWR_EN, S3C_GPIO_OUTPUT);
@@ -58,5 +63,3 @@ static int __init gps_bcm475x_init(void)
 }
 
 device_initcall(gps_bcm475x_init);
-
-#endif

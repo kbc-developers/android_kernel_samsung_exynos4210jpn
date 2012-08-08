@@ -12,9 +12,7 @@
  *	GNU General Public License for more details.
  *
 */
-#ifdef CONFIG_MPU_SENSORS_MPU3050
-#define FACTORY_TEST
-#endif
+
 #include <linux/i2c.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>

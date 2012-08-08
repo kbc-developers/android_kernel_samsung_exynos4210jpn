@@ -26,8 +26,6 @@
 #include <linux/input.h>
 #include <linux/sensor/lsm330dlc_accel.h>
 #include <linux/sensor/sensors_core.h>
-#include <linux/printk.h>
-#include <linux/wakelock.h>
 
 /* For debugging */
 #if 1
@@ -59,7 +57,6 @@
 #define DEFAULT_INTERRUPT2_SETTING	0x20 /* INT2_A ZH enable */
 #define DEFAULT_THRESHOLD		0x7F /* 2032mg (16*0x7F) */
 #define DYNAMIC_THRESHOLD		300	/* mg */
-#define DYNAMIC_THRESHOLD2		700	/* mg */
 #define MOVEMENT_DURATION		0x00 /*INT1_A (DURATION/odr)ms*/
 enum {
 	OFF = 0,
@@ -112,7 +109,6 @@ struct lsm330dlc_accel_data {
 #ifdef USES_MOVEMENT_RECOGNITION
 	int movement_recog_flag;
 	unsigned char interrupt_state;
-	struct wake_lock reactive_wake_lock;
 #endif
 	ktime_t poll_delay;
 #ifdef USES_INPUT_DEV
@@ -123,7 +119,6 @@ struct lsm330dlc_accel_data {
 #endif
 	int position;
 	struct lsm330dlc_acc acc_xyz;
-	bool axis_adjust;
 };
 
  /* Read X,Y and Z-axis acceleration raw data */
@@ -306,7 +301,7 @@ static int lsm330dlc_accel_enable(struct lsm330dlc_accel_data *data)
 #endif
 	}
 
-	atomic_set(&data->opened, 1);
+	atomic_inc(&data->opened);
 	mutex_unlock(&data->write_lock);
 
 	return err;
@@ -317,16 +312,18 @@ static int lsm330dlc_accel_disable(struct lsm330dlc_accel_data *data)
 	int err = 0;
 
 	mutex_lock(&data->write_lock);
+	atomic_dec(&data->opened);
+
 #ifdef USES_MOVEMENT_RECOGNITION
 	if (data->movement_recog_flag == ON) {
 		accel_dbgmsg("LOW_PWR_MODE.\n");
 		err = i2c_smbus_write_byte_data(data->client,
 						CTRL_REG1, LOW_PWR_MODE);
-		if (atomic_read(&data->opened) == 1)
+		if (atomic_read(&data->opened) == 0)
 			data->ctrl_reg1_shadow = PM_OFF;
-	} else if (atomic_read(&data->opened) == 1) {
+	} else if (atomic_read(&data->opened) == 0) {
 #else
-	if (atomic_read(&data->opened) == 1) {
+	if (atomic_read(&data->opened) == 0) {
 #endif
 #ifdef USES_INPUT_DEV
 		hrtimer_cancel(&data->timer);
@@ -336,7 +333,6 @@ static int lsm330dlc_accel_disable(struct lsm330dlc_accel_data *data)
 							PM_OFF);
 		data->ctrl_reg1_shadow = PM_OFF;
 	}
-	atomic_set(&data->opened, 0);
 	mutex_unlock(&data->write_lock);
 
 	return err;
@@ -345,6 +341,9 @@ static int lsm330dlc_accel_disable(struct lsm330dlc_accel_data *data)
 /*  open command for lsm330dlc_accel device file  */
 static int lsm330dlc_accel_open(struct inode *inode, struct file *file)
 {
+	struct lsm330dlc_accel_data *data = container_of(file->private_data,
+						struct lsm330dlc_accel_data,
+						lsm330dlc_accel_device);
 	accel_dbgmsg("is called.\n");
 	return 0;
 }
@@ -352,6 +351,9 @@ static int lsm330dlc_accel_open(struct inode *inode, struct file *file)
 /*  release command for lsm330dlc_accel device file */
 static int lsm330dlc_accel_close(struct inode *inode, struct file *file)
 {
+	struct lsm330dlc_accel_data *data = container_of(file->private_data,
+						struct lsm330dlc_accel_data,
+						lsm330dlc_accel_device);
 	accel_dbgmsg("is called.\n");
 	return 0;
 }
@@ -379,9 +381,8 @@ static int lsm330dlc_accel_set_delay(struct lsm330dlc_accel_data *data
 		i--;
 	odr_value = odr_delay_table[i].odr;
 
-	accel_dbgmsg("old=%lldns,new=%lldns,odr=0x%x,opened=%d\n",
-		     ktime_to_ns(data->poll_delay), delay_ns, odr_value,
-		     atomic_read(&data->opened));
+	accel_dbgmsg("old = %lldns, new = %lldns, odr = 0x%x\n",
+		     ktime_to_ns(data->poll_delay), delay_ns, odr_value);
 	data->poll_delay = ns_to_ktime(delay_ns);
 	if (odr_value != (data->ctrl_reg1_shadow & ODR_MASK)) {
 		u8 ctrl = (data->ctrl_reg1_shadow & ~ODR_MASK);
@@ -411,9 +412,7 @@ static long lsm330dlc_accel_ioctl(struct file *file,
 		container_of(file->private_data, struct lsm330dlc_accel_data,
 			lsm330dlc_accel_device);
 	u64 delay_ns;
-	int enable = 0, j;
-	s16 raw[3] = {0,};
-	struct lsm330dlc_acc xyz_adjusted = {0,};
+	int enable = 0;
 
 	/* cmd mapping */
 	switch (cmd) {
@@ -449,26 +448,6 @@ static long lsm330dlc_accel_ioctl(struct file *file,
 		#endif
 		if (err)
 			break;
-		if (data->axis_adjust) {
-			raw[0] = data->acc_xyz.x;
-			raw[1] = data->acc_xyz.y;
-			raw[2] = data->acc_xyz.z;
-			for (j = 0; j < 3; j++) {
-				xyz_adjusted.x +=
-				(position_map[data->position][0][j] * raw[j]);
-				xyz_adjusted.y +=
-				(position_map[data->position][1][j] * raw[j]);
-				xyz_adjusted.z +=
-				(position_map[data->position][2][j] * raw[j]);
-			}
-#ifdef LSM330DLC_ACCEL_LOGGING
-			accel_dbgmsg("adjusted x = %d, y = %d, z = %d\n",
-				xyz_adjusted.x, xyz_adjusted.y, xyz_adjusted.z);
-#endif
-			if (copy_to_user((void __user *)arg,
-				&xyz_adjusted, sizeof(xyz_adjusted)))
-				return -EFAULT;
-		} else
 		if (copy_to_user((void __user *)arg,
 			&data->acc_xyz, sizeof(data->acc_xyz)))
 			return -EFAULT;
@@ -546,30 +525,8 @@ static ssize_t lsm330dlc_accel_fs_read(struct device *dev,
 {
 	struct lsm330dlc_accel_data *data = dev_get_drvdata(dev);
 
-	if (data->axis_adjust) {
-		int i, j;
-		s16 raw[3] = {0,}, accel_adjusted[3] = {0,};
-
-		raw[0] = data->acc_xyz.x;
-		raw[1] = data->acc_xyz.y;
-		raw[2] = data->acc_xyz.z;
-		for (i = 0; i < 3; i++) {
-			for (j = 0; j < 3; j++)
-				accel_adjusted[i]
-				+= position_map[data->position][i][j] * raw[j];
-		}
-#ifdef CONFIG_SLP
-		return sprintf(buf, "raw:%d,%d,%d adjust:%d,%d,%d\n",
-			raw[0], raw[1], raw[2], accel_adjusted[0],
-			accel_adjusted[1], accel_adjusted[2]);
-#else
-		return sprintf(buf, "%d,%d,%d\n",
-			accel_adjusted[0], accel_adjusted[1],
-			accel_adjusted[2]);
-#endif
-	} else
-		return sprintf(buf, "%d,%d,%d\n",
-			data->acc_xyz.x, data->acc_xyz.y, data->acc_xyz.z);
+	return sprintf(buf, "%d,%d,%d\n",
+		data->acc_xyz.x, data->acc_xyz.y, data->acc_xyz.z);
 }
 
 static ssize_t lsm330dlc_accel_calibration_show(struct device *dev,
@@ -701,7 +658,7 @@ static ssize_t lsm330dlc_accel_reactive_alert_store(struct device *dev,
 		if (factory_test == true)
 			thresh2 = 0; /* for z axis */
 		else
-			thresh2 = (ABS(raw_data.z) + DYNAMIC_THRESHOLD2)/16;
+			thresh2 = (ABS(raw_data.z) + DYNAMIC_THRESHOLD)/16;
 		accel_dbgmsg("threshold1 = 0x%x, threshold2 = 0x%x\n",
 			thresh1, thresh2);
 		err = i2c_smbus_write_byte_data(data->client, INT1_THS
@@ -957,10 +914,9 @@ static irqreturn_t lsm330dlc_accel_interrupt_thread(int irq\
 	, void *lsm330dlc_accel_data_p)
 {
 	struct lsm330dlc_accel_data *data = lsm330dlc_accel_data_p;
+	int err = 0;
 #ifdef DEBUG_REACTIVE_ALERT
 	u8 int1_src_reg = 0, int2_src_reg = 0;
-#else
-	int err = 0;
 #endif
 
 #ifndef DEBUG_REACTIVE_ALERT
@@ -988,7 +944,7 @@ static irqreturn_t lsm330dlc_accel_interrupt_thread(int irq\
 #endif
 
 	data->interrupt_state = 1;
-	wake_lock_timeout(&data->reactive_wake_lock, msecs_to_jiffies(2000));
+
 	accel_dbgmsg("irq is handled\n");
 
 	return IRQ_HANDLED;
@@ -1013,20 +969,13 @@ static void lsm330dlc_work_func(struct work_struct *work)
 	int i, j;
 
 	lsm330dlc_accel_read_xyz(data, &data->acc_xyz);
-
-	if (data->axis_adjust) {
-		raw[0] = data->acc_xyz.x;
-		raw[1] = data->acc_xyz.y;
-		raw[2] = data->acc_xyz.z;
-		for (i = 0; i < 3; i++) {
-			for (j = 0; j < 3; j++)
-				accel_adjusted[i]
-				+= position_map[data->position][i][j] * raw[j];
-		}
-	} else {
-		accel_adjusted[0] = data->acc_xyz.x;
-		accel_adjusted[1] = data->acc_xyz.y;
-		accel_adjusted[2] = data->acc_xyz.z;
+	raw[0] = data->acc_xyz.x;
+	raw[1] = data->acc_xyz.y;
+	raw[2] = data->acc_xyz.z;
+	for (i = 0; i < 3; i++) {
+		for (j = 0; j < 3; j++)
+			accel_adjusted[i]
+			+= position_map[data->position][i][j] * raw[j];
 	}
 	input_report_rel(data->input_dev, REL_X, accel_adjusted[0]);
 	input_report_rel(data->input_dev, REL_Y, accel_adjusted[1]);
@@ -1134,9 +1083,7 @@ static int lsm330dlc_accel_probe(struct i2c_client *client,
 
 #ifdef USES_MOVEMENT_RECOGNITION
 	data->movement_recog_flag = OFF;
-	/* wake lock init for accelerometer sensor */
-	wake_lock_init(&data->reactive_wake_lock, WAKE_LOCK_SUSPEND,
-		       "reactive_wake_lock");
+
 	err = i2c_smbus_write_byte_data(data->client, INT1_THS
 		, DEFAULT_THRESHOLD);
 	if (err) {
@@ -1237,13 +1184,10 @@ static int lsm330dlc_accel_probe(struct i2c_client *client,
 	/* set mounting position of the sensor */
 	pdata = client->dev.platform_data;
 	if (!pdata) {
-		/*Set by default position 2, it doesn't adjust raw value*/
-		data->position = 2;
-		data->axis_adjust = false;
+		data->position = 0;
 		accel_dbgmsg("using defualt position = %d\n", data->position);
 	} else {
 		data->position = pdata->accel_get_position();
-		data->axis_adjust = pdata->axis_adjust;
 		accel_dbgmsg("successful, position = %d\n", data->position);
 	}
 	err = device_create_file(data->dev, &dev_attr_position);
@@ -1295,7 +1239,6 @@ err_acc_device_create:
 #ifdef USES_MOVEMENT_RECOGNITION
 	free_irq(data->client->irq, data);
 err_request_irq:
-	wake_lock_destroy(&data->reactive_wake_lock);
 #endif
 #ifdef USES_INPUT_DEV
 	sysfs_remove_group(&data->input_dev->dev.kobj,
@@ -1349,7 +1292,6 @@ static int lsm330dlc_accel_remove(struct i2c_client *client)
 #ifdef USES_MOVEMENT_RECOGNITION
 	device_init_wakeup(&data->client->dev, 0);
 	free_irq(data->client->irq, data);
-	wake_lock_destroy(&data->reactive_wake_lock);
 #endif
 #ifdef USES_INPUT_DEV
 	destroy_workqueue(data->work_queue);

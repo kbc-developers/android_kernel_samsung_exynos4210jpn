@@ -933,10 +933,6 @@ static void max8997_muic_handle_jig_uart(struct max8997_muic_info *info,
 
 	dev_info(info->dev, "%s: JIG UART/BOOTOFF(0x%x)\n", __func__, vbvolt);
 
-#if defined(CONFIG_SEC_MODEM_M0_TD)
-	gpio_set_value(GPIO_AP_CP_INT1, 1);
-#endif
-
 	/* UT1, UR2 */
 	cntl1_val = (3 << COMN1SW_SHIFT) | (3 << COMP2SW_SHIFT);
 	cntl1_msk = COMN1SW_MASK | COMP2SW_MASK;
@@ -1072,7 +1068,7 @@ static int max8997_muic_handle_attach(struct max8997_muic_info *info,
 
 	switch (adc) {
 	case ADC_GND:
-#if defined(CONFIG_MACH_U1) || defined(CONFIG_MACH_TRATS)
+#if defined(CONFIG_MACH_U1)
 		/* This is for support old MUIC */
 		if (adclow) {
 			max8997_muic_attach_mhl(info, chgtyp);
@@ -1103,7 +1099,7 @@ static int max8997_muic_handle_attach(struct max8997_muic_info *info,
 		}
 		break;
 	case ADC_MHL:
-#if defined(CONFIG_MACH_U1) || defined(CONFIG_MACH_TRATS)
+#if defined(CONFIG_MACH_U1)
 		/* This is for support old MUIC */
 		max8997_muic_attach_mhl(info, chgtyp);
 #endif
@@ -1180,10 +1176,6 @@ static int max8997_muic_handle_detach(struct max8997_muic_info *info)
 	struct max8997_muic_data *mdata = info->muic_data;
 	enum cable_type prev_ct = CABLE_TYPE_NONE;
 	int ret = 0;
-
-#if defined(CONFIG_SEC_MODEM_M0_TD)
-	gpio_set_value(GPIO_AP_CP_INT1, 0);
-#endif
 
 	/*
 	 * MAX8996/8997-MUIC bug:
@@ -1357,7 +1349,7 @@ static void max8997_muic_detect_dev(struct max8997_muic_info *info, int irq)
 
 	switch (adc) {
 	case ADC_MHL:
-#if defined(CONFIG_MACH_U1) || defined(CONFIG_MACH_TRATS)
+#if defined(CONFIG_MACH_U1)
 		break;
 #endif
 	case (ADC_MHL + 1):
@@ -1544,7 +1536,7 @@ static void max8997_muic_mhl_detect(struct work_struct *work)
 
 	mutex_lock(&info->mutex);
 	info->is_mhl_ready = true;
-#if !defined(CONFIG_MACH_U1) || !defined(CONFIG_MACH_TRATS)
+#ifndef CONFIG_MACH_U1
 	if (mdata->is_mhl_attached) {
 		if (!mdata->is_mhl_attached())
 			goto out;

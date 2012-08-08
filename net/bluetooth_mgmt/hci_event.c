@@ -1096,13 +1096,6 @@ static inline void hci_cc_write_le_host_supported(struct hci_dev *hdev,
 	hci_send_cmd(hdev, HCI_OP_READ_LOCAL_EXT_FEATURES, sizeof(cp), &cp);
 }
 
-static void hci_cc_le_test_end(struct hci_dev *hdev, struct sk_buff *skb)
-{
-	struct hci_rp_le_test_end *rp = (void *) skb->data;
-	BT_DBG("hci_cc_le_test_end : %s status 0x%x, num_pkts 0x%x(%d)", hdev->name, rp->status, rp->num_pkts, rp->num_pkts);
-	mgmt_le_test_end_complete(hdev, rp->status, rp->num_pkts);
-}
-
 static inline void hci_cs_inquiry(struct hci_dev *hdev, __u8 status)
 {
 	BT_DBG("%s status 0x%x", hdev->name, status);
@@ -1899,18 +1892,6 @@ static inline void hci_auth_complete_evt(struct hci_dev *hdev, struct sk_buff *s
 		return;
 	}
 
-	/* SS_BLUETOOTH(is80.hwang) 2012.05.18 */
-	/* for pin code request issue */
-#if defined(CONFIG_BT_CSR8811)
-	if (ev->status == 0x06 ) {
-		BT_ERR("Pin or key missing !!!");
-		hci_remove_link_key(hdev, &conn->dst);
-		hci_dev_unlock(hdev);
-		return ;
-	}
-#endif
-	/* SS_BLUEZ_BT(is80.hwang) End */
-
 	if (!ev->status) {
 		if (!(conn->ssp_mode > 0 && hdev->ssp_mode > 0) &&
 				test_bit(HCI_CONN_REAUTH_PEND,	&conn->flags)) {
@@ -1995,19 +1976,9 @@ static inline void hci_remote_name_evt(struct hci_dev *hdev, struct sk_buff *skb
 	if (!test_bit(HCI_MGMT, &hdev->dev_flags))
 		goto check_auth;
 
-	if (ev->status == 0) {
+	if (ev->status == 0)
 		hci_check_pending_name(hdev, conn, &ev->bdaddr, ev->name,
 					strnlen(ev->name, HCI_MAX_NAME_LENGTH));
-		/* workaround for HM1800
-		* If HM1800 & incoming connection, change the role as master
-		*/
-		if (conn != NULL && !conn->out
-		&& (!strncmp(ev->name, "HM1800", 6) || !strncmp(ev->name, "HM5000", 6))) {
-			BT_ERR("VPS's device should be change role");
-			hci_conn_switch_role(conn, 0x00);
-		}
-
-	}
 	else
 		hci_check_pending_name(hdev, conn, &ev->bdaddr, NULL, 0);
 
@@ -2393,10 +2364,6 @@ static inline void hci_cmd_complete_evt(struct hci_dev *hdev, struct sk_buff *sk
 		hci_cc_read_rssi(hdev, skb);
 		break;
 
-	case HCI_OP_LE_TEST_END:
-		hci_cc_le_test_end(hdev, skb);
-		break;
-
 	default:
 		BT_DBG("%s opcode 0x%x", hdev->name, opcode);
 		break;
@@ -2676,25 +2643,14 @@ static inline void hci_link_key_request_evt(struct hci_dev *hdev, struct sk_buff
 			BT_DBG("%s ignoring unauthenticated key", hdev->name);
 			goto not_found;
 		}
-		/* - This is mgmt only. hciops doesn't checking like this. -
-		* If device is pre 2.1 & security level is high, combination key type is required.
-		* (core spec 4.0 GAP 1671p)
-		* And 16 digit PIN is recommended. (but not mandatory)
-		* Now, Google API only support high & low level for outgoing.
-		* So if application use high level security, 16 digit PIN is needed. (mgmt based)
-		* But Google is still using hciops, There is no problem in their platform.
-		* This can make confusion to 3rd party developer.
-		* Disable this part for same action with hciops.
-		* and this should be checked after google's update.
-		*/
-		/*
-		*if (key->type == HCI_LK_COMBINATION && key->pin_len < 16 &&
-		*		conn->pending_sec_level == BT_SECURITY_HIGH) {
-		*	BT_DBG("%s ignoring key unauthenticated for high \
-		*					security", hdev->name);
-		*	goto not_found;
-		*}
-		*/
+
+		if (key->type == HCI_LK_COMBINATION && key->pin_len < 16 &&
+				conn->pending_sec_level == BT_SECURITY_HIGH) {
+			BT_DBG("%s ignoring key unauthenticated for high \
+							security", hdev->name);
+			goto not_found;
+		}
+
 		conn->key_type = key->type;
 		conn->pin_length = key->pin_len;
 	}

@@ -25,7 +25,6 @@
 
 #include "drmP.h"
 #include "drm.h"
-#include "exynos_drm.h"
 #include "exynos_drm_drv.h"
 #include "exynos_drm_gem.h"
 
@@ -236,9 +235,6 @@ struct drm_gem_object *exynos_dmabuf_prime_import(struct drm_device *drm_dev,
 	if (sgt->nents == 1) {
 		buffer->dma_addr = sg_dma_address(sgt->sgl);
 		buffer->size = sg_dma_len(sgt->sgl);
-
-		/* always physically continuous memory if sgt->nents is 1. */
-		exynos_gem_obj->flags |= EXYNOS_BO_CONTIG;
 	} else {
 		unsigned int i = 0;
 
@@ -249,13 +245,6 @@ struct drm_gem_object *exynos_dmabuf_prime_import(struct drm_device *drm_dev,
 			sgl = sg_next(sgl);
 			i++;
 		}
-
-		/*
-		 * this case could be CONTIG or NONCONTIG type but now CONTIG.
-		 * we have to find a way that exporter can notify the type of
-		 * its own buffer to importer. TODO
-		 */
-		exynos_gem_obj->flags |= EXYNOS_BO_NONCONTIG;
 	}
 
 	exynos_gem_obj->buffer = buffer;

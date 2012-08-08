@@ -227,7 +227,7 @@ void __init p4_tsp_init(u32 system_rev)
 #endif
 }
 
-#if defined(CONFIG_EPEN_WACOM_G5SP)
+#if defined(CONFIG_EPEN_WACOM_G5SP) || defined(CONFIG_EPEN_WACOM_G9)
 #include <linux/wacom_i2c.h>
 static struct wacom_g5_callbacks *wacom_callbacks;
 static int wacom_init_hw(void);
@@ -274,7 +274,7 @@ static int wacom_init_hw(void)
 	}
 	s3c_gpio_cfgpin(GPIO_PEN_LDO_EN, S3C_GPIO_SFN(0x1));
 	s3c_gpio_setpull(GPIO_PEN_LDO_EN, S3C_GPIO_PULL_NONE);
-	gpio_direction_output(GPIO_PEN_LDO_EN, 0);
+	gpio_direction_output(GPIO_PEN_LDO_EN, 1);
 
 	ret = gpio_request(GPIO_PEN_PDCT_18V, "PEN_PDCT");
 	if (ret) {

@@ -109,10 +109,6 @@ void __init s5p_tmu_set_platdata(struct s5p_platform_tmu *pd)
 			memcpy(&npd->cpufreq, &pd->cpufreq,
 				 sizeof(struct cpufreq_params));
 
-		if (pd->temp_compensate.arm_volt)
-			memcpy(&npd->temp_compensate, &pd->temp_compensate,
-				 sizeof(struct temp_compensate_params));
-
 		s5p_device_tmu.dev.platform_data = npd;
 	}
 }

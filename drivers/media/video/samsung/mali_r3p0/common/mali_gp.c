@@ -38,7 +38,7 @@ struct mali_gp_core
 	u32                  counter_src1_used; /**< The selected performance counter 1 when a job is running */
 };
 
-static struct mali_gp_core *mali_global_gp_core = NULL;
+static struct mali_gp_core* global_gp_core = NULL;
 
 /* Interrupt handlers */
 static _mali_osk_errcode_t mali_gp_upper_half(void *data);
@@ -52,7 +52,6 @@ struct mali_gp_core *mali_gp_create(const _mali_osk_resource_t * resource, struc
 {
 	struct mali_gp_core* core = NULL;
 
-	MALI_DEBUG_ASSERT(NULL == mali_global_gp_core);
 	MALI_DEBUG_PRINT(2, ("Mali GP: Creating Mali GP core: %s\n", resource->description));
 
 	core = _mali_osk_malloc(sizeof(struct mali_gp_core));
@@ -89,8 +88,8 @@ struct mali_gp_core *mali_gp_create(const _mali_osk_resource_t * resource, struc
 					if(NULL != core->timeout_timer)
 					{
 						_mali_osk_timer_setcallback(core->timeout_timer, mali_gp_timeout, (void *)core);
-						MALI_DEBUG_PRINT(4, ("Mali GP: set global gp core from 0x%08X to 0x%08X\n", mali_global_gp_core, core));
-						mali_global_gp_core = core;
+						MALI_DEBUG_PRINT(4, ("Mali GP: set global gp core from 0x%08X to 0x%08X\n", global_gp_core, core));
+						global_gp_core = core;
 
 						return core;
 					}
@@ -113,7 +112,7 @@ struct mali_gp_core *mali_gp_create(const _mali_osk_resource_t * resource, struc
 	}
 	else
 	{
-		MALI_PRINT_ERROR(("Failed to allocate memory for GP core\n"));
+		MALI_PRINT_ERROR(("Failed to allocate memory for GP core %s\n", core->hw_core.description));
 	}
 
 	return NULL;
@@ -126,7 +125,7 @@ void mali_gp_delete(struct mali_gp_core *core)
 	_mali_osk_timer_term(core->timeout_timer);
 	_mali_osk_irq_term(core->irq);
 	mali_hw_core_delete(&core->hw_core);
-	mali_global_gp_core = NULL;
+	global_gp_core = NULL;
 	_mali_osk_free(core);
 }
 
@@ -436,9 +435,9 @@ u32 mali_gp_core_get_counter_src1(struct mali_gp_core *core)
 	return core->counter_src1;
 }
 
-struct mali_gp_core *mali_gp_get_global_gp_core(void)
+struct mali_gp_core* mali_gp_get_global_gp_core(void)
 {
-	return mali_global_gp_core;
+	return global_gp_core;
 }
 
 /* ------------- interrupt handling below ------------------ */
@@ -588,9 +587,7 @@ static void mali_gp_post_process_job(struct mali_gp_core *core, mali_bool suspen
 	{
 		u32 val0 = 0;
 		u32 val1 = 0;
-#if MALI_TIMELINE_PROFILING_ENABLED
 		u32 event_id;
-#endif
 
 		if (MALI_HW_CORE_NO_COUNTER != core->counter_src0_used)
 		{
@@ -606,11 +603,6 @@ static void mali_gp_post_process_job(struct mali_gp_core *core, mali_bool suspen
 				/* User space asked for a counter, but this is not what we retrived (overridden by counter src set on core) */
 				mali_gp_job_set_perf_counter_value0(core->running_job, MALI_HW_CORE_INVALID_VALUE);
 			}
-
-#if MALI_TIMELINE_PROFILING_ENABLED
-			_mali_osk_profiling_report_hw_counter(COUNTER_VP_C0, val0);
-#endif
-
 		}
 
 		if (MALI_HW_CORE_NO_COUNTER != core->counter_src1_used)
@@ -627,10 +619,6 @@ static void mali_gp_post_process_job(struct mali_gp_core *core, mali_bool suspen
 				/* User space asked for a counter, but this is not what we retrieved (overridden by counter src set on core) */
 				mali_gp_job_set_perf_counter_value1(core->running_job, MALI_HW_CORE_INVALID_VALUE);
 			}
-
-#if MALI_TIMELINE_PROFILING_ENABLED
-			_mali_osk_profiling_report_hw_counter(COUNTER_VP_C1, val1);
-#endif
 		}
 
 #if MALI_TIMELINE_PROFILING_ENABLED

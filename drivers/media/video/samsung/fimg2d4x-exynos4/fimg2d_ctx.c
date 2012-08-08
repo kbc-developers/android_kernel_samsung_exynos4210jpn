@@ -270,23 +270,25 @@ static int fimg2d_check_dma_sync(struct fimg2d_bltcmd *cmd)
 }
 
 int fimg2d_add_command(struct fimg2d_control *info, struct fimg2d_context *ctx,
-			struct fimg2d_blit *blit, enum addr_space type)
+			struct fimg2d_blit *blit)
 {
 	int i, ret;
 	struct fimg2d_image *buf[MAX_IMAGES] = image_table(blit);
 	struct fimg2d_bltcmd *cmd;
+	struct fimg2d_image dst;
 
-	if ((blit->dst) && (type == ADDR_USER))
+	if (blit->dst)
+		if (copy_from_user(&dst, (void *)blit->dst, sizeof(dst)))
+			return -EFAULT;
+
+	if ((blit->dst) && (dst.addr.type == ADDR_USER))
 		up_write(&page_alloc_slow_rwsem);
-
 	cmd = kzalloc(sizeof(*cmd), GFP_KERNEL);
+	if ((blit->dst) && (dst.addr.type == ADDR_USER))
+		down_write(&page_alloc_slow_rwsem);
 
-	if (!cmd) {
-		if ((blit->dst) && (type == ADDR_USER))
-			if (!down_write_trylock(&page_alloc_slow_rwsem))
-				return -EAGAIN;
+	if (!cmd)
 		return -ENOMEM;
-	}
 
 	for (i = 0; i < MAX_IMAGES; i++) {
 		if (!buf[i])
@@ -294,21 +296,10 @@ int fimg2d_add_command(struct fimg2d_control *info, struct fimg2d_context *ctx,
 
 		if (copy_from_user(&cmd->image[i], buf[i],
 					sizeof(struct fimg2d_image))) {
-			if ((blit->dst) && (type == ADDR_USER))
-				if (!down_write_trylock(&page_alloc_slow_rwsem)) {
-					ret = -EAGAIN;
-					goto err_user;
-				}
 			ret = -EFAULT;
 			goto err_user;
 		}
 	}
-
-	if ((blit->dst) && (type == ADDR_USER))
-		if (!down_write_trylock(&page_alloc_slow_rwsem)) {
-			ret = -EAGAIN;
-			goto err_user;
-		}
 
 	cmd->ctx = ctx;
 	cmd->op = blit->op;

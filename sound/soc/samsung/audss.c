@@ -132,11 +132,7 @@ void audss_reg_restore(void)
 					audss.suspend_audss_clkdiv,
 					audss.suspend_audss_clkgate);
 }
-#if (defined(CONFIG_MACH_M0) && defined(CONFIG_TARGET_LOCALE_EUR)) || \
-	((defined(CONFIG_MACH_C1) || defined(CONFIG_MACH_M0)) && \
-	defined(CONFIG_TARGET_LOCALE_KOR))
-extern void print_epll_con0(void);
-#endif
+
 void audss_clk_enable(bool enable)
 {
 	unsigned long flags;
@@ -173,11 +169,7 @@ void audss_clk_enable(bool enable)
 
 		audss.clk_enabled = false;
 	}
-#if (defined(CONFIG_MACH_M0) && defined(CONFIG_TARGET_LOCALE_EUR)) || \
-	((defined(CONFIG_MACH_C1) || defined(CONFIG_MACH_M0)) && \
-	defined(CONFIG_TARGET_LOCALE_KOR))
-	print_epll_con0();
-#endif
+
 	pr_info("%s(%d): SRC[0x%x], DIV[0x%x], GATE[0x%x]\n", __func__,
 						enable ? 1 : 0,
 						readl(S5P_CLKSRC_AUDSS),

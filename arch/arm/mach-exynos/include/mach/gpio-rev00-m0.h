@@ -266,7 +266,6 @@ extern void midas_config_sleep_gpio_table(void);
 #define GPIO_CP_DUMP_INT	EXYNOS4_GPX1(2)
 #define GPIO_PHONE_ACTIVE	EXYNOS4_GPX1(6)
 #define GPIO_CP_RST		EXYNOS4_GPX3(2)
-#define GPIO_AP_DUMP_INT	EXYNOS4212_GPJ0(1)
 
 #define GPIO_FM_RST EXYNOS4_GPC1(1)
 #else

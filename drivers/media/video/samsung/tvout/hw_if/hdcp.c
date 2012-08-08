@@ -379,7 +379,7 @@ static int s5p_hdcp_read_bcaps(void)
 	if (s5p_ddc_read(HDCP_Bcaps, BCAPS_SIZE, &bcaps) < 0)
 		goto bcaps_read_err;
 
-	if (s5p_hdmi_ctrl_status() == false || !s5p_hdmi_reg_get_hpd_status() || on_stop_process)
+	if (!s5p_hdmi_reg_get_hpd_status() || s5p_hdmi_ctrl_status() == false || on_stop_process)
 		goto bcaps_read_err;
 
 	writeb(bcaps, hdmi_base + S5P_HDMI_HDCP_BCAPS);
@@ -430,8 +430,8 @@ static int s5p_hdcp_read_bksv(void)
 
 		}
 
-		if (s5p_hdmi_ctrl_status() == false ||
-		    !s5p_hdmi_reg_get_hpd_status() || on_stop_process)
+		if (!s5p_hdmi_reg_get_hpd_status() ||
+		    s5p_hdmi_ctrl_status() == false || on_stop_process)
 			goto bksv_read_err;
 
 		if ((zero == 20) && (one == 20)) {
@@ -458,11 +458,9 @@ bksv_read_err:
 
 static int s5p_hdcp_read_ri(void)
 {
-	static unsigned long int cnt;
 	u8 ri[2] = {0, 0};
 	u8 rj[2] = {0, 0};
 
-	cnt++;
 	ri[0] = readb(hdmi_base + S5P_HDMI_HDCP_Ri_0);
 	ri[1] = readb(hdmi_base + S5P_HDMI_HDCP_Ri_1);
 
@@ -494,11 +492,7 @@ static int s5p_hdcp_read_ri(void)
 compare_err:
 	hdcp_info.event		= HDCP_EVENT_STOP;
 	hdcp_info.auth_status	= NOT_AUTHENTICATED;
-	tvout_err("read ri : failed - missmatch "
-			"Rx(ddc) rj[0]:0x%02x, rj[1]:0x%02x "
-			"Tx(register) ri[0]:0x%02x, ri[1]:0x%02x "
-			"cnt = %lu\n",
-			rj[0], rj[1], ri[0], ri[1], cnt);
+	tvout_err("read ri : failed - missmatch\n");
 	msleep(10);
 	return -1;
 }
@@ -531,8 +525,8 @@ static void s5p_hdcp_reset_auth(void)
 	u8 reg;
 	unsigned long spin_flags;
 
-	if (s5p_hdmi_ctrl_status() == false ||
-            !s5p_hdmi_reg_get_hpd_status() || on_stop_process)
+	if (!s5p_hdmi_reg_get_hpd_status() ||
+	    s5p_hdmi_ctrl_status() == false || on_stop_process)
 		return;
 	spin_lock_irqsave(&hdcp_info.reset_lock, spin_flags);
 
@@ -835,8 +829,6 @@ static int s5p_hdcp_bksv(void)
 
 	hdcp_info.auth_status = RECEIVER_READ_READY;
 
-	msleep(100);
-
 	if (s5p_hdcp_read_bcaps() < 0)
 		goto bksv_start_err;
 
@@ -866,8 +858,8 @@ static int s5p_hdcp_second_auth(void)
 	if (!hdcp_info.hdcp_enable)
 		goto second_auth_err;
 
-	if (s5p_hdmi_ctrl_status() == false ||
-	    !s5p_hdmi_reg_get_hpd_status() || on_stop_process)
+	if (!s5p_hdmi_reg_get_hpd_status() ||
+	    s5p_hdmi_ctrl_status() == false || on_stop_process)
 		goto second_auth_err;
 
 	ret = s5p_hdmi_check_repeater();
@@ -894,8 +886,8 @@ static int s5p_hdcp_write_aksv(void)
 		tvout_dbg("aksv start : bksv is not ready\n");
 		goto aksv_write_err;
 	}
-	if (s5p_hdmi_ctrl_status() == false ||
-	    !s5p_hdmi_reg_get_hpd_status() || on_stop_process)
+	if (!s5p_hdmi_reg_get_hpd_status() ||
+	    s5p_hdmi_ctrl_status() == false || on_stop_process)
 		goto aksv_write_err;
 
 	if (s5p_hdcp_write_key(AN_SZ, S5P_HDMI_HDCP_An_0_0, HDCP_An) < 0)
@@ -930,8 +922,8 @@ static int s5p_hdcp_check_ri(void)
 		goto check_ri_err;
 	}
 
-	if (s5p_hdmi_ctrl_status() == false ||
-	    !s5p_hdmi_reg_get_hpd_status() || on_stop_process)
+	if (!s5p_hdmi_reg_get_hpd_status() ||
+	    s5p_hdmi_ctrl_status() == false || on_stop_process)
 		goto check_ri_err;
 
 	if (s5p_hdcp_read_ri() < 0)
@@ -956,8 +948,8 @@ check_ri_err:
 
 static void s5p_hdcp_work(void *arg)
 {
-	if (!hdcp_info.hdcp_enable || s5p_hdmi_ctrl_status() == false ||
-	    !s5p_hdmi_reg_get_hpd_status() || on_stop_process)
+	if (!hdcp_info.hdcp_enable || !s5p_hdmi_reg_get_hpd_status() ||
+	    s5p_hdmi_ctrl_status() == false || on_stop_process)
 		return;
 
 	if (hdcp_info.event & HDCP_EVENT_READ_BKSV_START) {
@@ -989,8 +981,8 @@ static void s5p_hdcp_work(void *arg)
 	}
 	return;
 work_err:
-	if (!hdcp_info.hdcp_enable || s5p_hdmi_ctrl_status() == false ||
-	    !s5p_hdmi_reg_get_hpd_status() || on_stop_process)	{
+	if (!hdcp_info.hdcp_enable || !s5p_hdmi_reg_get_hpd_status() ||
+	    s5p_hdmi_ctrl_status() == false || on_stop_process)	{
 		return;
 	}
 	s5p_hdcp_reset_auth();
@@ -1046,8 +1038,8 @@ irqreturn_t s5p_hdcp_irq_handler(int irq, void *dev_id)
 		return IRQ_HANDLED;
 	}
 
-	if (hdcp_info.hdcp_enable && s5p_hdmi_ctrl_status() == true &&
-	    s5p_hdmi_reg_get_hpd_status() && !on_stop_process) {
+	if (hdcp_info.hdcp_enable && s5p_hdmi_reg_get_hpd_status() &&
+	    s5p_hdmi_ctrl_status() == true && !on_stop_process) {
 		hdcp_info.event |= event;
 		queue_work_on(0, hdcp_wq, &hdcp_info.work);
 	} else {

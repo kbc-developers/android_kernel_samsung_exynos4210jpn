@@ -200,26 +200,11 @@ void __init samsung_gpiolib_add_4bit2(struct s3c_gpio_chip *chip)
 	chip->pm = chip->pm ?: __gpio_pm(&s3c_gpio_pm_4bit);
 }
 
-void __init samsung_gpiolib_add_4bit_no_pm(struct s3c_gpio_chip *chip)
-{
-	chip->chip.direction_input = samsung_gpiolib_4bit_input;
-	chip->chip.direction_output = samsung_gpiolib_4bit_output;
-}
-
 void __init samsung_gpiolib_add_4bit_chips(struct s3c_gpio_chip *chip,
 					   int nr_chips)
 {
 	for (; nr_chips > 0; nr_chips--, chip++) {
 		samsung_gpiolib_add_4bit(chip);
-		s3c_gpiolib_add(chip);
-	}
-}
-
-void __init samsung_gpiolib_add_4bit_chips_no_pm(struct s3c_gpio_chip *chip,
-					   int nr_chips)
-{
-	for (; nr_chips > 0; nr_chips--, chip++) {
-		samsung_gpiolib_add_4bit_no_pm(chip);
 		s3c_gpiolib_add(chip);
 	}
 }

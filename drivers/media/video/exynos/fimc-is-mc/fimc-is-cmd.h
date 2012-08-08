@@ -22,7 +22,6 @@ enum is_cmd {
 	HIC_CAPTURE_VIDEO,
 	HIC_STREAM_ON,
 	HIC_STREAM_OFF,
-	HIC_SHOT,
 	HIC_SET_PARAMETER,
 	HIC_GET_PARAMETER,
 	HIC_SET_TUNE,
@@ -112,31 +111,19 @@ struct is_common_reg {
 
 	u32 isp_sensor_id;
 	u32 isp_param1;
-	u32 isp_param2;
-	u32 isp_param3;
-	u32 isp_param4;
-	u32 reserved3[3];
+	u32 reserved3[2];
 
 	u32 scc_sensor_id;
 	u32 scc_param1;
-	u32 scc_param2;
-	u32 scc_param3;
-	u32 scc_param4;
-	u32 reserved4[3];
+	u32 reserved4[2];
 
 	u32 dnr_sensor_id;
 	u32 dnr_param1;
-	u32 dnr_param2;
-	u32 dnr_param3;
-	u32 dnr_param4;
-	u32 reserved5[3];
+	u32 reserved5[2];
 
 	u32 scp_sensor_id;
 	u32 scp_param1;
-	u32 scp_param2;
-	u32 scp_param3;
-	u32 scp_param4;
-	u32 reserved6[15];
+	u32 reserved6[30];
 };
 
 struct is_mcuctl_reg {

@@ -20,16 +20,18 @@
 #include <linux/interrupt.h>
 #include <linux/slab.h>
 #include <linux/err.h>
-#include <linux/delay.h>
-#include <linux/uaccess.h>
-#include <linux/firmware.h>
-#include <linux/fs.h>
 
 #include <linux/i2c/mxt1664s.h>
 
 #include "mxt1664s_dev.h"
 
 #if TSP_SEC_SYSFS
+
+/* TODO:
+*	need to add dignostic fucntions for read reference
+*	and data form IC to usc T37 register
+*/
+
 static void set_default_result(struct mxt_data_sysfs *data)
 {
 	char delim = ':';
@@ -60,410 +62,9 @@ static void not_support_cmd(void *device_data)
 				buff, strnlen(buff, sizeof(buff)));
 }
 
-/* +  Vendor specific helper functions */
-static int mxt_xy_to_node(struct mxt_data *data)
-{
-	struct i2c_client *client = data->client;
-	struct mxt_data_sysfs *sysfs_data = data->sysfs_data;
-
-	char buff[16] = {0};
-	int node;
-
-	/* cmd_param[0][1] : [x][y] */
-	if (sysfs_data->cmd_param[0] < 0
-		|| sysfs_data->cmd_param[0] >= data->info.matrix_xsize
-		|| sysfs_data->cmd_param[1] < 0
-		|| sysfs_data->cmd_param[1] >= data->info.matrix_ysize) {
-		snprintf(buff, sizeof(buff) , "%s", "NG");
-		set_cmd_result(sysfs_data, buff, strnlen(buff, sizeof(buff)));
-		sysfs_data->cmd_state = CMD_STATUS_FAIL;
-
-		dev_info(&client->dev, "%s: parameter error: %u,%u\n",
-				__func__, sysfs_data->cmd_param[0],
-				sysfs_data->cmd_param[1]);
-		return -EINVAL;
-	}
-
-	/*
-	* maybe need to consider orient.
-	*   --> y number
-	*  |(0,0) (0,1)
-	*  |(1,0) (1,1)
-	*  v
-	*  x number
-	*/
-	node = sysfs_data->cmd_param[0] * data->info.matrix_ysize
-			+ sysfs_data->cmd_param[1];
-
-	dev_info(&client->dev, "%s: node = %d\n", __func__, node);
-	return node;
-}
-
-static void mxt_node_to_xy(struct mxt_data *data, u16 *x, u16 *y)
-{
-	struct i2c_client *client = data->client;
-	struct mxt_data_sysfs *sysfs_data = data->sysfs_data;
-
-	*x = sysfs_data->delta_max_node / data->info.matrix_ysize;
-	*y = sysfs_data->delta_max_node % data->info.matrix_ysize;
-
-	dev_info(&client->dev, "%s: node[%d] is X,Y=%d,%d\n", __func__,
-		sysfs_data->delta_max_node, *x, *y);
-}
-
-static int mxt_set_diagnostic_mode(struct mxt_data *data, u8 dbg_mode)
-{
-	struct i2c_client *client = data->client;
-	u8 cur_mode;
-	int ret;
-
-	ret = mxt_write_object(data, GEN_COMMANDPROCESSOR_T6,
-			CMD_DIAGNOSTIC_OFFSET, dbg_mode);
-
-	if (ret) {
-		dev_err(&client->dev,
-			"Failed change diagnositc mode to %d\n", dbg_mode);
-		goto out;
-	}
-
-	if (dbg_mode & MXT_DIAG_MODE_MASK) {
-		do {
-			ret = mxt_read_object(data, DEBUG_DIAGNOSTIC_T37,
-				MXT_DIAGNOSTIC_MODE, &cur_mode);
-			if (ret) {
-				dev_err(&client->dev, "Failed getting diagnositc mode\n");
-				goto out;
-			}
-			msleep(20);
-
-		} while (cur_mode != dbg_mode);
-		dev_dbg(&client->dev,
-			"current dianostic chip mode is %d\n", cur_mode);
-	}
-out:
-	return ret;
-}
-
-static int mxt_read_diagnostic_data(struct mxt_data *data,
-	u8 dbg_mode, u16 node, u16 *dbg_data)
-{
-	struct i2c_client *client = data->client;
-	struct mxt_object *dbg_object;
-	u8 read_page, read_point;
-	u8 cur_page, cnt_page;
-	u8 data_buf[DATA_PER_NODE] = { 0 };
-	int ret = 0;
-
-	/* calculate the read page and point */
-	read_page = node / NODE_PER_PAGE;
-	node %= NODE_PER_PAGE;
-	read_point = (node * DATA_PER_NODE) + 2;
-
-	/* to make the Page Num to 0 */
-	ret = mxt_set_diagnostic_mode(data, MXT_DIAG_CTE_MODE);
-	if (ret)
-		goto out;
-
-	/* change the debug mode */
-	ret = mxt_set_diagnostic_mode(data, dbg_mode);
-	if (ret)
-		goto out;
-
-	/* get object info for diagnostic */
-	dbg_object = mxt_get_object_info(data, DEBUG_DIAGNOSTIC_T37);
-	if (!dbg_object) {
-		dev_err(&client->dev, "fail to get object_info\n");
-		ret = -EINVAL;
-		goto out;
-	}
-
-	/* move to the proper page */
-	for (cnt_page = 1; cnt_page <= read_page; cnt_page++) {
-		ret = mxt_set_diagnostic_mode(data, MXT_DIAG_PAGE_UP);
-		if (ret)
-			goto out;
-		do {
-			ret = mxt_read_mem(data,
-				dbg_object->start_address + MXT_DIAGNOSTIC_PAGE,
-				1, &cur_page);
-			if (ret) {
-				dev_err(&client->dev,
-					"%s Read fail page\n", __func__);
-				goto out;
-			}
-		} while (cur_page != cnt_page);
-	}
-
-	/* read the dbg data */
-	ret = mxt_read_mem(data, dbg_object->start_address + read_point,
-		DATA_PER_NODE, data_buf);
-	if (ret)
-		goto out;
-
-	*dbg_data = ((u16)data_buf[1] << 8) + (u16)data_buf[0];
-
-	dev_info(&client->dev, "dbg_mode[%d]: dbg data[%d] = %d\n",
-		dbg_mode, (read_page * NODE_PER_PAGE) + node,
-		dbg_mode == MXT_DIAG_DELTA_MODE ? (s16)(*dbg_data) : *dbg_data);
-out:
-	return ret;
-}
-
-static void mxt_treat_dbg_data(struct mxt_data *data,
-	struct mxt_object *dbg_object, u8 dbg_mode, u8 read_point, u16 num)
-{
-	struct i2c_client *client = data->client;
-	struct mxt_data_sysfs *sysfs_data = data->sysfs_data;
-	u8 data_buffer[DATA_PER_NODE] = { 0 };
-
-	if (dbg_mode == MXT_DIAG_DELTA_MODE) {
-		/* read delta data */
-		mxt_read_mem(data, dbg_object->start_address + read_point,
-			DATA_PER_NODE, data_buffer);
-
-		sysfs_data->delta[num] =
-			((u16)data_buffer[1]<<8) + (u16)data_buffer[0];
-
-		dev_dbg(&client->dev, "delta[%d] = %d\n",
-			num, sysfs_data->delta[num]);
-
-		if (abs(sysfs_data->delta[num])
-			> abs(sysfs_data->delta_max_data)) {
-			sysfs_data->delta_max_node = num;
-			sysfs_data->delta_max_data = sysfs_data->delta[num];
-		}
-	} else if (dbg_mode == MXT_DIAG_REFERENCE_MODE) {
-		/* read reference data */
-		mxt_read_mem(data, dbg_object->start_address + read_point,
-			DATA_PER_NODE, data_buffer);
-
-		sysfs_data->reference[num] =
-			((u16)data_buffer[1]<<8) + (u16)data_buffer[0];
-
-		/* check that reference is in spec or not */
-		if (sysfs_data->reference[num] < REF_MIN_VALUE
-			|| sysfs_data->reference[num] > REF_MAX_VALUE) {
-			dev_err(&client->dev, "reference[%d] is out of range ="
-				" %d\n", num, sysfs_data->reference[num]);
-		}
-
-		if (sysfs_data->reference[num] > sysfs_data->ref_max_data)
-			sysfs_data->ref_max_data =
-				sysfs_data->reference[num];
-		if (sysfs_data->reference[num] < sysfs_data->ref_min_data)
-			sysfs_data->ref_min_data =
-				sysfs_data->reference[num];
-
-		dev_dbg(&client->dev, "reference[%d] = %d\n",
-				num, sysfs_data->reference[num]);
-	}
-}
-
-static int mxt_read_all_diagnostic_data(struct mxt_data *data, u8 dbg_mode)
-{
-	struct i2c_client *client = data->client;
-	struct mxt_data_sysfs *sysfs_data = data->sysfs_data;
-	struct mxt_object *dbg_object;
-	u8 read_page, end_page, read_point;
-	u16 node, num = 0;
-	int ret = 0;
-
-	/* to make the Page Num to 0 */
-	ret = mxt_set_diagnostic_mode(data, MXT_DIAG_CTE_MODE);
-	if (ret)
-		goto out;
-
-	/* change the debug mode */
-	ret = mxt_set_diagnostic_mode(data, dbg_mode);
-	if (ret)
-		goto out;
-
-	/* get object info for diagnostic */
-	dbg_object = mxt_get_object_info(data, DEBUG_DIAGNOSTIC_T37);
-	if (!dbg_object) {
-		dev_err(&client->dev, "fail to get object_info\n");
-		ret = -EINVAL;
-		goto out;
-	}
-
-	/* calculate end page of IC */
-	sysfs_data->ref_min_data = REF_MAX_VALUE;
-	sysfs_data->ref_max_data = REF_MIN_VALUE;
-	sysfs_data->delta_max_data = 0;
-	sysfs_data->delta_max_node = 0;
-	end_page = (data->info.matrix_xsize * data->info.matrix_ysize)
-				/ NODE_PER_PAGE;
-
-	/* read the dbg data */
-	for (read_page = 0 ; read_page < end_page; read_page++) {
-		for (node = 0; node < NODE_PER_PAGE; node++) {
-			read_point = (node * DATA_PER_NODE) + 2;
-
-			mxt_treat_dbg_data(data, dbg_object, dbg_mode,
-				read_point, num);
-			num++;
-		}
-		ret = mxt_set_diagnostic_mode(data, MXT_DIAG_PAGE_UP);
-		if (ret)
-			goto out;
-		else
-			msleep(20);
-	}
-
-	if (dbg_mode == MXT_DIAG_REFERENCE_MODE) {
-		dev_info(&client->dev, "min/max reference is [%d/%d]\n",
-			sysfs_data->ref_min_data, sysfs_data->ref_max_data);
-	} else if (dbg_mode == MXT_DIAG_DELTA_MODE) {
-		dev_info(&client->dev, "max delta node %d=[%d]\n",
-			sysfs_data->delta_max_node, sysfs_data->delta_max_data);
-	}
-out:
-	return ret;
-}
-
-/*
-* find the x,y position to use maximum delta.
-* it is diffult to map the orientation and caculate the node number
-* because layout is always different according to device
-*/
-static void find_delta_node(void *device_data)
-{
-	struct mxt_data *data = (struct mxt_data *)device_data;
-	struct mxt_data_sysfs *sysfs_data = data->sysfs_data;
-	char buff[16] = {0};
-	u16 x, y;
-	int ret;
-
-	set_default_result(sysfs_data);
-
-	/* read all delta to get the maximum delta value */
-	ret = mxt_read_all_diagnostic_data(data,
-			MXT_DIAG_DELTA_MODE);
-	if (ret) {
-		sysfs_data->cmd_state = CMD_STATUS_FAIL;
-	} else {
-		mxt_node_to_xy(data, &x, &y);
-		snprintf(buff, sizeof(buff), "%d,%d", x, y);
-		set_cmd_result(sysfs_data, buff, strnlen(buff, sizeof(buff)));
-
-		sysfs_data->cmd_state = CMD_STATUS_OK;
-	}
-}
-
-/* -  Vendor specific helper functions */
-
-/* + function realted samsung factory test */
 static void fw_update(void *device_data)
 {
-	struct mxt_data *data = (struct mxt_data *)device_data;
-	struct i2c_client *client = data->client;
-	struct mxt_data_sysfs *sysfs_data = data->sysfs_data;
-	struct file *filp = NULL;
-	const struct firmware *fw = NULL;
-	const u8 *fw_data = NULL;
-	long fw_size = 0;
-	mm_segment_t old_fs = {0};
-	char *fw_path;
-	int ret;
-
-	set_default_result(sysfs_data);
-
-	fw_path = kzalloc(MXT_MAX_FW_PATH, GFP_KERNEL);
-	if (fw_path == NULL) {
-		dev_err(&client->dev, "failed to allocate firmware path.\n");
-		goto out;
-	}
-
-	switch (sysfs_data->cmd_param[0]) {
-	case MXT_FW_FROM_BUILT_IN:
-		goto not_support;
-	break;
-
-	case MXT_FW_FROM_UMS:
-		snprintf(fw_path, MXT_MAX_FW_PATH, "/sdcard/%s", MXT_FW_NAME);
-
-		old_fs = get_fs();
-		set_fs(get_ds());
-
-		filp = filp_open(fw_path, O_RDONLY, 0);
-		if (IS_ERR(filp)) {
-			dev_err(&client->dev, "could not open firmware: %s,%d\n",
-				fw_path, (s32)filp);
-			goto err_open;
-		}
-
-		fw_size = filp->f_path.dentry->d_inode->i_size;
-
-		fw_data = kzalloc((size_t)fw_size, GFP_KERNEL);
-		if (!fw_data) {
-			dev_err(&client->dev, "fail to alloc buffer for fw\n");
-			goto err_alloc;
-		}
-		ret = vfs_read(filp, (char __user *)fw_data,
-				fw_size, &filp->f_pos);
-		if (ret != fw_size) {
-			dev_err(&client->dev, "fail to read file %s (ret = %d)\n",
-					fw_path, ret);
-			goto err_read;
-		}
-		filp_close(filp, current->files);
-		set_fs(old_fs);
-	break;
-
-	case MXT_FW_FROM_REQ_FW:
-		snprintf(fw_path, MXT_MAX_FW_PATH, "tsp_atmel/%s", MXT_FW_NAME);
-
-		ret = request_firmware(&fw, fw_path, &client->dev);
-		if (ret) {
-			dev_err(&client->dev,
-				"could not request firmware %s\n", fw_path);
-			goto err_open;
-		}
-
-		fw_size = fw->size;
-		fw_data = kzalloc(fw_size, GFP_KERNEL);
-		if (!fw_data) {
-			dev_err(&client->dev, "fail to alloc buffer for fw\n");
-			goto err_alloc;
-		}
-		memcpy((void *)fw_data, fw->data, fw_size);
-		release_firmware(fw);
-	break;
-
-	default:
-		dev_err(&client->dev, "invalid fw file type!!\n");
-		goto not_support;
-	}
-
-	kfree(fw_path);
-	disable_irq(data->client->irq);
-
-	ret = mxt_flash_fw_from_sysfs(data, fw_data, fw_size);
-
-	enable_irq(data->client->irq);
-	kfree(fw_data);
-
-	if (ret)
-		sysfs_data->cmd_state = CMD_STATUS_FAIL;
-	else
-		sysfs_data->cmd_state = CMD_STATUS_OK;
-
-	return;
-
-err_read:
-	kfree(fw_data);
-err_alloc:
-	if (!filp)
-		filp_close(filp, current->files);
-	release_firmware(fw);
-err_open:
-	if (!filp)
-		set_fs(old_fs);
-not_support:
-	kfree(fw_path);
-out:
-	sysfs_data->cmd_state = CMD_STATUS_FAIL;
-	return;
+	/* ....  */
 }
 
 static void get_fw_ver_bin(void *device_data)
@@ -507,9 +108,6 @@ static void get_fw_ver_ic(void *device_data)
 
 static void get_config_ver(void *device_data)
 {
-	/* need to be inplemented
-	* if firmware can support config version
-	*/
 	not_support_cmd(device_data);
 }
 
@@ -551,17 +149,16 @@ static void module_off_master(void *device_data)
 
 	mutex_lock(&data->lock);
 	if (data->mxt_enabled) {
-		disable_irq(client->irq);
-
 		if (data->pdata->power_off())
 			snprintf(buff, sizeof(buff), "%s", "NG");
 		else
 			snprintf(buff, sizeof(buff), "%s", "OK");
 
+		disable_irq(client->irq);
 		data->mxt_enabled = false;
-	} else {
+	} else
 		snprintf(buff, sizeof(buff), "%s", "OK");
-	}
+
 	mutex_unlock(&data->lock);
 
 	set_default_result(sysfs_data);
@@ -705,110 +302,43 @@ static void run_reference_read(void *device_data)
 {
 	struct mxt_data *data = (struct mxt_data *)device_data;
 	struct mxt_data_sysfs *sysfs_data = data->sysfs_data;
-	int ret;
-	char buff[16] = {0};
 
 	set_default_result(sysfs_data);
+	sysfs_data->cmd_state = CMD_STATUS_OK;
 
-	ret = mxt_read_all_diagnostic_data(data,
-			MXT_DIAG_REFERENCE_MODE);
-	if (ret)
-		sysfs_data->cmd_state = CMD_STATUS_FAIL;
-	else {
-		snprintf(buff, sizeof(buff), "%d,%d",
-			sysfs_data->ref_min_data, sysfs_data->ref_max_data);
-		set_cmd_result(sysfs_data, buff, strnlen(buff, sizeof(buff)));
-
-		sysfs_data->cmd_state = CMD_STATUS_OK;
-	}
 }
 
 static void get_reference(void *device_data)
 {
 	struct mxt_data *data = (struct mxt_data *)device_data;
-	struct i2c_client *client = data->client;
 	struct mxt_data_sysfs *sysfs_data = data->sysfs_data;
-	u16 dgb_data;
-	char buff[16] = {0};
-	int node;
-	int ret;
 
 	set_default_result(sysfs_data);
 	/* add read function */
+	sysfs_data->cmd_state = CMD_STATUS_OK;
 
-	node = mxt_xy_to_node(data);
-	if (node < 0) {
-		sysfs_data->cmd_state = CMD_STATUS_FAIL;
-		return;
-	} else {
-		ret = mxt_read_diagnostic_data(data,
-				MXT_DIAG_REFERENCE_MODE, node, &dgb_data);
-		if (ret) {
-			sysfs_data->cmd_state = CMD_STATUS_FAIL;
-			return;
-		} else {
-			snprintf(buff, sizeof(buff), "%u", dgb_data);
-			set_cmd_result(sysfs_data,
-				buff, strnlen(buff, sizeof(buff)));
-
-			sysfs_data->cmd_state = CMD_STATUS_OK;
-		}
-	}
-	dev_info(&client->dev, "%s: %s(%d)\n", __func__, buff,
-			strnlen(buff, sizeof(buff)));
 }
 
 static void run_delta_read(void *device_data)
 {
 	struct mxt_data *data = (struct mxt_data *)device_data;
 	struct mxt_data_sysfs *sysfs_data = data->sysfs_data;
-	int ret;
 
 	set_default_result(sysfs_data);
+	/* add read function */
+	sysfs_data->cmd_state = CMD_STATUS_OK;
 
-	ret = mxt_read_all_diagnostic_data(data,
-			MXT_DIAG_DELTA_MODE);
-	if (ret)
-		sysfs_data->cmd_state = CMD_STATUS_FAIL;
-	else
-		sysfs_data->cmd_state = CMD_STATUS_OK;
 }
 
 static void get_delta(void *device_data)
 {
 	struct mxt_data *data = (struct mxt_data *)device_data;
-	struct i2c_client *client = data->client;
 	struct mxt_data_sysfs *sysfs_data = data->sysfs_data;
-	u16 dgb_data;
-	char buff[16] = {0};
-	int node;
-	int ret;
 
 	set_default_result(sysfs_data);
 	/* add read function */
-
-	node = mxt_xy_to_node(data);
-	if (node < 0) {
-		sysfs_data->cmd_state = CMD_STATUS_FAIL;
-		return;
-	} else {
-		ret = mxt_read_diagnostic_data(data,
-				MXT_DIAG_DELTA_MODE, node, &dgb_data);
-		if (ret) {
-			sysfs_data->cmd_state = CMD_STATUS_FAIL;
-			return;
-		} else {
-			snprintf(buff, sizeof(buff), "%d", (s16)dgb_data);
-			set_cmd_result(sysfs_data,
-				buff, strnlen(buff, sizeof(buff)));
-
-			sysfs_data->cmd_state = CMD_STATUS_OK;
-		}
-	}
-	dev_info(&client->dev, "%s: %s(%d)\n", __func__, buff,
-			strnlen(buff, sizeof(buff)));
+	sysfs_data->cmd_state = CMD_STATUS_OK;
 }
-/* - function realted samsung factory test */
 
 #define TSP_CMD(name, func) .cmd_name = name, .cmd_func = func
 #define TOSTRING (x) #x
@@ -837,7 +367,6 @@ struct tsp_cmd tsp_cmds[] = {
 	{TSP_CMD("get_reference", get_reference),},
 	{TSP_CMD("run_delta_read", run_delta_read),},
 	{TSP_CMD("get_delta", get_delta),},
-	{TSP_CMD("find_delta", find_delta_node),},
 	{TSP_CMD("not_support_cmd", not_support_cmd),},
 };
 
@@ -1296,9 +825,9 @@ static ssize_t mxt_object_show(struct device *dev,
 	dev_info(&client->dev, "object type T%d\n", object_type);
 
 	object = mxt_get_object_info(data, object_type);
-	if (!object) {
+	if (object == NULL) {
 		dev_err(&client->dev, "fail to get object_info\n");
-		return -EINVAL;
+		goto out;
 	} else {
 		for (i = 0; i < object->size; i++) {
 			mxt_read_mem(data, object->start_address + i,
@@ -1306,7 +835,7 @@ static ssize_t mxt_object_show(struct device *dev,
 			dev_info(&client->dev, "Byte %u --> %u\n", i, val);
 		}
 	}
-
+out:
 	return count;
 }
 
@@ -1376,7 +905,7 @@ int  __devinit mxt_sysfs_init(struct i2c_client *client)
 	data->sysfs_data = sysfs_data;
 
 	fac_dev_ts = device_create(sec_class,
-			NULL, 0, data, "tsp");
+			NULL, 0, data, "sec_touchscreen");
 	if (IS_ERR(fac_dev_ts)) {
 		dev_err(&client->dev, "Failed to create device for the sysfs\n");
 		ret = IS_ERR(fac_dev_ts);

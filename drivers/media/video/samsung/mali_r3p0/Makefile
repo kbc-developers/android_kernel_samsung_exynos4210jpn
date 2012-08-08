@@ -85,7 +85,6 @@ DISABLE_PP1 ?= 0
 DISABLE_PP2 ?= 0
 DISABLE_PP3 ?= 0
 MALI_PP_SCHEDULER_FORCE_NO_JOB_OVERLAP ?= 0
-MALI_PP_SCHEDULER_FORCE_NO_JOB_OVERLAP_BETWEEN_APPS ?= 0
 MALI_PP_SCHEDULER_KEEP_SUB_JOB_STARTS_ALIGNED ?= 0
 
 # Get path to driver source from Linux build system
@@ -145,7 +144,6 @@ DEFINES += -DDISABLE_PP1=$(DISABLE_PP1)
 DEFINES += -DDISABLE_PP2=$(DISABLE_PP2)
 DEFINES += -DDISABLE_PP3=$(DISABLE_PP3)
 DEFINES += -DMALI_PP_SCHEDULER_FORCE_NO_JOB_OVERLAP=$(MALI_PP_SCHEDULER_FORCE_NO_JOB_OVERLAP)
-DEFINES += -DMALI_PP_SCHEDULER_FORCE_NO_JOB_OVERLAP_BETWEEN_APPS=$(MALI_PP_SCHEDULER_FORCE_NO_JOB_OVERLAP_BETWEEN_APPS)
 DEFINES += -DMALI_PP_SCHEDULER_KEEP_SUB_JOB_STARTS_ALIGNED=$(MALI_PP_SCHEDULER_KEEP_SUB_JOB_STARTS_ALIGNED)
 
 ifeq ($(BUILD),debug)
@@ -170,12 +168,16 @@ obj-$(CONFIG_VIDEO_MALI400MP_R3P0)		+= mali.o
 # MALI
 INCLUDES = \
 		-I$(MALI_INCLUDE_PREFIX)\
-		-I$(MALI_INCLUDE_PREFIX)include \
 		-I$(MALI_INCLUDE_PREFIX)platform\
 		-I$(MALI_INCLUDE_PREFIX)common \
 		-I$(MALI_INCLUDE_PREFIX)linux \
 		-I$(MALI_INCLUDE_PREFIX)regs
     
+ifeq ($(USING_PROFILING),1)
+INCLUDES += \
+		-I$(MALI_INCLUDE_PREFIX)include
+endif
+
 EXTRA_CFLAGS += $(INCLUDES)\
 		$(DEFINES) 
 
@@ -186,7 +188,6 @@ EXTRA_CFLAGS += -I$(MALI_INCLUDE_PREFIX)common/pmm
 ifeq ($(CONFIG_VIDEO_UMP),y)
 OSKFILES=\
         $(FILES_PREFIX)$(OSKOS)/mali_osk_irq.o \
-        $(FILES_PREFIX)$(OSKOS)/mali_osk_wait_queue.o \
         $(FILES_PREFIX)$(OSKOS)/mali_osk_low_level_mem.o \
         $(FILES_PREFIX)$(OSKOS)/mali_osk_mali.o \
         $(FILES_PREFIX)$(OSKOS)/mali_osk_notification.o \
@@ -196,7 +197,6 @@ else
 OSKFILES=\
         $(FILES_PREFIX)$(OSKOS)/mali_osk_atomics.o \
         $(FILES_PREFIX)$(OSKOS)/mali_osk_irq.o \
-        $(FILES_PREFIX)$(OSKOS)/mali_osk_wait_queue.o \
         $(FILES_PREFIX)$(OSKOS)/mali_osk_locks.o \
         $(FILES_PREFIX)$(OSKOS)/mali_osk_low_level_mem.o \
         $(FILES_PREFIX)$(OSKOS)/mali_osk_math.o \
@@ -253,7 +253,6 @@ mali-y := \
 	common/mali_pp_scheduler.o \
 	common/mali_cluster.o \
 	common/mali_group.o \
-	common/mali_dlbu.o \
 	common/mali_pm.o \
 	common/mali_user_settings_db.o \
 	$(OSKOS)/mali_osk_pm.o \

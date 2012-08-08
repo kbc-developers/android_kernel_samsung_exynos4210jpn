@@ -366,6 +366,10 @@ struct max77686_platform_data exynos4_max77686_info = {
 	.buck4_voltage[7] = 1100000,	/* 1.1V */
 };
 
+void midas_power_init(void)
+{
+	printk(KERN_INFO "%s\n", __func__);
+}
 #endif /* CONFIG_REGULATOR_MAX77686 */
 
 void midas_power_set_muic_pdata(void *pdata, int gpio)
@@ -446,7 +450,7 @@ struct max77693_regulator_data max77693_regulators[] = {
 /* S5M8767 Regulator */
 
 #ifdef CONFIG_SND_SOC_WM8994
-static struct regulator_consumer_supply s5m_ldo3_supply[] = {
+static struct regulator_consumer_supply ldo3_supply[] = {
 	REGULATOR_SUPPLY("AVDD2", NULL),
 	REGULATOR_SUPPLY("CPVDD", NULL),
 	REGULATOR_SUPPLY("DBVDD1", NULL),
@@ -454,76 +458,68 @@ static struct regulator_consumer_supply s5m_ldo3_supply[] = {
 	REGULATOR_SUPPLY("DBVDD3", NULL),
 };
 #else
-static struct regulator_consumer_supply s5m_ldo3_supply[] = {};
+static struct regulator_consumer_supply ldo3_supply[] = {};
 #endif
 
-static struct regulator_consumer_supply s5m_ldo4_supply[] = {
-	REGULATOR_SUPPLY("vddq_pre_1.8v", NULL),
-};
-
-static struct regulator_consumer_supply s5m_ldo8_supply[] = {
+static struct regulator_consumer_supply ldo8_supply[] = {
 	REGULATOR_SUPPLY("vmipi_1.0v", NULL),
 	REGULATOR_SUPPLY("VDD10", "s5p-mipi-dsim.0"),
 	REGULATOR_SUPPLY("vdd", "exynos4-hdmi"),
 	REGULATOR_SUPPLY("vdd_pll", "exynos4-hdmi"),
 };
 
-static struct regulator_consumer_supply s5m_ldo9_supply[] = {
+static struct regulator_consumer_supply ldo9_supply[] = {
 	REGULATOR_SUPPLY("cam_isp_1.8v", NULL),
 };
 
-static struct regulator_consumer_supply s5m_ldo10_supply[] = {
+static struct regulator_consumer_supply ldo10_supply[] = {
 	REGULATOR_SUPPLY("vmipi_1.8v", NULL),
 	REGULATOR_SUPPLY("VDD18", "s5p-mipi-dsim.0"),
 	REGULATOR_SUPPLY("vdd_osc", "exynos4-hdmi"),
 };
 
-static struct regulator_consumer_supply s5m_ldo11_supply[] = {
+static struct regulator_consumer_supply ldo11_supply[] = {
 	REGULATOR_SUPPLY("vabb1_1.95v", NULL),
 };
 
-static struct regulator_consumer_supply s5m_ldo12_supply[] = {
+static struct regulator_consumer_supply ldo12_supply[] = {
 	REGULATOR_SUPPLY("votg_3.0v", NULL),
 };
 
-static struct regulator_consumer_supply s5m_ldo14_supply[] = {
+static struct regulator_consumer_supply ldo13_supply[] = {
+	REGULATOR_SUPPLY("ois_1.5v", NULL),
+};
+
+static struct regulator_consumer_supply ldo14_supply[] = {
 	REGULATOR_SUPPLY("vabb2_1.95v", NULL),
 };
 
-static struct regulator_consumer_supply s5m_ldo20_supply[] = {
+static struct regulator_consumer_supply ldo20_supply[] = {
 	REGULATOR_SUPPLY("touch", NULL),
 };
 
-static struct regulator_consumer_supply s5m_ldo21_supply[] = {
+static struct regulator_consumer_supply ldo21_supply[] = {
 	REGULATOR_SUPPLY("mot_3.3v", NULL),
 };
 
-static struct regulator_consumer_supply s5m_ldo22_supply[] = {
+static struct regulator_consumer_supply ldo22_supply[] = {
 	REGULATOR_SUPPLY("cam_sensor_2.8v", NULL),
 	REGULATOR_SUPPLY("VCI", "s6e8aa0"),
 };
 
-static struct regulator_consumer_supply s5m_ldo23_supply[] = {
+static struct regulator_consumer_supply ldo23_supply[] = {
 	REGULATOR_SUPPLY("vtf_2.8v", NULL),
 };
 
-static struct regulator_consumer_supply s5m_ldo24_supply[] = {
-	REGULATOR_SUPPLY("led_3.3v", NULL),
-};
-
-static struct regulator_consumer_supply s5m_ldo25_supply[] = {
+static struct regulator_consumer_supply ldo25_supply[] = {
 	REGULATOR_SUPPLY("cam_sensor_core_1.2v", NULL),
 };
 
-static struct regulator_consumer_supply s5m_ldo26_supply[] = {
+static struct regulator_consumer_supply ldo26_supply[] = {
 	REGULATOR_SUPPLY("cam_sensor_1.8v", NULL),
 };
 
-static struct regulator_consumer_supply s5m_ldo27_supply[] = {
-	REGULATOR_SUPPLY("ois_1.5v", NULL),
-};
-
-static struct regulator_consumer_supply s5m_ldo28_supply[] = {
+static struct regulator_consumer_supply ldo28_supply[] = {
 	REGULATOR_SUPPLY("touch_1.8v", NULL),
 };
 
@@ -553,8 +549,8 @@ static struct regulator_consumer_supply s5m8767_enp32khz[] = {
 	REGULATOR_SUPPLY("lpo", "bcm4334_bluetooth"),
 };
 
-#define S5M_REGULATOR_INIT(_ldo, _name, _min_uV, _max_uV, _always_on, \
-			_ops_mask, _disabled)				\
+#define REGULATOR_INIT(_ldo, _name, _min_uV, _max_uV, _always_on, _ops_mask, \
+		       _disabled)					\
 	static struct regulator_init_data _ldo##_init_data = {		\
 		.constraints = {					\
 			.name = _name,					\
@@ -573,36 +569,34 @@ static struct regulator_consumer_supply s5m8767_enp32khz[] = {
 		.consumer_supplies = &_ldo##_supply[0],			\
 	};
 
-S5M_REGULATOR_INIT(s5m_ldo3, "VCC_1.8V_AP", 1800000, 1800000, 1, 0, 0);
-S5M_REGULATOR_INIT(s5m_ldo8, "VMIPI_1.0V", 1000000, 1000000, 1,
+REGULATOR_INIT(ldo3, "VCC_1.8V_AP", 1800000, 1800000, 1, 0, 0);
+REGULATOR_INIT(ldo8, "VMIPI_1.0V", 1000000, 1000000, 1,
 	       REGULATOR_CHANGE_STATUS, 0);
-S5M_REGULATOR_INIT(s5m_ldo9, "CAM_ISP_1.8V", 1800000, 1800000, 0,
+REGULATOR_INIT(ldo9, "CAM_ISP_1.8V", 1800000, 1800000, 0,
 	       REGULATOR_CHANGE_STATUS, 1);
-S5M_REGULATOR_INIT(s5m_ldo10, "VMIPI_1.8V", 1800000, 1800000, 1,
+REGULATOR_INIT(ldo10, "VMIPI_1.8V", 1800000, 1800000, 1,
 	       REGULATOR_CHANGE_STATUS, 0);
-S5M_REGULATOR_INIT(s5m_ldo11, "VABB1_1.95V", 1950000, 1950000, 1,
+REGULATOR_INIT(ldo11, "VABB1_1.95V", 1950000, 1950000, 1,
 	       REGULATOR_CHANGE_STATUS, 1);
-S5M_REGULATOR_INIT(s5m_ldo12, "VUOTG_3.0V", 3000000, 3000000, 1,
+REGULATOR_INIT(ldo12, "VUOTG_3.0V", 3000000, 3000000, 1,
 	       REGULATOR_CHANGE_STATUS, 0);
-S5M_REGULATOR_INIT(s5m_ldo14, "VABB2_1.95V", 1950000, 1950000, 1,
+REGULATOR_INIT(ldo13, "OIS_1.5V", 1500000, 1500000, 0,
+	       REGULATOR_CHANGE_STATUS, 0);
+REGULATOR_INIT(ldo14, "VABB2_1.95V", 1950000, 1950000, 1,
 	       REGULATOR_CHANGE_STATUS, 1);
-S5M_REGULATOR_INIT(s5m_ldo20, "TSP_AVDD_3.3V", 3300000, 3300000, 0,
+REGULATOR_INIT(ldo20, "TSP_AVDD_3.3V", 3300000, 3300000, 0,
 	       REGULATOR_CHANGE_STATUS, 1);
-S5M_REGULATOR_INIT(s5m_ldo21, "MOT_3.3V", 3300000, 3300000, 0,
+REGULATOR_INIT(ldo21, "MOT_3.3V", 3300000, 3300000, 0,
 	       REGULATOR_CHANGE_STATUS, 1);
-S5M_REGULATOR_INIT(s5m_ldo22, "CAM_SENSOR_2.8V", 2800000, 2800000, 0,
+REGULATOR_INIT(ldo22, "CAM_SENSOR_2.8V", 2800000, 2800000, 0,
 	       REGULATOR_CHANGE_STATUS, 1);
-S5M_REGULATOR_INIT(s5m_ldo23, "VTF_2.8V", 2800000, 2800000, 0,
+REGULATOR_INIT(ldo23, "VTF_2.8V", 2800000, 2800000, 0,
 	       REGULATOR_CHANGE_STATUS, 1);
-S5M_REGULATOR_INIT(s5m_ldo24, "LED_3.3V", 3300000, 3300000, 0,
+REGULATOR_INIT(ldo25, "CAM_SENSOR_CORE_1.2V", 1200000, 1200000, 0,
 	       REGULATOR_CHANGE_STATUS, 1);
-S5M_REGULATOR_INIT(s5m_ldo25, "CAM_SENSOR_CORE_1.2V", 1200000, 1200000, 0,
+REGULATOR_INIT(ldo26, "CAM_SENSOR_1.8V", 1800000, 1800000, 0,
 	       REGULATOR_CHANGE_STATUS, 1);
-S5M_REGULATOR_INIT(s5m_ldo26, "CAM_SENSOR_1.8V", 1800000, 1800000, 0,
-	       REGULATOR_CHANGE_STATUS, 1);
-S5M_REGULATOR_INIT(s5m_ldo27, "OIS_1.5V", 1500000, 1500000, 0,
-	       REGULATOR_CHANGE_STATUS, 1);
-S5M_REGULATOR_INIT(s5m_ldo28, "TSP_VDD_1.8V", 1800000, 1800000, 0,
+REGULATOR_INIT(ldo28, "TSP_VDD_1.8V", 1800000, 1800000, 0,
 	       REGULATOR_CHANGE_STATUS, 1);
 
 
@@ -694,22 +688,21 @@ static struct s5m_regulator_data s5m8767_regulators[] = {
 	{S5M8767_BUCK3, &s5m8767_buck3_data,},
 	{S5M8767_BUCK4, &s5m8767_buck4_data,},
 	{S5M8767_BUCK6, &s5m8767_buck6_data,},
-	{S5M8767_LDO3, &s5m_ldo3_init_data,},
-	{S5M8767_LDO8, &s5m_ldo8_init_data,},
-	{S5M8767_LDO9, &s5m_ldo9_init_data,},
-	{S5M8767_LDO10, &s5m_ldo10_init_data,},
-	{S5M8767_LDO11, &s5m_ldo11_init_data,},
-	{S5M8767_LDO12, &s5m_ldo12_init_data,},
-	{S5M8767_LDO14, &s5m_ldo14_init_data,},
-	{S5M8767_LDO20, &s5m_ldo20_init_data,},
-	{S5M8767_LDO21, &s5m_ldo21_init_data,},
-	{S5M8767_LDO22, &s5m_ldo22_init_data,},
-	{S5M8767_LDO23, &s5m_ldo23_init_data,},
-	{S5M8767_LDO24, &s5m_ldo24_init_data,},
-	{S5M8767_LDO25, &s5m_ldo25_init_data,},
-	{S5M8767_LDO26, &s5m_ldo26_init_data,},
-	{S5M8767_LDO27, &s5m_ldo27_init_data,},
-	{S5M8767_LDO28, &s5m_ldo28_init_data,},
+	{S5M8767_LDO3, &ldo3_init_data,},
+	{S5M8767_LDO8, &ldo8_init_data,},
+	{S5M8767_LDO9, &ldo9_init_data,},
+	{S5M8767_LDO10, &ldo10_init_data,},
+	{S5M8767_LDO11, &ldo11_init_data,},
+	{S5M8767_LDO12, &ldo12_init_data,},
+	{S5M8767_LDO13, &ldo13_init_data,},
+	{S5M8767_LDO14, &ldo14_init_data,},
+	{S5M8767_LDO20, &ldo20_init_data,},
+	{S5M8767_LDO21, &ldo21_init_data,},
+	{S5M8767_LDO22, &ldo22_init_data,},
+	{S5M8767_LDO23, &ldo23_init_data,},
+	{S5M8767_LDO25, &ldo25_init_data,},
+	{S5M8767_LDO26, &ldo26_init_data,},
+	{S5M8767_LDO28, &ldo28_init_data,},
 };
 
 struct s5m_opmode_data s5m8767_opmode_data[S5M8767_REG_MAX] = {
@@ -717,12 +710,22 @@ struct s5m_opmode_data s5m8767_opmode_data[S5M8767_REG_MAX] = {
 	[S5M8767_BUCK2] = {S5M8767_BUCK2, S5M_OPMODE_STANDBY},
 	[S5M8767_BUCK3] = {S5M8767_BUCK3, S5M_OPMODE_STANDBY},
 	[S5M8767_BUCK4] = {S5M8767_BUCK4, S5M_OPMODE_STANDBY},
+	[S5M8767_BUCK6] = {S5M8767_BUCK6, S5M_OPMODE_STANDBY},
 	[S5M8767_LDO3] = {S5M8767_LDO3, S5M_OPMODE_NORMAL},
-	[S5M8767_LDO8] = {S5M8767_LDO8, S5M_OPMODE_STANDBY},
-	[S5M8767_LDO10] = {S5M8767_LDO10, S5M_OPMODE_STANDBY},
-	[S5M8767_LDO11] = {S5M8767_LDO11, S5M_OPMODE_STANDBY},
-	[S5M8767_LDO12] = {S5M8767_LDO12, S5M_OPMODE_STANDBY},
-	[S5M8767_LDO14] = {S5M8767_LDO14, S5M_OPMODE_STANDBY},
+	[S5M8767_LDO8] = {S5M8767_LDO8, S5M_OPMODE_NORMAL},
+	[S5M8767_LDO9] = {S5M8767_LDO9, S5M_OPMODE_NORMAL},
+	[S5M8767_LDO10] = {S5M8767_LDO10, S5M_OPMODE_NORMAL},
+	[S5M8767_LDO11] = {S5M8767_LDO11, S5M_OPMODE_NORMAL},
+	[S5M8767_LDO12] = {S5M8767_LDO12, S5M_OPMODE_NORMAL},
+	[S5M8767_LDO13] = {S5M8767_LDO13, S5M_OPMODE_NORMAL},
+	[S5M8767_LDO14] = {S5M8767_LDO14, S5M_OPMODE_NORMAL},
+	[S5M8767_LDO20] = {S5M8767_LDO20, S5M_OPMODE_NORMAL},
+	[S5M8767_LDO21] = {S5M8767_LDO21, S5M_OPMODE_NORMAL},
+	[S5M8767_LDO22] = {S5M8767_LDO22, S5M_OPMODE_NORMAL},
+	[S5M8767_LDO23] = {S5M8767_LDO23, S5M_OPMODE_STANDBY},
+	[S5M8767_LDO25] = {S5M8767_LDO25, S5M_OPMODE_NORMAL},
+	[S5M8767_LDO26] = {S5M8767_LDO26, S5M_OPMODE_NORMAL},
+	[S5M8767_LDO28] = {S5M8767_LDO28, S5M_OPMODE_NORMAL},
 };
 
 struct s5m_platform_data exynos4_s5m8767_info = {
@@ -766,26 +769,20 @@ struct s5m_platform_data exynos4_s5m8767_info = {
 	.buck4_voltage[6] = 1100000,	/* 1.1V */
 	.buck4_voltage[7] = 1100000,	/* 1.1V */
 
-	.buck_ramp_delay = 25,
-	.buck_default_idx = 1,
+	.buck_ramp_delay = 10,
+	.buck_default_idx	= 3,
 
-	.buck_gpios[0]		= EXYNOS4212_GPM3(0),
-	.buck_gpios[1]		= EXYNOS4212_GPM3(1),
-	.buck_gpios[2]		= EXYNOS4212_GPM3(2),
-
-	.buck_ds[0]		= EXYNOS4_GPF3(1),
-	.buck_ds[1]		= EXYNOS4_GPF3(2),
-	.buck_ds[2]		= EXYNOS4_GPF3(3),
-
-	.buck2_init		= 1100000,
-	.buck3_init		= 1000000,
-	.buck4_init		= 1000000,
+	.buck_gpios[0]		= GPIO_BUCK2_SEL,
+	.buck_gpios[1]		= GPIO_BUCK3_SEL,
+	.buck_gpios[2]		= GPIO_BUCK4_SEL,
 };
-
-/* End of S5M8767 */
-#endif
 
 void midas_power_init(void)
 {
 	printk(KERN_INFO "%s\n", __func__);
+	ldo8_init_data.constraints.always_on = 1;
+	ldo10_init_data.constraints.always_on = 1;
 }
+
+/* End of S5M8767 */
+#endif

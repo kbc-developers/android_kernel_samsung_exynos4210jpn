@@ -173,7 +173,7 @@ Mksck_Port
 MksckPage_GetFreePort(MksckPage *mksckPage, Mksck_Port port)
 {
    Mksck_Address addr = { .addr = Mksck_AddrInit(mksckPage->vmId, port) };
-   uint32 ii;
+   int ii;
 
    if (port == MKSCK_PORT_UNDEF) {
       for (ii = 0; ii<MKSCK_SOCKETS_PER_PAGE; ii++) {

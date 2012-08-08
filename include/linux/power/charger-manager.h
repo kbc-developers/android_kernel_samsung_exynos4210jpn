@@ -75,44 +75,6 @@ struct charger_global_desc {
 	bool assume_timer_stops_in_suspend;
 };
 
-#ifdef CONFIG_EXTCON
-struct charger_cable {
-	const char *extcon_name;
-	const char *name;
-
-	/*
-	 * Set min/max current of regulator to protect over-current issue
-	 * according to a kind of charger cable when cable is attached.
-	 */
-	int min_uA;
-	int max_uA;
-
-	/* The charger-manager use Exton framework*/
-	struct extcon_specific_cable_nb extcon_dev;
-	struct work_struct wq;
-	struct notifier_block nb;
-
-	/* The state of charger cable */
-	bool attached;
-
-	struct charger_regulator *charger;
-	struct charger_manager *cm;
-};
-
-struct charger_regulator {
-	/* The name of regulator for charging */
-	const char *regulator_name;
-	struct regulator *consumer;
-
-	/*
-	 * Store constraint information related to current limit,
-	 * each cable have different condition for charging.
-	 */
-	struct charger_cable *cables;
-	int num_cables;
-};
-#endif
-
 struct charger_desc {
 	/*
 	 * The name of psy (power-supply-class) entry.
@@ -153,6 +115,9 @@ struct charger_desc {
 	 */
 	char **psy_charger_stat;
 
+	int num_charger_regulators;
+	struct regulator_bulk_data *charger_regulators;
+
 	/*
 	 * The power-supply entries with VOLTAGE_NOW, CAPACITY,
 	 * and "PRESENT".
@@ -164,9 +129,6 @@ struct charger_desc {
 	bool measure_battery_temp;
 
 	int soc_margin;
-
-	struct charger_regulator *charger_regulators;
-	int num_charger_regulators;
 };
 
 #define PSY_NAME_MAX	30
@@ -200,6 +162,14 @@ struct charger_manager {
 	bool status_save_batt;
 
 	int batt_tmu_status;
+
+	/* Extcon */
+	struct extcon_dev *edev;
+	struct notifier_block nb;
+	struct work_struct notifier_work;
+	unsigned long old_state;
+	unsigned long ta_mask;
+	unsigned long usb_mask;
 };
 
 /* In case IRQs cannot be given and notifications will be given. */

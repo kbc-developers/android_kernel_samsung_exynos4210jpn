@@ -192,7 +192,6 @@ int xmm6262_init_modemctl_device(struct modem_ctl *mc,
 	mc->gpio_pda_active = pdata->gpio_pda_active;
 	mc->gpio_phone_active = pdata->gpio_phone_active;
 	mc->gpio_cp_dump_int = pdata->gpio_cp_dump_int;
-	mc->gpio_ap_dump_int = pdata->gpio_ap_dump_int;
 	mc->gpio_flm_uart_sel = pdata->gpio_flm_uart_sel;
 	mc->gpio_cp_warm_reset = pdata->gpio_cp_warm_reset;
 	mc->gpio_sim_detect = pdata->gpio_sim_detect;

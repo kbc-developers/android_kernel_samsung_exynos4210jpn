@@ -317,7 +317,7 @@ static struct regulator_consumer_supply ldo12_supply[] = {
 };
 
 #if defined(CONFIG_MACH_C1_KOR_SKT) || defined(CONFIG_MACH_C1_KOR_KT) || \
-	defined(CONFIG_MACH_C1_KOR_LGT) || defined(CONFIG_MACH_C1)
+	defined(CONFIG_MACH_C1_KOR_LGT)
 static struct regulator_consumer_supply ldo13_supply[] = {
 	REGULATOR_SUPPLY("vusbhub_osc_1.8v", NULL),
 };
@@ -347,9 +347,9 @@ static struct regulator_consumer_supply ldo23_supply[] = {
 	REGULATOR_SUPPLY("touch", NULL),
 };
 
-#if defined(CONFIG_MACH_C1) || defined(CONFIG_MACH_C1VZW) || defined(CONFIG_MACH_C2) ||	\
+#if defined(CONFIG_MACH_C1) || defined(CONFIG_MACH_C1VZW) ||	\
 	defined(CONFIG_MACH_M0) || defined(CONFIG_MACH_M3) ||	\
-	defined(CONFIG_MACH_GC1) || defined(CONFIG_MACH_T0)
+	defined(CONFIG_MACH_GC1)
 static struct regulator_consumer_supply ldo24_supply[] = {
 	REGULATOR_SUPPLY("touch_1.8v", NULL),
 };
@@ -429,7 +429,7 @@ REGULATOR_INIT(ldo11, "VABB1_1.95V", 1950000, 1950000, 1,
 REGULATOR_INIT(ldo12, "VUOTG_3.0V", 3000000, 3000000, 1,
 	       REGULATOR_CHANGE_STATUS, 0);
 #if defined(CONFIG_MACH_C1_KOR_SKT) || defined(CONFIG_MACH_C1_KOR_KT) || \
-	defined(CONFIG_MACH_C1_KOR_LGT) || defined(CONFIG_MACH_C1)
+	defined(CONFIG_MACH_C1_KOR_LGT)
 REGULATOR_INIT(ldo13, "VUSBHUB_OSC_1.8V", 1800000, 1800000, 0,
 	       REGULATOR_CHANGE_STATUS, 1);
 #endif
@@ -445,9 +445,9 @@ REGULATOR_INIT(ldo21, "VTF_2.8V", 2800000, 2800000, 0,
 	       REGULATOR_CHANGE_STATUS, 1);
 REGULATOR_INIT(ldo23, "TSP_AVDD_3.3V", 3300000, 3300000, 0,
 	       REGULATOR_CHANGE_STATUS, 1);
-#if defined(CONFIG_MACH_C1) || defined(CONFIG_MACH_C1VZW) || defined(CONFIG_MACH_C2) ||	\
+#if defined(CONFIG_MACH_C1) || defined(CONFIG_MACH_C1VZW) ||	\
 	defined(CONFIG_MACH_M0) || defined(CONFIG_MACH_M3) ||	\
-	defined(CONFIG_MACH_GC1) || defined(CONFIG_MACH_T0)
+	defined(CONFIG_MACH_GC1)
 REGULATOR_INIT(ldo24, "VDD_1.8V_TSP", 1800000, 1800000, 0,
 	       REGULATOR_CHANGE_STATUS, 1);
 #else
@@ -587,7 +587,7 @@ static struct max77686_regulator_data max77686_regulators[] = {
 	{MAX77686_LDO11, &ldo11_init_data,},
 	{MAX77686_LDO12, &ldo12_init_data,},
 #if defined(CONFIG_MACH_C1_KOR_SKT) || defined(CONFIG_MACH_C1_KOR_KT) || \
-	defined(CONFIG_MACH_C1_KOR_LGT) || defined(CONFIG_MACH_C1)
+	defined(CONFIG_MACH_C1_KOR_LGT)
 	{MAX77686_LDO13, &ldo13_init_data,},
 #endif
 	{MAX77686_LDO14, &ldo14_init_data,},
@@ -609,7 +609,7 @@ struct max77686_opmode_data max77686_opmode_data[MAX77686_REG_MAX] = {
 	[MAX77686_LDO11] = {MAX77686_LDO11, MAX77686_OPMODE_STANDBY},
 	[MAX77686_LDO12] = {MAX77686_LDO12, MAX77686_OPMODE_STANDBY},
 #if defined(CONFIG_MACH_C1_KOR_SKT) || defined(CONFIG_MACH_C1_KOR_KT) || \
-	defined(CONFIG_MACH_C1_KOR_LGT) || defined(CONFIG_MACH_C1)
+	defined(CONFIG_MACH_C1_KOR_LGT)
 	[MAX77686_LDO13] = {MAX77686_LDO13, MAX77686_OPMODE_NORMAL},
 #endif
 	[MAX77686_LDO14] = {MAX77686_LDO14, MAX77686_OPMODE_STANDBY},
@@ -1112,8 +1112,13 @@ struct s5m_platform_data exynos4_s5m8767_info = {
 
 void midas_power_init(void)
 {
+#ifdef CONFIG_MACH_S2PLUS
+	ldo8_init_data.constraints.always_on = 1;
+	ldo13_init_data.constraints.always_on = 1;
+#else
 	ldo8_init_data.constraints.always_on = 1;
 	ldo10_init_data.constraints.always_on = 1;
+#endif
 }
 
 /* End of S5M8767 */

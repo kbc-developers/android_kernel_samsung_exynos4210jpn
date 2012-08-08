@@ -116,30 +116,6 @@ static int max77693_get_enable_register(struct regulator_dev *rdev,
 	return 0;
 }
 
-static int max77693_get_disable_register(struct regulator_dev *rdev,
-					int *reg, int *mask, int *pattern)
-{
-	int rid = max77693_get_rid(rdev);
-	dev_info(&rdev->dev, "func:%s\n", __func__);
-	switch (rid) {
-	case MAX77693_ESAFEOUT1...MAX77693_ESAFEOUT2:
-		*reg = MAX77693_CHG_REG_SAFEOUT_CTRL;
-		*mask = 0x40 << (rid - MAX77693_ESAFEOUT1);
-		*pattern = 0x00;
-		break;
-	case MAX77693_CHARGER:
-		*reg = MAX77693_CHG_REG_CHG_CNFG_00;
-		*mask = 0xf;
-		*pattern = 0x00;
-		break;
-	default:
-		/* Not controllable or not exists */
-		return -EINVAL;
-	}
-
-	return 0;
-}
-
 static int max77693_reg_is_enabled(struct regulator_dev *rdev)
 {
 	struct max77693_data *max77693 = rdev_get_drvdata(rdev);
@@ -179,11 +155,11 @@ static int max77693_reg_disable(struct regulator_dev *rdev)
 	struct i2c_client *i2c = max77693->iodev->i2c;
 	int ret, reg, mask, pattern;
 	dev_info(&rdev->dev, "func:%s\n", __func__);
-	ret = max77693_get_disable_register(rdev, &reg, &mask, &pattern);
+	ret = max77693_get_enable_register(rdev, &reg, &mask, &pattern);
 	if (ret)
 		return ret;
 
-	return max77693_update_reg(i2c, reg, pattern, mask);
+	return max77693_update_reg(i2c, reg, ~pattern, mask);
 }
 
 static int max77693_get_voltage_register(struct regulator_dev *rdev,
@@ -397,7 +373,7 @@ static int max77693_reg_disable_suspend(struct regulator_dev *rdev)
 	int ret, reg, mask, pattern;
 	int rid = max77693_get_rid(rdev);
 	dev_info(&rdev->dev, "func:%s\n", __func__);
-	ret = max77693_get_disable_register(rdev, &reg, &mask, &pattern);
+	ret = max77693_get_enable_register(rdev, &reg, &mask, &pattern);
 	if (ret)
 		return ret;
 
@@ -406,7 +382,7 @@ static int max77693_reg_disable_suspend(struct regulator_dev *rdev)
 	dev_dbg(&rdev->dev, "Full Power-Off for %s (%xh -> %xh)\n",
 		rdev->desc->name, max77693->saved_states[rid] & mask,
 		(~pattern) & mask);
-	return max77693_update_reg(i2c, reg, pattern, mask);
+	return max77693_update_reg(i2c, reg, ~pattern, mask);
 }
 
 static struct regulator_ops max77693_safeout_ops = {
@@ -559,11 +535,8 @@ static int __init max77693_pmic_init(void)
 {
 	return platform_driver_register(&max77693_pmic_driver);
 }
-#ifdef CONFIG_FAST_RESUME
-beforeresume_initcall(max77693_pmic_init);
-#else
+
 subsys_initcall(max77693_pmic_init);
-#endif
 
 static void __exit max77693_pmic_cleanup(void)
 {

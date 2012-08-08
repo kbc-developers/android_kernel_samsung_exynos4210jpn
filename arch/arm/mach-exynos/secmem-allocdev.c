@@ -16,7 +16,6 @@
 #include <linux/pm_runtime.h>
 #include <linux/slab.h>
 #include <linux/mm.h>
-#include <linux/dma-mapping.h>
 
 #include <asm/memory.h>
 #include <asm/cacheflush.h>
@@ -25,12 +24,11 @@
 #include <plat/pd.h>
 
 #include <mach/secmem.h>
+#include <mach/cpufreq.h>
 #include <mach/dev.h>
 
-#define MFC_SEC_MAGIC_CHUNK0	0x13cdbf16
-#define MFC_SEC_MAGIC_CHUNK1	0x8b803342
-#define MFC_SEC_MAGIC_CHUNK2	0x5e87f4f5
-#define MFC_SEC_MAGIC_CHUNK3	0x3bd05317
+#define DRM_CPU_FREQ	400000
+#define DRM_BUS_FREQ	267160
 
 struct miscdevice secmem;
 struct secmem_crypto_driver_ftn *crypto_driver;
@@ -119,8 +117,6 @@ static long secmem_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		if (copy_to_user((void __user *)arg, &minfo, sizeof(minfo)))
 			return -EFAULT;
 	}
-	break;
-
 #if defined(CONFIG_ION) && defined(CONFIG_CPU_EXYNOS5250)
 	case SECMEM_IOC_GET_FD_PHYS_ADDR:
 	{
@@ -152,8 +148,6 @@ static long secmem_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 		printk(KERN_DEBUG "%s: physical addr from kernel space = %lu\n",
 				__func__, fd_info.phys);
-
-		ion_free(client, data.handle);
 		ion_client_destroy(client);
 
 		if (copy_to_user((void __user *)arg, &fd_info, sizeof(fd_info)))
@@ -168,17 +162,40 @@ static long secmem_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	case SECMEM_IOC_SET_DRM_ONOFF:
 	{
 		int val = 0;
+#if 0
+		unsigned int cpufreq;
+#if defined(CONFIG_BUSFREQ_OPP)
+		struct device *bus_dev=NULL;
+		bus_dev = dev_get("exynos-busfreq");
+#endif
+#endif
 
 		if (copy_from_user(&val, (int __user *)arg, sizeof(int)))
 			return -EFAULT;
 
 		if (val) {
+#if 0
+			exynos_cpufreq_get_level(DRM_CPU_FREQ, &cpufreq);
+			exynos_cpufreq_lock(DVFS_LOCK_ID_DRM, cpufreq);
+#if defined(CONFIG_BUSFREQ_OPP)
+			dev_lock(bus_dev, secmem.this_device, DRM_BUS_FREQ);
+#endif
+#endif
 			if (drm_onoff == false) {
 				drm_onoff = true;
 				pm_runtime_forbid((*(secmem.this_device)).parent);
+#if defined(CONFIG_CPU_EXYNOS4212) || defined(CONFIG_CPU_EXYNOS4412)
+				exynos_pd_enable(&exynos4_device_pd[PD_MFC].dev);
+#endif
 			} else
 				printk(KERN_ERR "%s: DRM is already on\n", __func__);
 		} else {
+#if 0
+			exynos_cpufreq_lock_free(DVFS_LOCK_ID_DRM);
+#if defined(CONFIG_BUSFREQ_OPP)
+			dev_unlock(bus_dev, secmem.this_device);
+#endif
+#endif
 			if (drm_onoff == true) {
 				drm_onoff = false;
 				pm_runtime_allow((*(secmem.this_device)).parent);
@@ -218,11 +235,6 @@ static long secmem_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 					sizeof(struct secmem_region)))
 			return -EFAULT;
 
-		if (!region.len) {
-			printk(KERN_ERR "Get secmem address size error. [size : %ld]\n", region.len);
-			return -EFAULT;
-		}
-
 		region.virt_addr = kmalloc(region.len, GFP_KERNEL | GFP_DMA);
 		if (!region.virt_addr) {
 			printk(KERN_ERR "%s: Get memory address failed. [size : %ld]\n", __func__, region.len);
@@ -230,7 +242,7 @@ static long secmem_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		}
 		region.phys_addr = virt_to_phys(region.virt_addr);
 
-		dma_map_single(secmem.this_device, region.virt_addr, region.len, DMA_TO_DEVICE);
+		dmac_map_area(region.virt_addr, region.len / sizeof(unsigned long), 2);
 
 		if (copy_to_user((void __user *)arg, &region,
 					sizeof(struct secmem_region)))
@@ -245,59 +257,11 @@ static long secmem_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 					sizeof(struct secmem_region)))
 			return -EFAULT;
 
-		if (!region.virt_addr) {
-			printk(KERN_ERR "Get secmem address error. [address : %x]\n", (uint32_t)region.virt_addr);
-			return -EFAULT;
-		}
+		dmac_unmap_area(region.virt_addr, region.len, 2);
 
 		kfree(region.virt_addr);
 		break;
 	}
-
-	case SECMEM_IOC_MFC_MAGIC_KEY:
-	{
-		uint32_t mfc_shm_virtaddr;
-		struct cma_info info;
-		struct secchunk_info minfo;
-
-#if defined(CONFIG_CPU_EXYNOS4212) || defined(CONFIG_CPU_EXYNOS4412)
-		if (cma_info(&info, secmem.this_device, "mfc-shm"))
-			return -EINVAL;
-#elif defined(CONFIG_CPU_EXYNOS5250)
-		if (cma_info(&info, secmem.this_device, "mfc_sh"))
-			return -EINVAL;
-#endif
-
-		minfo.base = info.lower_bound;
-		minfo.size = info.total_size;
-
-		mfc_shm_virtaddr = (uint32_t)phys_to_virt(minfo.base);
-
-		*(uint32_t *)(mfc_shm_virtaddr) = MFC_SEC_MAGIC_CHUNK0;
-		*(uint32_t *)(mfc_shm_virtaddr + 0x4) = MFC_SEC_MAGIC_CHUNK1;
-		*(uint32_t *)(mfc_shm_virtaddr + 0x8) = MFC_SEC_MAGIC_CHUNK2;
-		*(uint32_t *)(mfc_shm_virtaddr + 0xC) = MFC_SEC_MAGIC_CHUNK3;
-		break;
-	}
-
-	case SECMEM_IOC_TEXT_CHUNKINFO:
-	{
-		struct cma_info info;
-		struct secchunk_info minfo;
-
-		if (cma_info(&info, secmem.this_device, "fimc0"))
-			return -EINVAL;
-
-		minfo.base = info.lower_bound;
-		minfo.size = info.total_size;
-
-		printk("[minfo base] : 0x%x", minfo.base);
-		printk("[minfo size] : 0x%x", minfo.size);
-
-		if (copy_to_user((void __user *)arg, &minfo, sizeof(minfo)))
-			return -EFAULT;
-	}
-
 	default:
 		return -ENOTTY;
 	}

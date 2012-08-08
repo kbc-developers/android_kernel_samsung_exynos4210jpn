@@ -101,9 +101,6 @@ static uint32 __cp15;
 
 #define ARM_MRRC_CP15(_cp_reg,_val1,_val2) _ARM_MRRC_CP15(_cp_reg,_val1,_val2)
 
-#define ARM_MRRC64_CP15(_cp_reg,_val) \
-   _ARM_MRRC_CP15(_cp_reg,_val,*((uint8 *)&(_val) + 4))
-
 #define _ARM_MCRR_CP15(_op,_cr,_val1,_val2) \
    asm volatile ("mcrr p15, " #_op ",%0,%1," #_cr "\n\t" \
                  : \
@@ -111,9 +108,6 @@ static uint32 __cp15;
                  : "memory")
 
 #define ARM_MCRR_CP15(_cp_reg,_val1,_val2) _ARM_MCRR_CP15(_cp_reg,_val1,_val2)
-
-#define ARM_MCRR64_CP15(_cp_reg,_val) \
-   _ARM_MCRR_CP15(_cp_reg,_val,*((uint8 *)&(_val) + 4))
 
 #define DMB() asm volatile ("dmb" : : : "memory")
 #define DSB() asm volatile ("dsb" : : : "memory")

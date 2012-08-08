@@ -2087,11 +2087,6 @@ const struct dev_pm_ops snd_soc_pm_ops = {
 	.suspend = snd_soc_suspend,
 	.resume = snd_soc_resume,
 	.poweroff = snd_soc_poweroff,
-#ifdef CONFIG_HIBERNATION
-	.freeze = snd_soc_suspend,
-	.thaw = snd_soc_resume,
-	.restore = snd_soc_resume,
-#endif
 };
 EXPORT_SYMBOL_GPL(snd_soc_pm_ops);
 
@@ -2342,7 +2337,7 @@ int snd_soc_update_bits(struct snd_soc_codec *codec, unsigned short reg,
 		return ret;
 
 	old = ret;
-	new = (old & ~mask) | (value & mask);
+	new = (old & ~mask) | value;
 	change = old != new;
 	if (change) {
 		ret = snd_soc_write(codec, reg, new);

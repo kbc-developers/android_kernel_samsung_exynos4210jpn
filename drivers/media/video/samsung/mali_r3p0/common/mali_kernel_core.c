@@ -17,8 +17,6 @@
 #include "mali_memory.h"
 #include "mali_mem_validation.h"
 #include "mali_mmu.h"
-#include "mali_mmu_page_directory.h"
-#include "mali_dlbu.h"
 #include "mali_gp.h"
 #include "mali_pp.h"
 #include "mali_gp_scheduler.h"
@@ -35,6 +33,9 @@
 #include "mali_osk_profiling.h"
 #endif
 
+/* platform specific set up */
+#include "mali_platform.h"
+
 /**
  */
 _MALI_OSK_LIST_HEAD(mali_sessions);
@@ -45,10 +46,19 @@ _MALI_OSK_LIST_HEAD(mali_sessions);
 static _mali_osk_resource_t *arch_configuration = NULL;
 
 /** Start profiling from module load? */
-int mali_boot_profiling = 0;
+int mali_boot_profiling = 1;
 
 /** Number of resources initialized by _mali_osk_resources_init() */
 static u32 num_resources;
+
+/*POC for the time being, these definitions are moved to corresponding files */
+/* one place should be found for all and referenced from individual files KRAJ*/
+
+/** Available HW resources */
+/* The defines below should probably be set globally and aligned with misc others, e.g. _MALI_PP_MAX_SUB_JOBS??? */
+/*#define MALI_MAX_NUMBER_OF_CLUSTERS        3*/
+/*#define MALI_MAX_NUMBER_OF_L2_CACHE_CORES  3 */
+/*#define MALI_MAX_NUMBER_OF_PP_CORES        8 */
 
 static _mali_product_id_t global_product_id = _MALI_PRODUCT_ID_UNKNOWN;
 static u32 global_gpu_base_address = 0;
@@ -60,7 +70,7 @@ static void cleanup_system_info(_mali_system_info *cleanup);
 
 /* system info variables */
 static _mali_osk_lock_t *system_info_lock = NULL;
-static _mali_system_info *system_info = NULL;
+static _mali_system_info * system_info = NULL;
 static u32 system_info_size = 0;
 
 #define HANG_CHECK_MSECS_DEFAULT 500 /* 500 ms */
@@ -69,6 +79,7 @@ static u32 system_info_size = 0;
 /* timers related */
 int mali_hang_check_interval = HANG_CHECK_MSECS_DEFAULT;
 int mali_max_job_runtime = WATCHDOG_MSECS_DEFAULT;
+
 
 static _mali_osk_resource_t *mali_find_resource(_mali_osk_resource_type_t type, u32 offset)
 {
@@ -117,12 +128,6 @@ static _mali_osk_errcode_t mali_parse_product_info(void)
 		}
 	}
 
-	if (NULL == first_gp_resource || NULL == first_pp_resource)
-	{
-		MALI_PRINT_ERROR(("No GP+PP core specified in config file\n"));
-		return _MALI_OSK_ERR_FAULT;
-	}
-
 	if (first_gp_resource->base < first_pp_resource->base)
 	{
 		/* GP is first, so we are dealing with Mali-300, Mali-400 or Mali-450 */
@@ -134,6 +139,12 @@ static _mali_osk_errcode_t mali_parse_product_info(void)
 		/* PP is first, so we are dealing with Mali-200 */
 		global_gpu_base_address = first_pp_resource->base;
 		first_pp_offset = 0x0;
+	}
+
+	if (NULL == first_gp_resource || NULL == first_pp_resource)
+	{
+		MALI_PRINT_ERROR(("No GP+PP core specified in config file\n"));
+		return _MALI_OSK_ERR_FAULT;
 	}
 
 	/* Find the first PP core */
@@ -150,7 +161,6 @@ static _mali_osk_errcode_t mali_parse_product_info(void)
 			{
 				u32 pp_version = mali_pp_core_get_version(pp_core);
 				mali_pp_delete(pp_core);
-				mali_group_delete(group);
 
 				global_gpu_major_version = (pp_version >> 8) & 0xFF;
 				global_gpu_minor_version = pp_version & 0xFF;
@@ -173,9 +183,6 @@ static _mali_osk_errcode_t mali_parse_product_info(void)
 						global_product_id = _MALI_PRODUCT_ID_MALI450;
 						MALI_DEBUG_PRINT(2, ("Found Mali GPU Mali-450 MP r%up%u\n", global_gpu_major_version, global_gpu_minor_version));
 						break;
-					default:
-						MALI_DEBUG_PRINT(2, ("Found unknown Mali GPU GPU (r%up%u)\n", global_gpu_major_version, global_gpu_minor_version));
-						return _MALI_OSK_ERR_FAULT;
 				}
 
 				return _MALI_OSK_ERR_OK;
@@ -207,6 +214,7 @@ static void mali_delete_clusters(void)
 	{
 		mali_cluster_delete(mali_cluster_get_global_cluster(i));
 	}
+	mali_cluster_set_glob_num_clusters(0);
 }
 
 static _mali_osk_errcode_t mali_create_cluster(_mali_osk_resource_t *resource)
@@ -278,9 +286,14 @@ static _mali_osk_errcode_t mali_parse_config_cluster(void)
 		 * L2 for PP4-7 at 0x11000 (optional)
 		 */
 
+#if 0
 		_mali_osk_resource_t *l2_gp_resource;
+#endif
 		_mali_osk_resource_t *l2_pp_grp0_resource;
 		_mali_osk_resource_t *l2_pp_grp1_resource;
+
+#if 0
+		/* @@@@ todo: enable this when Mali-450 FPGA is setup with correct layout */
 
 		/* Make cluster for GP's L2 */
 		l2_gp_resource = mali_find_resource(MALI_L2, 0x10000);
@@ -299,6 +312,7 @@ static _mali_osk_errcode_t mali_parse_config_cluster(void)
 			MALI_DEBUG_PRINT(3, ("Did not find required Mali L2 cache for GP in config file\n"));
 			return _MALI_OSK_ERR_FAULT;
 		}
+#endif
 
 		/* Make cluster for first PP core group */
 		l2_pp_grp0_resource = mali_find_resource(MALI_L2, 0x1000);
@@ -343,6 +357,7 @@ static _mali_osk_errcode_t mali_create_group(struct mali_cluster *cluster,
 	struct mali_mmu_core *mmu;
 	struct mali_group *group;
 	struct mali_pp_core *pp;
+	u32 glob_num_pp_cores;
 
 	MALI_DEBUG_PRINT(3, ("Starting new group for MMU %s\n", resource_mmu->description));
 
@@ -399,7 +414,10 @@ static _mali_osk_errcode_t mali_create_group(struct mali_cluster *cluster,
 
 		/* Add PP object to this group */
 		MALI_DEBUG_PRINT(3, ("Adding PP %s to group\n", resource_pp->description));
+	/*	glob_num_pp_cores = mali_pp_get_glob_num_pp_cores();
+		pp = mali_pp_get_global_pp_core(glob_num_pp_cores);*/
 		mali_group_add_pp_core(group, pp);
+
 	}
 
 	return _MALI_OSK_ERR_OK;
@@ -415,8 +433,8 @@ static _mali_osk_errcode_t mali_parse_config_groups(void)
 
 		MALI_DEBUG_ASSERT(1 == mali_cluster_get_glob_num_clusters());
 
-		resource_gp  = mali_find_resource(MALI_GP, 0x02000);
-		resource_pp  = mali_find_resource(MALI_PP, 0x00000);
+		resource_gp  = mali_find_resource(MALI_GP,  0x02000);
+		resource_pp  = mali_find_resource(MALI_PP,  0x00000);
 		resource_mmu = mali_find_resource(MMU, 0x03000);
 
 		if (NULL == resource_mmu || NULL == resource_gp || NULL == resource_pp)
@@ -443,12 +461,16 @@ static _mali_osk_errcode_t mali_parse_config_groups(void)
 		_mali_osk_resource_t *resource_pp_mmu[mali_pp_get_max_num_pp_cores()];
 		u32 max_num_pp_cores = mali_pp_get_max_num_pp_cores();
 
+#if 0
+		/* @@@@ todo: enable this when Mali-450 FPGA is setup with correct layout */
+
 		if (_MALI_PRODUCT_ID_MALI450 == global_product_id)
 		{
-			/* Mali-450 has separate L2s for GP, and PP core group(s) */
+			/* Mali-450 have separate L2s for GP, and PP core group(s) */
 			cluster_id_pp_grp0 = 1;
 			cluster_id_pp_grp1 = 2;
 		}
+#endif
 
 		resource_gp = mali_find_resource(MALI_GP, 0x00000);
 		resource_gp_mmu = mali_find_resource(MMU, 0x03000);
@@ -574,15 +596,6 @@ _mali_osk_errcode_t mali_initialize_subsystems(void)
 	                                           | _MALI_OSK_LOCKFLAG_NONINTERRUPTABLE), 0, 0 ), _MALI_OSK_ERR_FAULT);
 	_MALI_OSK_INIT_LIST_HEAD(&mali_sessions);
 
-#if MALI_TIMELINE_PROFILING_ENABLED
-	err = _mali_osk_profiling_init(mali_boot_profiling ? MALI_TRUE : MALI_FALSE);
-	if (_MALI_OSK_ERR_OK != err)
-	{
-		/* No biggie if we wheren't able to initialize the profiling */
-		MALI_PRINT_ERROR(("Failed to initialize profiling, feature will be unavailable\n"));
-	}
-#endif
-
 	/* Build dummy system info. Will be removed in the future. */
 	err = build_system_info();
 	if (_MALI_OSK_ERR_OK != err) goto build_system_info_failed;
@@ -591,86 +604,77 @@ _mali_osk_errcode_t mali_initialize_subsystems(void)
 	err = _mali_osk_resources_init(&arch_configuration, &num_resources);
 	if (_MALI_OSK_ERR_OK != err) goto osk_resources_init_failed;
 
-	/* Initialize driver subsystems */
+	/* Initalise driver subsystems */
 	err = mali_memory_initialize();
 	if (_MALI_OSK_ERR_OK != err) goto memory_init_failed;
 
-	/* Configure memory early. Memory allocation needed for mali_mmu_initialize. */
+	/* Configure memory early. Memory allocation needed for mmu_initialize. */
 	err = mali_parse_config_memory();
 	if (_MALI_OSK_ERR_OK != err) goto parse_memory_config_failed;
 
-	/* Initialize the power management module */
 	err = mali_pm_initialize();
 	if (_MALI_OSK_ERR_OK != err) goto pm_init_failed;
 
-	/* Make sure the power stays on for the rest of this function */
 	mali_pm_always_on(MALI_TRUE);
 
-	/* Detect which Mali GPU we are dealing with */
-	err = mali_parse_product_info();
-	if (_MALI_OSK_ERR_OK != err) goto product_info_parsing_failed;
-
-	/* The global_product_id is now populated with the correct Mali GPU */
-
-	/* Initialize MMU module */
 	err = mali_mmu_initialize();
 	if (_MALI_OSK_ERR_OK != err) goto mmu_init_failed;
 
-	/* Initialize the DLBU module for Mali-450 */
-	if (_MALI_PRODUCT_ID_MALI450 == global_product_id)
+#if MALI_TIMELINE_PROFILING_ENABLED
+	_mali_osk_profiling_init(mali_boot_profiling ? MALI_TRUE : MALI_FALSE);
+	if (_MALI_OSK_ERR_OK != err)
 	{
-		err = mali_dlbu_initialize();
-		if (_MALI_OSK_ERR_OK != err) goto dlbu_init_failed;
+		/* No biggie if we wheren't able to initialize the profiling */
+		MALI_PRINT_ERROR(("Failed to initialize profiling, feature will be unavailable\n"));
 	}
+#endif
 
-	/* Start configuring the actual Mali hardware. */
+	/* Start configuring the actual hardware. */
+	err = mali_parse_product_info();
+	if (_MALI_OSK_ERR_OK != err) goto config_parsing_failed;
 	err = mali_parse_config_cluster();
 	if (_MALI_OSK_ERR_OK != err) goto config_parsing_failed;
 	err = mali_parse_config_groups();
 	if (_MALI_OSK_ERR_OK != err) goto config_parsing_failed;
 
-	/* Initialize the schedulers */
 	err = mali_scheduler_initialize();
-	if (_MALI_OSK_ERR_OK != err) goto scheduler_init_failed;
+	if (_MALI_OSK_ERR_OK != err) goto config_parsing_failed;
+
 	err = mali_gp_scheduler_initialize();
 	if (_MALI_OSK_ERR_OK != err) goto gp_scheduler_init_failed;
+
 	err = mali_pp_scheduler_initialize();
 	if (_MALI_OSK_ERR_OK != err) goto pp_scheduler_init_failed;
 
 #ifdef CONFIG_MALI400_GPU_UTILIZATION
-	/* Initialize the GPU utilization tracking */
 	err = mali_utilization_init();
-	if (_MALI_OSK_ERR_OK != err) goto utilization_init_failed;
+        if (_MALI_OSK_ERR_OK != err) goto utilization_init_failed;
 #endif
 
-	/* We no longer need to stay */
-	mali_pm_always_on(MALI_FALSE);
+	mali_pm_always_on(MALI_FALSE); /* can probably be done earlier??? */
+
 	MALI_SUCCESS; /* all ok */
 
+
 	/* Error handling */
+
 #ifdef CONFIG_MALI400_GPU_UTILIZATION
 utilization_init_failed:
-	mali_pp_scheduler_terminate();
 #endif
+	mali_pp_scheduler_terminate();
 pp_scheduler_init_failed:
 	mali_gp_scheduler_terminate();
 gp_scheduler_init_failed:
 	mali_scheduler_terminate();
-scheduler_init_failed:
 config_parsing_failed:
 	mali_delete_clusters(); /* Delete clusters even if config parsing failed. */
-	if (_MALI_PRODUCT_ID_MALI450 == global_product_id)
-	{
-		mali_dlbu_terminate();
-	}
-dlbu_init_failed:
+#if MALI_TIMELINE_PROFILING_ENABLED
+	_mali_osk_profiling_term();
+#endif
 	mali_mmu_terminate();
 mmu_init_failed:
-	/* Nothing to roll back */
-product_info_parsing_failed:
 	mali_pm_terminate();
 pm_init_failed:
-	/* @@@@ todo: Undo of memory parsing is done in mali_memory_terminate()??? */
 parse_memory_config_failed:
 	mali_memory_terminate();
 memory_init_failed:
@@ -678,9 +682,6 @@ memory_init_failed:
 osk_resources_init_failed:
 	cleanup_system_info(system_info);
 build_system_info_failed:
-#if MALI_TIMELINE_PROFILING_ENABLED
-	_mali_osk_profiling_term();
-#endif
 	return err;
 }
 
@@ -688,43 +689,32 @@ void mali_terminate_subsystems(void)
 {
 	MALI_DEBUG_PRINT(2, ("terminate_subsystems() called\n"));
 
-	/* shut down subsystems in reverse order from startup */
-
 	mali_pm_always_on(MALI_TRUE); /* Mali will be powered off once PM subsystem terminates */
 
-#ifdef CONFIG_MALI400_GPU_UTILIZATION
-	mali_utilization_term();
+	mali_delete_clusters();
+
+	/* shut down subsystems in reverse order from startup */
+	if (system_info_lock) _mali_osk_lock_term( system_info_lock );
+
+	/* @@@@ todo: Make a strategy for which systems/cores to init and term first */
+#if MALI_TIMELINE_PROFILING_ENABLED
+	_mali_osk_profiling_term();
 #endif
 
 	mali_pp_scheduler_terminate();
 	mali_gp_scheduler_terminate();
 	mali_scheduler_terminate();
 
-	mali_delete_clusters(); /* Delete clusters even if config parsing failed. */
-
-	if (_MALI_PRODUCT_ID_MALI450 == global_product_id)
-	{
-		mali_dlbu_terminate();
-	}
-
-	mali_mmu_terminate();
-
-	mali_pm_terminate();
-
-	mali_memory_terminate();
-
-	_mali_osk_resources_term(&arch_configuration, num_resources);
-
-	cleanup_system_info(system_info);
-
-#if MALI_TIMELINE_PROFILING_ENABLED
-	_mali_osk_profiling_term();
+#ifdef CONFIG_MALI400_GPU_UTILIZATION
+	mali_utilization_term();
 #endif
 
-	if (NULL != system_info_lock)
-	{
-		_mali_osk_lock_term( system_info_lock );
-	}
+	mali_mmu_terminate();
+	mali_pm_terminate();
+	mali_memory_terminate();
+
+	/* Free _mali_system_info struct */
+	cleanup_system_info(system_info);
 }
 
 _mali_product_id_t mali_kernel_core_get_product_id(void)
@@ -953,7 +943,7 @@ exit_when_locked:
 _mali_osk_errcode_t _mali_ukk_wait_for_notification( _mali_uk_wait_for_notification_s *args )
 {
 	_mali_osk_errcode_t err;
-	_mali_osk_notification_t *notification;
+	_mali_osk_notification_t * notification;
 	_mali_osk_notification_queue_t *queue;
 
 	/* check input */
@@ -1041,20 +1031,6 @@ _mali_osk_errcode_t _mali_ukk_open(void **context)
 		_mali_osk_notification_queue_term(session_data->ioctl_queue);
 		_mali_osk_free(session_data);
 		MALI_ERROR(_MALI_OSK_ERR_NOMEM);
-	}
-
-	if (_MALI_OSK_ERR_OK != mali_mmu_pagedir_map(session_data->page_directory, MALI_DLB_VIRT_ADDR, _MALI_OSK_MALI_PAGE_SIZE))
-	{
-		MALI_PRINT_ERROR(("Failed to map DLB page into session\n"));
-		_mali_osk_notification_queue_term(session_data->ioctl_queue);
-		_mali_osk_free(session_data);
-		MALI_ERROR(_MALI_OSK_ERR_NOMEM);
-	}
-
-	if (0 != mali_dlbu_phys_addr)
-	{
-		/* TODO: Make this mapping read only */
-		mali_mmu_pagedir_update(session_data->page_directory, MALI_DLB_VIRT_ADDR, mali_dlbu_phys_addr, _MALI_OSK_MALI_PAGE_SIZE);
 	}
 
 	if (_MALI_OSK_ERR_OK != mali_memory_session_begin(session_data))

@@ -293,7 +293,14 @@ static void mali_pm_process_next(void)
 
 			
 			/* We are not using deep sleep timer support, only check whether the current level is light sleep */
-			mali_pm_powerdown(MALI_POWER_MODE_DEEP_SLEEP);
+			if (current_level == MALI_PM_LEVEL_3_LIGHT_SLEEP)
+			{
+				mali_platform_power_mode_change(MALI_POWER_MODE_DEEP_SLEEP);
+			}
+			else
+			{
+				mali_pm_powerdown(MALI_POWER_MODE_DEEP_SLEEP);
+			}
 		}
 
 	}

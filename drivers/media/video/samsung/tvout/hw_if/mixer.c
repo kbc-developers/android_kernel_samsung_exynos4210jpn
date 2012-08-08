@@ -380,29 +380,6 @@ void s5p_mixer_set_bg_color(enum s5p_mixer_bg_color_num colornum,
 		break;
 	}
 }
-void s5p_mixer_set_video_limiter(u32 y_min, u32 y_max,
-		u32 c_min, u32 c_max, bool enable)
-{
-	u32 reg_value;
-
-	reg_value = readl(mixer_base + S5P_MXR_VIDEO_CFG)
-		& (~S5P_MXR_VIDEO_CFG_LIMITER_EN) ;
-
-	if (enable)
-		reg_value |= S5P_MXR_VIDEO_CFG_LIMITER_EN;
-	else
-		reg_value |= S5P_MXR_VIDEO_CFG_LIMITER_DIS;
-
-	writel(reg_value, mixer_base + S5P_MXR_VIDEO_CFG);
-
-	reg_value = S5P_MXR_VIDEO_LIMITER_PARA_Y_UPPER(y_max) |
-		S5P_MXR_VIDEO_LIMITER_PARA_Y_LOWER(y_min) |
-		S5P_MXR_VIDEO_LIMITER_PARA_C_UPPER(c_max) |
-		S5P_MXR_VIDEO_LIMITER_PARA_C_LOWER(c_min);
-
-	writel(reg_value, mixer_base + S5P_MXR_VIDEO_LIMITER_PARA_CFG);
-
-}
 
 void s5p_mixer_init_status_reg(enum s5p_mixer_burst_mode burst,
 				enum s5p_tvout_endian endian)
@@ -695,7 +672,7 @@ void s5p_mixer_init_csc_coef_default(enum s5p_mixer_rgb csc_type)
 	case MIXER_RGB601_0_255:
 		writel((1 << 30) | (132 << 20) | (258 << 10) | (50 << 0),
 			mixer_base + S5P_MXR_CM_COEFF_Y);
-		writel((949 << 20) | (876 << 10) | (225 << 0),
+		writel((948 << 20) | (875 << 10) | (225 << 0),
 			mixer_base + S5P_MXR_CM_COEFF_CB);
 		writel((225 << 20) | (836 << 10) | (988 << 0),
 			mixer_base + S5P_MXR_CM_COEFF_CR);

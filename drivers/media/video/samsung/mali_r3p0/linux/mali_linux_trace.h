@@ -11,8 +11,6 @@
 #if !defined (MALI_LINUX_TRACE_H) || defined (TRACE_HEADER_MULTI_READ)
 #define MALI_LINUX_TRACE_H
 
-#include <linux/types.h>
-
 #include <linux/stringify.h>
 #include <linux/tracepoint.h>
 
@@ -89,34 +87,6 @@ TRACE_EVENT(mali_hw_counter,
     ),
 
     TP_printk("event %d = %d", __entry->counter_id, __entry->value)
-);
-
-/**
- * Define a tracepoint used to send a bundle of software counters.
- *
- * @param counters The bundle of counters.
- */
-TRACE_EVENT(mali_sw_counters,
-
-    TP_PROTO(pid_t pid, pid_t tid, void * surface_id, unsigned int * counters),
-
-    TP_ARGS(pid, tid, surface_id, counters),
-
-    TP_STRUCT__entry(
-            __field(pid_t, pid)
-            __field(pid_t, tid)
-            __field(void *, surface_id)
-            __field(unsigned int *, counters)
-    ),
-
-    TP_fast_assign(
-            __entry->pid = pid;
-			__entry->tid = tid;
-			__entry->surface_id = surface_id;
-			__entry->counters = counters;
-    ),
-
-    TP_printk("counters were %s", __entry->counters == NULL? "NULL" : "not NULL")
 );
 
 #endif /* MALI_LINUX_TRACE_H */

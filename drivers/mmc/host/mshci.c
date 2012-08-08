@@ -575,7 +575,7 @@ static void mshci_idma_table_post(struct mshci_host *host,
 				(host->sg_count+1) * 16,
 				DMA_TO_DEVICE);
 
-	if (!host->mmc->ops->post_req || !data->host_cookie) {
+	if (!host->mmc->ops->post_req) {
 		if (host->ops->dma_unmap_sg && data->blocks >= 2048) {
 			/* if transfer size is bigger than 1MiB */
 			host->ops->dma_unmap_sg(host, mmc_dev(host->mmc),
@@ -1448,17 +1448,15 @@ static void mshci_post_req(struct mmc_host *mmc, struct mmc_request *mrq,
 	else
 		direction = DMA_TO_DEVICE;
 
-	if ((host->ops->dma_unmap_sg && data->blocks >= 2048 &&
-		data->host_cookie)) {
+	if (host->ops->dma_unmap_sg && data->blocks >= 2048) {
 		/* if transfer size is bigger than 1MiB */
 		host->ops->dma_unmap_sg(host, mmc_dev(host->mmc),
 			data->sg, data->sg_len, direction, 2);
-	} else if ((host->ops->dma_unmap_sg && data->blocks >= 128 &&
-		data->host_cookie)) {
+	} else if (host->ops->dma_unmap_sg && data->blocks >= 128) {
 		/* if transfer size is bigger than 64KiB */
 		host->ops->dma_unmap_sg(host, mmc_dev(host->mmc),
 			data->sg, data->sg_len, direction, 1);
-	} else if (data->host_cookie) {
+	} else {
 		dma_unmap_sg(mmc_dev(host->mmc),
 			data->sg, data->sg_len, direction);
 	}
@@ -1618,9 +1616,7 @@ static void mshci_cmd_irq(struct mshci_host *host, u32 intmask)
 	if (host->cmd->error) {
 		/* to notify an error happend */
 		host->error_state = 1;
-#if defined(CONFIG_MACH_M0) || defined(CONFIG_MACH_P4NOTE) || \
-		defined(CONFIG_MACH_C1_USA_ATT) \
-		|| defined(CONFIG_MACH_GRANDE) || defined(CONFIG_MACH_IRON)
+#if defined(CONFIG_MACH_M0) || defined(CONFIG_MACH_P4NOTE) /* dh0421.hwang */
 		if (host->mmc && host->mmc->card)
 			mshci_dumpregs(host);
 #endif
@@ -1662,8 +1658,6 @@ static void mshci_data_irq(struct mshci_host *host, u32 intmask, u8 intr_src)
 			printk(KERN_ERR "%s: Host timeout error\n",
 						mmc_hostname(host->mmc));
 			host->data->error = -ETIMEDOUT;
-			/* debugging for Host timeout error */
-			mshci_dumpregs(host);
 		} else if (intmask & INTMSK_DRTO) {
 			printk(KERN_ERR "%s: Data read timeout error\n",
 						mmc_hostname(host->mmc));
@@ -1704,9 +1698,7 @@ static void mshci_data_irq(struct mshci_host *host, u32 intmask, u8 intr_src)
 	if (host->data->error) {
 		/* to notify an error happend */
 		host->error_state = 1;
-#if defined(CONFIG_MACH_M0) || defined(CONFIG_MACH_P4NOTE) || \
-		defined(CONFIG_MACH_C1_USA_ATT) \
-		|| defined(CONFIG_MACH_GRANDE) || defined(CONFIG_MACH_IRON)
+#if defined(CONFIG_MACH_M0) || defined(CONFIG_MACH_P4NOTE) /* dh0421.hwang */
 		if (host->mmc && host->mmc->card)
 			mshci_dumpregs(host);
 #endif

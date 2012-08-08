@@ -106,8 +106,6 @@ struct wmi_data_sync_bufs {
 #define WMM_AC_VI   2		/* video */
 #define WMM_AC_VO   3		/* voice */
 
-#define WMI_VOICE_USER_PRIORITY		0x7
-
 struct wmi {
 	u16 stream_exist_for_ac[WMM_NUM_AC];
 	u8 fat_pipe_exist;
@@ -423,7 +421,6 @@ enum wmi_cmd_id {
 	WMI_SET_FRAMERATES_CMDID,
 	WMI_SET_AP_PS_CMDID,
 	WMI_SET_QOS_SUPP_CMDID,
-	WMI_SET_IE_CMDID,
 
 	/* WMI_THIN_RESERVED_... mark the start and end
 	 * values for WMI_THIN_RESERVED command IDs. These
@@ -619,7 +616,6 @@ enum wmi_cmd_id {
 	WMI_SEND_MGMT_CMDID,
 	WMI_BEGIN_SCAN_CMDID,
 
-	WMI_SET_MCASTRATE_CMDID,
 };
 
 enum wmi_mgmt_frame_type {
@@ -629,11 +625,6 @@ enum wmi_mgmt_frame_type {
 	WMI_FRAME_ASSOC_REQ,
 	WMI_FRAME_ASSOC_RESP,
 	WMI_NUM_MGMT_FRAME
-};
-
-enum wmi_ie_field_type {
-	WMI_RSN_IE_CAPB	= 0x1,
-	WMI_IE_FULL		= 0xFF  /* indicats full IE */
 };
 
 /* WMI_CONNECT_CMDID  */
@@ -1918,21 +1909,9 @@ struct wmi_get_keepalive_cmd {
 	u8 keep_alive_intvl;
 } __packed;
 
-struct wmi_set_mcastrate_cmd {
-	u16 bitrate;
-} __packed;
-
 struct wmi_set_appie_cmd {
 	u8 mgmt_frm_type; /* enum wmi_mgmt_frame_type */
 	u8 ie_len;
-	u8 ie_info[0];
-} __packed;
-
-struct wmi_set_ie_cmd {
-	u8 ie_id;
-	u8 ie_field;	/* enum wmi_ie_field_type */
-	u8 ie_len;
-	u8 reserved;
 	u8 ie_info[0];
 } __packed;
 
@@ -2310,17 +2289,6 @@ struct wmi_p2p_probe_response_cmd {
 	u8 data[0];
 } __packed;
 
-struct wmi_set_ht_cap_cmd {
-	u8 band;
-	u8 enable;
-	u8 chan_width_40m_supported;
-	u8 short_gi_20mhz;
-	u8 short_gi_40mhz;
-	u8 intolerance_40mhz;
-	u8 max_ampdu_len_exp;
-} __packed;
-
-
 /* Extended WMI (WMIX)
  *
  * Extended WMIX commands are encapsulated in a WMI message with
@@ -2460,8 +2428,6 @@ int ath6kl_wmi_probedssid_cmd(struct wmi *wmi, u8 if_idx, u8 index, u8 flag,
 int ath6kl_wmi_listeninterval_cmd(struct wmi *wmi, u8 if_idx,
 				  u16 listen_interval,
 				  u16 listen_beacons);
-int ath6kl_wmi_mcastrate_cmd(struct wmi *wmi, u8 if_idx,
-				 u16 bitrate);
 int ath6kl_wmi_bmisstime_cmd(struct wmi *wmi, u8 if_idx,
 				  u16 bmiss_time,
 				  u16 bmiss_beacons);
@@ -2520,16 +2486,11 @@ int ath6kl_wmi_add_wow_pattern_cmd(struct wmi *wmi, u8 if_idx,
 int ath6kl_wmi_del_wow_pattern_cmd(struct wmi *wmi, u8 if_idx,
 				   u16 list_id, u16 filter_id);
 int ath6kl_wmi_set_roam_lrssi_cmd(struct wmi *wmi, u8 lrssi);
-int ath6kl_wmi_set_roam_lrssi_config_cmd(struct wmi *wmi,
-				struct low_rssi_scan_params *params);
 int ath6kl_wmi_force_roam_cmd(struct wmi *wmi, const u8 *bssid);
 int ath6kl_wmi_set_roam_mode_cmd(struct wmi *wmi, enum wmi_roam_mode mode);
 int ath6kl_wmi_mcast_filter_cmd(struct wmi *wmi, u8 if_idx, bool mc_all_on);
 int ath6kl_wmi_add_del_mcast_filter_cmd(struct wmi *wmi, u8 if_idx,
 					u8 *filter, bool add_filter);
-int ath6kl_wmi_set_ht_cap_cmd(struct wmi *wmi, u8 if_idx,
-		struct wmi_set_ht_cap_cmd *params);
-
 /* AP mode uAPSD */
 int ath6kl_wmi_ap_set_apsd(struct wmi *wmi, u8 if_idx, u8 enable);
 
@@ -2561,14 +2522,14 @@ int ath6kl_wmi_set_rx_frame_format_cmd(struct wmi *wmi, u8 if_idx,
 int ath6kl_wmi_set_appie_cmd(struct wmi *wmi, u8 if_idx, u8 mgmt_frm_type,
 			     const u8 *ie, u8 ie_len);
 
-int ath6kl_wmi_set_ie_cmd(struct wmi *wmi, u8 if_idx, u8 ie_id, u8 ie_field,
-			     const u8 *ie_info, u8 ie_len);
-
 /* P2P */
 int ath6kl_wmi_disable_11b_rates_cmd(struct wmi *wmi, bool disable);
 
 int ath6kl_wmi_remain_on_chnl_cmd(struct wmi *wmi, u8 if_idx, u32 freq,
 				  u32 dur);
+
+int ath6kl_wmi_send_action_cmd(struct wmi *wmi, u8 if_idx, u32 id, u32 freq,
+			       u32 wait, const u8 *data, u16 data_len);
 
 int ath6kl_wmi_send_mgmt_cmd(struct wmi *wmi, u8 if_idx, u32 id, u32 freq,
 			       u32 wait, const u8 *data, u16 data_len,
