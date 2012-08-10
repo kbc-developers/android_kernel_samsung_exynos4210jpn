@@ -48,6 +48,12 @@ struct vibrator_drvdata {
 
 #ifdef CONFIG_VIBETONZ
 static struct vibrator_drvdata *g_data;
+#ifdef CONFIG_FEATURE_TGS2
+void vibetonz_update_duty(int duty)
+{
+	pwm_duty = duty;
+}
+#endif
 #endif
 
 static int vibetonz_clk_on(struct device *dev, bool en)
@@ -142,7 +148,7 @@ static int vibrator_get_time(struct timed_output_dev *_dev)
 	struct vibrator_drvdata	*data =
 		container_of(_dev, struct vibrator_drvdata, dev);
 
-	if (hrtimer_active(&data->timer)) {
+	if (hrtimer_active(&data->timer)) {drivers/motor/max8997_vibrator.c
 		ktime_t r = hrtimer_get_remaining(&data->timer);
 		struct timeval t = ktime_to_timeval(r);
 		return t.tv_sec * 1000 + t.tv_usec / 1000;
