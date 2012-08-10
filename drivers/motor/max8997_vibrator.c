@@ -29,6 +29,13 @@ struct vibrator_drvdata {
 
 #ifdef CONFIG_VIBETONZ
 struct vibrator_drvdata *g_data;
+
+#ifdef CONFIG_FEATURE_TGS2
+void vibetonz_update_duty(int duty)
+{
+	g_data->pdata->duty = duty;
+}
+#endif
 #endif
 
 static int vibetonz_clk_on(struct device *dev, bool en)
