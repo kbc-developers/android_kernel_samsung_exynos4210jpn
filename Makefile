@@ -347,10 +347,10 @@ CHECK		= sparse
 
 CHECKFLAGS     := -D__linux__ -Dlinux -D__STDC__ -Dunix -D__unix__ \
 		  -Wbitwise -Wno-return-void $(CF)
-CFLAGS_MODULE   =
+CFLAGS_MODULE   = -fgcse-sm
 AFLAGS_MODULE   =
 LDFLAGS_MODULE  =
-CFLAGS_KERNEL	=
+CFLAGS_KERNEL	= -fgcse-sm
 AFLAGS_KERNEL	=
 CFLAGS_GCOV	= -fprofile-arcs -ftest-coverage
 
@@ -365,10 +365,14 @@ LINUXINCLUDE    := -I$(srctree)/arch/$(hdr-arch)/include \
 KBUILD_CPPFLAGS := -D__KERNEL__
 
 KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
-		   -fno-strict-aliasing -fno-common \
+		   -fno-strict-aliasing -fno-common -mno-unaligned-access \
 		   -Werror-implicit-function-declaration \
 		   -Wno-format-security \
-		   -fno-delete-null-pointer-checks
+		   -fno-delete-null-pointer-checks \
+                   -marm -mtune=cortex-a9 -mfpu=neon -march=armv7-a \
+                   -fgraphite-identity -floop-block -ftree-loop-linear \
+                   -floop-strip-mine -ftree-loop-distribution \
+                   -fmodulo-sched -fmodulo-sched-allow-regmoves
 KBUILD_AFLAGS_KERNEL :=
 KBUILD_CFLAGS_KERNEL :=
 KBUILD_AFLAGS   := -D__ASSEMBLY__
@@ -560,6 +564,8 @@ all: vmlinux
 
 ifdef CONFIG_CC_OPTIMIZE_FOR_SIZE
 KBUILD_CFLAGS	+= -Os
+else ifdef CONFIG_CC_OPTIMIZE_FOR_SPEED
+KBUILD_CFLAGS	+= -O3
 else
 KBUILD_CFLAGS	+= -O2
 endif
@@ -646,6 +652,11 @@ KBUILD_ARFLAGS := $(call ar-option,D)
 # check for 'asm goto'
 ifeq ($(shell $(CONFIG_SHELL) $(srctree)/scripts/gcc-goto.sh $(CC)), y)
 	KBUILD_CFLAGS += -DCC_HAVE_ASM_GOTO
+endif
+
+# check user boot splash
+ifeq ($(USER_BOOT_SPLASH),y)
+	KBUILD_CFLAGS	+= -DUSER_BOOT_SPLASH
 endif
 
 # Add user supplied CPPFLAGS, AFLAGS and CFLAGS as the last assignments

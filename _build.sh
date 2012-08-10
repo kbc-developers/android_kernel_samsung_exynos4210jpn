@@ -28,10 +28,10 @@ cpoy_initramfs()
 # (note) MULTI and COM use same defconfig
 BUILD_TARGET=$1
 case "$BUILD_TARGET" in
-  "AOSP" ) BUILD_DEFCONFIG=u1_sc02c_aosp_defconfig ;;
-  "SAM" ) BUILD_DEFCONFIG=u1_sc02c_samsung_defconfig ;;
-  "MULTI" ) BUILD_DEFCONFIG=u1_sc02c_multi_defconfig ;;
-  "COMMON" ) BUILD_DEFCONFIG=u1_sc02c_multi_defconfig ;;
+  "AOSP" ) BUILD_DEFCONFIG=sc02c_aosp_defconfig ;;
+  "SAM" ) BUILD_DEFCONFIG=sc02c_samsung_defconfig ;;
+  "MULTI" ) BUILD_DEFCONFIG=sc02c_multi_defconfig ;;
+  "COMMON" ) BUILD_DEFCONFIG=sc02c_multi_defconfig ;;
   * ) echo "error: not found BUILD_TARGET" && exit -1 ;;
 esac
 BIN_DIR=out/$BUILD_TARGET/bin
