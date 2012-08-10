@@ -483,7 +483,7 @@ static int exynos4_enter_core0_aftr(struct cpuidle_device *dev,
 {
 	struct timeval before, after;
 	int idle_time;
-	unsigned long tmp, abb_val;
+	unsigned long tmp, abb_val = 0;
 
 #ifdef CONFIG_SEC_WATCHDOG_RESET
 	s3c_pm_do_save(exynos4_aftr_save, ARRAY_SIZE(exynos4_aftr_save));
@@ -567,7 +567,7 @@ static int exynos4_enter_core0_lpa(struct cpuidle_device *dev,
 {
 	struct timeval before, after;
 	int idle_time;
-	unsigned long tmp, abb_val;
+	unsigned long tmp, abb_val = 0;
 
 	s3c_pm_do_save(exynos4_lpa_save, ARRAY_SIZE(exynos4_lpa_save));
 

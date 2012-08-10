@@ -185,7 +185,7 @@ void set_mdnie_value(struct mdnie_info *mdnie)
 		goto exit;
 	}
 #else
-	if (SCENARIO_IS_DMB(mdnie->scenario)) {
+	if (SCENARIO_IS_DMB((enum SCENARIO_DMB)mdnie->scenario)) {
 		idx = mdnie->scenario - DMB_NORMAL_MODE;
 		mdnie_send_sequence(mdnie, tune_dmb[mdnie->outdoor][idx].seq);
 		dev_info(mdnie->dev, "mode=%d, scenario=%d, outdoor=%d, cabc=%d, %s\n",
@@ -196,7 +196,7 @@ void set_mdnie_value(struct mdnie_info *mdnie)
 #endif
 #endif
 
-	if (SCENARIO_IS_COLOR(mdnie->scenario)) {
+	if (SCENARIO_IS_COLOR((enum SCENARIO_COLOR_TONE)mdnie->scenario)) {
 		idx = mdnie->scenario - COLOR_TONE_1;
 		mdnie_send_sequence(mdnie, tune_color_tone[idx].seq);
 		dev_info(mdnie->dev, "mode=%d, scenario=%d, outdoor=%d, cabc=%d, %s\n",
