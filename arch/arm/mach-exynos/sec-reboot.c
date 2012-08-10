@@ -8,6 +8,9 @@
 
 /* charger cable state */
 extern bool is_cable_attached;
+/* mc1n2 reboot notify */
+extern void mc1n2_reboot(void);
+
 static void sec_power_off(void)
 {
 	int poweroff_try = 0;
@@ -72,6 +75,8 @@ static void sec_power_off(void)
 
 static void sec_reboot(char str, const char *cmd)
 {
+	mc1n2_reboot();
+
 	local_irq_disable();
 
 	pr_emerg("%s (%d, %s)\n", __func__, str, cmd ? cmd : "(null)");
@@ -92,6 +97,9 @@ static void sec_reboot(char str, const char *cmd)
 			writel(REBOOT_MODE_PREFIX | REBOOT_MODE_RECOVERY,
 			       S5P_INFORM3);
 		else if (!strcmp(cmd, "download"))
+			writel(REBOOT_MODE_PREFIX | REBOOT_MODE_DOWNLOAD,
+			       S5P_INFORM3);
+		else if (!strcmp(cmd, "bootloader"))
 			writel(REBOOT_MODE_PREFIX | REBOOT_MODE_DOWNLOAD,
 			       S5P_INFORM3);
 		else if (!strcmp(cmd, "upload"))
