@@ -92,6 +92,24 @@ static bool g_debug_tkey = TRUE;
 #else
 static bool g_debug_tkey = FALSE;
 #endif
+#endif /* defined(CONFIG_TARGET_LOCALE_KOR) */
+
+#if defined(CONFIG_GENERIC_BLN)
+#include <linux/bln.h>
+#endif
+#if defined(CONFIG_GENERIC_BLN) || defined(CONFIG_CM_BLN)
+#include <linux/mutex.h>
+#include <linux/wakelock.h>
+struct touchkey_i2c* bln_tkey_i2c;
+#endif
+
+/*
+ * Generic LED Notification functionality.
+ */
+#ifdef CONFIG_GENERIC_BLN
+struct wake_lock bln_wake_lock;
+bool bln_enabled = false;
+static DEFINE_MUTEX(bln_sem);
 #endif
 
 static int touchkey_i2c_check(struct touchkey_i2c *tkey_i2c);
@@ -117,27 +135,61 @@ static int touchkey_debug_count;
 static char touchkey_debug[104];
 static int touchkey_update_status;
 
+/* led i2c write value convert helper */
+static int inline touchkey_conv_led_data__(int data, const char* func_name) {
+#if defined(CONFIG_MACH_Q1_BD) || defined(CONFIG_MACH_C1)
+	if (data == 1)
+		data = 0x10;
+	else if (data == 2)
+		data = 0x20;
+#endif
+	printk("[TouchKey] %s led %s\n", func_name, (data == 0x1 || data == 0x10) ? "on" : "off");
+	return data;
+}
+#define touchkey_conv_led_data(v) touchkey_conv_led_data__(v, __func__)
+
 static void change_touch_key_led_voltage(int vol_mv)
 {
 	struct regulator *tled_regulator;
 
 	tled_regulator = regulator_get(NULL, "touch_led");
 	if (IS_ERR(tled_regulator)) {
-		pr_err("%s: failed to get resource %s\n", __func__,
-		       "touch_led");
+		pr_err("%s: failed to get resource %s\n", __func__, "touch_led");
 		return;
 	}
 	regulator_set_voltage(tled_regulator, vol_mv * 1000, vol_mv * 1000);
 	regulator_put(tled_regulator);
 }
 
+static void get_touch_key_led_voltage(struct touchkey_i2c *tkey_i2c)
+{
+	struct regulator *tled_regulator;
+
+	tled_regulator = regulator_get(NULL, "touch_led");
+	if (IS_ERR(tled_regulator)) {
+		pr_err("%s: failed to get resource %s\n", __func__, "touch_led");
+		return;
+	}
+
+	tkey_i2c->brightness = regulator_get_voltage(tled_regulator) / 1000;
+
+}
+
+static ssize_t brightness_read(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct touchkey_i2c *tkey_i2c = dev_get_drvdata(dev);
+	return sprintf(buf,"%d\n", tkey_i2c->brightness);
+}
+
 static ssize_t brightness_control(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
 {
+	struct touchkey_i2c *tkey_i2c = dev_get_drvdata(dev);
 	int data;
 
 	if (sscanf(buf, "%d\n", &data) == 1) {
 		printk(KERN_ERR "[TouchKey] touch_led_brightness: %d\n", data);
 		change_touch_key_led_voltage(data);
+		tkey_i2c->brightness = data;
 	} else {
 		printk(KERN_ERR "[TouchKey] touch_led_brightness Error\n");
 	}
@@ -216,13 +268,11 @@ void touchkey_firmware_update(struct touchkey_i2c *tkey_i2c)
 
 	ret = i2c_touchkey_read(tkey_i2c->client, KEYCODE_REG, data, 3);
 	if (ret < 0) {
-		printk(KERN_DEBUG
-		       "[TouchKey] i2c read fail. do not excute firm update.\n");
+		printk(KERN_DEBUG "[TouchKey] i2c read fail. do not excute firm update.\n");
 		return;
 	}
 
-	printk(KERN_ERR "%s F/W version: 0x%x, Module version:0x%x\n", __func__,
-	       data[1], data[2]);
+	printk(KERN_ERR "%s F/W version: 0x%x, Module version:0x%x\n", __func__, data[1], data[2]);
 	retry = 3;
 
 	tkey_i2c->firmware_ver = data[1];
@@ -232,12 +282,11 @@ void touchkey_firmware_update(struct touchkey_i2c *tkey_i2c)
 		touchkey_update_status = 1;
 		while (retry--) {
 			if (ISSP_main(tkey_i2c) == 0) {
-				printk(KERN_ERR
-				       "[TOUCHKEY]Touchkey_update succeeded\n");
+				printk(KERN_ERR "[TouchKey] Touchkey_update succeeded\n");
 				touchkey_update_status = 0;
 				break;
 			}
-			printk(KERN_ERR "touchkey_update failed...retry...\n");
+			printk(KERN_ERR "[TouchKey] touchkey_update failed...retry...\n");
 		}
 		if (retry <= 0) {
 			tkey_i2c->pdata->power_on(0);
@@ -245,11 +294,9 @@ void touchkey_firmware_update(struct touchkey_i2c *tkey_i2c)
 		}
 	} else {
 		if (tkey_i2c->firmware_ver >= 0x0A) {
-			printk(KERN_ERR
-			       "[TouchKey] Not F/W update. Cypess touch-key F/W version is latest\n");
+			printk(KERN_ERR "[TouchKey] Not F/W update. Cypess touch-key F/W version is latest\n");
 		} else {
-			printk(KERN_ERR
-			       "[TouchKey] Not F/W update. Cypess touch-key version(module or F/W) is not valid\n");
+			printk(KERN_ERR "[TouchKey] Not F/W update. Cypess touch-key version(module or F/W) is not valid\n");
 		}
 	}
 }
@@ -268,12 +315,10 @@ static irqreturn_t touchkey_interrupt(int irq, void *dev_id)
 	retry = 3;
 	while (retry--) {
 		ret = i2c_touchkey_read(tkey_i2c->client, KEYCODE_REG, data, 3);
-		if (!ret)
+		if (!ret) {
 			break;
-		else {
-			printk(KERN_DEBUG
-			       "[TouchKey] i2c read failed, ret:%d, retry: %d\n",
-			       ret, retry);
+		} else {
+			printk(KERN_DEBUG "[TouchKey] i2c read failed, ret:%d, retry: %d\n", ret, retry);
 			continue;
 		}
 	}
@@ -296,30 +341,71 @@ static irqreturn_t touchkey_interrupt(int irq, void *dev_id)
 	if (get_tsp_status() && pressed)
 		printk(KERN_DEBUG "[TouchKey] touchkey pressed but don't send event because touch is pressed.\n");
 	else {
-		input_report_key(tkey_i2c->input_dev,
-				 touchkey_keycode[keycode_type], pressed);
+		input_report_key(tkey_i2c->input_dev, touchkey_keycode[keycode_type], pressed);
 		input_sync(tkey_i2c->input_dev);
-		/* printk(KERN_DEBUG "[TouchKey] keycode:%d pressed:%d\n",
-		   touchkey_keycode[keycode_index], pressed); */
-
-		#if defined(CONFIG_TARGET_LOCALE_KOR)
-		if (g_debug_tkey == true) {
-			printk(KERN_DEBUG "[TouchKey] keycode[%d]=%d pressed:%d\n",
-			keycode_type, touchkey_keycode[keycode_type], pressed);
-		} else {
-			printk(KERN_DEBUG "[TouchKey] pressed:%d\n", pressed);
-		}
-		#endif
+		/* printk(KERN_DEBUG "[TouchKey] keycode:%d pressed:%d\n", touchkey_keycode[keycode_index], pressed); */
 	}
 	set_touchkey_debug('A');
 	return IRQ_HANDLED;
 }
 
+#ifdef CONFIG_GENERIC_BLN
+static void touchkey_bln_enable(void)
+{
+	int data;
+
+	mutex_lock(&bln_sem);
+	if (bln_enabled)
+	{
+		if (touchkey_enable == 0) {
+			if (!wake_lock_active(&bln_wake_lock)) {
+				wake_lock(&bln_wake_lock);
+			}
+			bln_tkey_i2c->pdata->power_on(1);
+			msleep(50);
+			bln_tkey_i2c->pdata->led_power_on(1);
+			touchkey_enable = 1;
+		}
+		change_touch_key_led_voltage(bln_tkey_i2c->brightness);
+		data = touchkey_conv_led_data(1);
+		i2c_touchkey_write(bln_tkey_i2c->client, (u8 *)&data, 1);
+		touchkey_led_status = 2;
+		touchled_cmd_reversed = 1;
+	}
+	mutex_unlock(&bln_sem);
+}
+
+static void touchkey_bln_disable(void)
+{
+	int data;
+
+	mutex_lock(&bln_sem);
+	if (bln_enabled)
+	{
+		data = touchkey_conv_led_data(2);
+		i2c_touchkey_write(bln_tkey_i2c->client, (u8 *)&data, 1);
+		if (touchkey_enable == 1) {
+			bln_tkey_i2c->pdata->led_power_on(0);
+			bln_tkey_i2c->pdata->power_on(0);
+			touchkey_enable = 0;
+			wake_unlock(&bln_wake_lock);
+		}
+		touchkey_led_status = 1;
+		touchled_cmd_reversed = 1;
+	}
+	mutex_unlock(&bln_sem);
+}
+
+static struct bln_implementation cypress_touchkey_bln = {
+	.enable = touchkey_bln_enable,
+	.disable = touchkey_bln_disable,
+};
+#endif // CONFIG_GENERIC_BLN
+
 #ifdef CONFIG_HAS_EARLYSUSPEND
 static int sec_touchkey_early_suspend(struct early_suspend *h)
 {
-	struct touchkey_i2c *tkey_i2c =
-		container_of(h, struct touchkey_i2c, early_suspend);
+	struct touchkey_i2c *tkey_i2c = container_of(h, struct touchkey_i2c, early_suspend);
 	int ret;
 	int i;
 
@@ -335,12 +421,17 @@ static int sec_touchkey_early_suspend(struct early_suspend *h)
 		input_report_key(tkey_i2c->input_dev, touchkey_keycode[i], 0);
 	}
 
+#ifdef CONFIG_GENERIC_BLN
+	mutex_lock(&bln_sem);
+	bln_enabled = true;
+#endif
+
 	touchkey_enable = 0;
 	set_touchkey_debug('S');
 	printk(KERN_DEBUG "[TouchKey] sec_touchkey_early_suspend\n");
 	if (touchkey_enable < 0) {
 		printk(KERN_DEBUG "[TouchKey] ---%s---touchkey_enable: %d\n", __func__, touchkey_enable);
-		return 0;
+		goto out;
 	}
 
 	/* disable ldo18 */
@@ -349,24 +440,30 @@ static int sec_touchkey_early_suspend(struct early_suspend *h)
 	/* disable ldo11 */
 	tkey_i2c->pdata->power_on(0);
 
+out:
+#ifdef CONFIG_GENERIC_BLN
+	mutex_unlock(&bln_sem);
+#endif
 	return 0;
 }
 
 static int sec_touchkey_late_resume(struct early_suspend *h)
 {
-	struct touchkey_i2c *tkey_i2c =
-		container_of(h, struct touchkey_i2c, early_suspend);
+	struct touchkey_i2c *tkey_i2c = container_of(h, struct touchkey_i2c, early_suspend);
 
 	set_touchkey_debug('R');
 	printk(KERN_DEBUG "[TouchKey] sec_touchkey_late_resume\n");
+
+#ifdef CONFIG_GENERIC_BLN
+	mutex_lock(&bln_sem);
+#endif
 
 	/* enable ldo11 */
 	tkey_i2c->pdata->power_on(1);
 
 	if (touchkey_enable < 0) {
-		printk(KERN_DEBUG "[TouchKey] ---%s---touchkey_enable: %d\n",
-		       __func__, touchkey_enable);
-		return 0;
+		printk(KERN_DEBUG "[TouchKey] ---%s---touchkey_enable: %d\n", __func__, touchkey_enable);
+		goto out;
 	}
 	msleep(50);
 	tkey_i2c->pdata->led_power_on(1);
@@ -375,13 +472,18 @@ static int sec_touchkey_late_resume(struct early_suspend *h)
 
 	if (touchled_cmd_reversed) {
 		touchled_cmd_reversed = 0;
-		i2c_touchkey_write(tkey_i2c->client,
-			(u8 *) &touchkey_led_status, 1);
+		i2c_touchkey_write(tkey_i2c->client, (u8 *) &touchkey_led_status, 1);
 		printk(KERN_DEBUG "LED returned on\n");
 	}
 
 	enable_irq(tkey_i2c->irq);
 
+out:
+#ifdef CONFIG_GENERIC_BLN
+	bln_enabled = false;
+	wake_unlock(&bln_wake_lock);
+	mutex_unlock(&bln_sem);
+#endif
 	return 0;
 }
 #endif /* CONFIG_HAS_EARLYSUSPEND */
@@ -438,8 +540,7 @@ static ssize_t touch_version_write(struct device *dev, struct device_attribute *
 
 void touchkey_update_func(struct work_struct *work)
 {
-	struct touchkey_i2c *tkey_i2c =
-		container_of(work, struct touchkey_i2c, update_work);
+	struct touchkey_i2c *tkey_i2c = container_of(work, struct touchkey_i2c, update_work);
 	int retry = 3;
 	touchkey_update_status = 1;
 	printk(KERN_DEBUG "[TouchKey] %s start\n", __func__);
@@ -496,12 +597,7 @@ static ssize_t touchkey_led_control(struct device *dev, struct device_attribute 
 	int errnum;
 
 	if (sscanf(buf, "%d\n", &data) == 1) {
-#if defined(CONFIG_MACH_Q1_BD) || defined(CONFIG_MACH_C1)
-		if (data == 1)
-			data = 0x10;
-		else if (data == 2)
-			data = 0x20;
-#endif
+		data = touchkey_conv_led_data(data);
 		errnum = i2c_touchkey_write(tkey_i2c->client, (u8 *) &data, 1);
 		if (errnum == -ENODEV)
 			touchled_cmd_reversed = 1;
@@ -514,8 +610,7 @@ static ssize_t touchkey_led_control(struct device *dev, struct device_attribute 
 	return size;
 }
 
-static ssize_t touchkey_menu_show(struct device *dev,
-				  struct device_attribute *attr, char *buf)
+static ssize_t touchkey_menu_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct touchkey_i2c *tkey_i2c = dev_get_drvdata(dev);
 #if defined(CONFIG_MACH_Q1_BD) || (defined(CONFIG_MACH_C1) && defined(CONFIG_TARGET_LOCALE_KOR))
@@ -589,7 +684,7 @@ static ssize_t set_touchkey_update_show(struct device *dev, struct device_attrib
 			msleep(50);
 			break;
 		}
-		printk(KERN_ERR "touchkey_update failed... retry...\n");
+		printk(KERN_ERR "[TouchKey] touchkey_update failed... retry...\n");
 	}
 	if (retry <= 0) {
 		/* disable ldo11 */
@@ -636,6 +731,27 @@ static ssize_t set_touchkey_firm_status_show(struct device *dev, struct device_a
 	return count;
 }
 
+#ifdef CONFIG_GENERIC_BLN
+static ssize_t touchkey_bln_control(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct touchkey_i2c *tkey_i2c = dev_get_drvdata(dev);
+	int data, errnum;
+
+	if (sscanf(buf, "%d\n", &data) == 1) {
+		printk(KERN_ERR "[TouchKey] %s: %d \n", __func__, data);
+		data = touchkey_conv_led_data(data);
+		errnum = i2c_touchkey_write(tkey_i2c->client, (u8 *)&data, 1);
+		if (errnum == -ENODEV)
+			touchled_cmd_reversed = 1;
+		touchkey_led_status = data;
+	} else {
+		printk(KERN_ERR "[TouchKey] touchkey_bln_control Error\n");
+	}
+
+	return size;
+}
+#endif
+
 static DEVICE_ATTR(recommended_version, S_IRUGO | S_IWUSR | S_IWGRP, touch_version_read, touch_version_write);
 static DEVICE_ATTR(updated_version, S_IRUGO | S_IWUSR | S_IWGRP, touch_update_read, touch_update_write);
 static DEVICE_ATTR(brightness, S_IRUGO | S_IWUSR | S_IWGRP, NULL, touchkey_led_control);
@@ -646,7 +762,10 @@ static DEVICE_ATTR(touchkey_firm_update, S_IRUGO | S_IWUSR | S_IWGRP, set_touchk
 static DEVICE_ATTR(touchkey_firm_update_status, S_IRUGO | S_IWUSR | S_IWGRP, set_touchkey_firm_status_show, NULL);
 static DEVICE_ATTR(touchkey_firm_version_phone, S_IRUGO | S_IWUSR | S_IWGRP, set_touchkey_firm_version_show, NULL);
 static DEVICE_ATTR(touchkey_firm_version_panel, S_IRUGO | S_IWUSR | S_IWGRP, set_touchkey_firm_version_read_show, NULL);
-static DEVICE_ATTR(touchkey_brightness, S_IRUGO | S_IWUSR | S_IWGRP, NULL, brightness_control);
+static DEVICE_ATTR(touchkey_brightness, S_IRUGO | S_IWUSR | S_IWGRP, brightness_read, brightness_control);
+#ifdef CONFIG_GENERIC_BLN
+static DEVICE_ATTR(touchkey_bln_control, S_IWUGO, NULL, touchkey_bln_control);
+#endif
 
 static struct attribute *touchkey_attributes[] = {
 	&dev_attr_recommended_version.attr,
@@ -660,6 +779,9 @@ static struct attribute *touchkey_attributes[] = {
 	&dev_attr_touchkey_firm_version_phone.attr,
 	&dev_attr_touchkey_firm_version_panel.attr,
 	&dev_attr_touchkey_brightness.attr,
+#ifdef CONFIG_GENERIC_BLN
+	&dev_attr_touchkey_bln_control.attr,
+#endif
 	NULL,
 };
 
@@ -744,6 +866,9 @@ static int i2c_touchkey_probe(struct i2c_client *client,
 	tkey_i2c->pdata->power_on(1);
 	msleep(50);
 
+	/* read key led voltage */
+	get_touch_key_led_voltage(tkey_i2c);
+
 	touchkey_enable = 1;
 	data = 1;
 
@@ -776,6 +901,12 @@ static int i2c_touchkey_probe(struct i2c_client *client,
 		input_unregister_device(input_dev);
 		return -EBUSY;
 	}
+
+#ifdef CONFIG_GENERIC_BLN
+	bln_tkey_i2c = tkey_i2c;
+	wake_lock_init(&bln_wake_lock, WAKE_LOCK_SUSPEND, "bln_wake_lock");
+	register_bln_implementation(&cypress_touchkey_bln);
+#endif
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	tkey_i2c->early_suspend.suspend = (void *)sec_touchkey_early_suspend;
@@ -818,6 +949,7 @@ static int __init touchkey_init(void)
 	if (ret) {
 		printk(KERN_ERR "[TouchKey] registration failed, module not inserted.ret= %d\n", ret);
 	}
+
 	return ret;
 }
 
@@ -825,6 +957,10 @@ static void __exit touchkey_exit(void)
 {
 	printk(KERN_DEBUG "[TouchKey] %s\n", __func__);
 	i2c_del_driver(&touchkey_i2c_driver);
+
+#ifdef CONFIG_GENERIC_BLN
+	wake_lock_destroy(&bln_wake_lock);
+#endif
 }
 
 late_initcall(touchkey_init);

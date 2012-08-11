@@ -131,6 +131,7 @@ struct touchkey_i2c {
 	char *name;
 	int (*power)(int on);
 	struct work_struct update_work;
+	int brightness;
 };
 
 #endif /* _LINUX_CYPRESS_TOUCHKEY_I2C_H */

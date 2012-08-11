@@ -71,3 +71,4 @@ obj-$(CONFIG_SLP_PROCESS_MON)	+= slp_process_monitor.o
 obj-$(CONFIG_SLP_LOWMEM_NOTIFY)	+= slp_lowmem_notify.o
 
 obj-$(CONFIG_MACH_M0_CTC)   += cw_tty.o
+obj-$(CONFIG_GENERIC_BLN)	+= bln.o
