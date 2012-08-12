@@ -255,7 +255,7 @@ static int exynos_ss_udc_issue_epcmd(struct exynos_ss_udc *udc,
 	return res;
 }
 
-#if defined(CONFIG_BATTERY_SAMSUNG) || defined(CONFIG_BATTERY_SAMSUNG_S2PLUS)
+#if defined(CONFIG_BATTERY_SAMSUNG)
 void exynos_ss_udc_cable_connect(struct exynos_ss_udc *udc, bool connect)
 {
 	static int last_connect;
@@ -625,7 +625,7 @@ static void exynos_ss_udc_start_req(struct exynos_ss_udc *udc,
 				    struct exynos_ss_udc_req *udc_req,
 				    bool continuing)
 {
-	struct exynos_ss_udc_ep_command epcmd;
+	struct exynos_ss_udc_ep_command epcmd = {{0}, };
 	struct usb_request *ureq = &udc_req->req;
 	enum trb_control trb_type = NORMAL;
 	int epnum = udc_ep->epnum;
@@ -1816,11 +1816,14 @@ static void exynos_ss_udc_irq_connectdone(struct exynos_ss_udc *udc)
 		break;
 	/* SuperSpeed */
 	case 4:
-	default:
 		udc->gadget.speed = USB_SPEED_SUPER;
 		mps0 = EP0_SS_MPS;
 		mps = EP_SS_MPS;
 		break;
+
+	default:
+		dev_err(udc->dev, "Connection speed is unknown (%d)\n", speed);
+		return;
 	}
 
 	/* Suspend the inactive Phy */
@@ -1889,6 +1892,12 @@ static void exynos_ss_udc_irq_usbrst(struct exynos_ss_udc *udc)
 	/* Disable test mode */
 	__bic32(udc->regs + EXYNOS_USB3_DCTL, EXYNOS_USB3_DCTL_TstCtl_MASK);
 
+	/* Enable PHYs */
+	__bic32(udc->regs + EXYNOS_USB3_GUSB2PHYCFG(0),
+		EXYNOS_USB3_GUSB2PHYCFGx_SusPHY);
+	__bic32(udc->regs + EXYNOS_USB3_GUSB3PIPECTL(0),
+		EXYNOS_USB3_GUSB3PIPECTLx_SuspSSPhy);
+
 	epcmd.cmdtyp = EXYNOS_USB3_DEPCMDx_CmdTyp_DEPENDXFER;
 
 	/* End transfer, kill all requests and clear STALL on the
@@ -1925,6 +1934,49 @@ static void exynos_ss_udc_irq_usbrst(struct exynos_ss_udc *udc)
 	__bic32(udc->regs + EXYNOS_USB3_DCFG, EXYNOS_USB3_DCFG_DevAddr_MASK);
 
 	udc->state = USB_STATE_DEFAULT;
+}
+
+/**
+ * exynos_ss_udc_irq_ulstchng - process event USB Link State Change
+ * @udc: The device state.
+ * @event: The event being handled.
+ */
+static void exynos_ss_udc_irq_ulstchng(struct exynos_ss_udc *udc, u32 event)
+{
+	u32 link_state;
+
+	link_state = event & EXYNOS_USB3_DEVT_EvtInfo_MASK;
+
+	if (event & EXYNOS_USB3_DEVT_EvtInfo_SS) {
+		if (link_state == EXYNOS_USB3_DEVT_EvtInfo_U3)
+			__orr32(udc->regs + EXYNOS_USB3_GUSB3PIPECTL(0),
+				EXYNOS_USB3_GUSB3PIPECTLx_SuspSSPhy);
+		else
+			__bic32(udc->regs + EXYNOS_USB3_GUSB3PIPECTL(0),
+				EXYNOS_USB3_GUSB3PIPECTLx_SuspSSPhy);
+	} else {
+		if (link_state == EXYNOS_USB3_DEVT_EvtInfo_Suspend)
+			__orr32(udc->regs + EXYNOS_USB3_GUSB2PHYCFG(0),
+				EXYNOS_USB3_GUSB2PHYCFGx_SusPHY);
+		else
+			__bic32(udc->regs + EXYNOS_USB3_GUSB2PHYCFG(0),
+				EXYNOS_USB3_GUSB2PHYCFGx_SusPHY);
+	}
+
+	/* Disconnect event detection for SMDK5250 EVT0 */
+#if defined(CONFIG_MACH_SMDK5250)
+	if (udc->release == 0x185a) {
+		if (link_state == EXYNOS_USB3_DEVT_EvtInfo_Suspend ||
+		    link_state == EXYNOS_USB3_DEVT_EvtInfo_SS_DIS) {
+			call_gadget(udc, disconnect);
+			EXYNOS_SS_UDC_CABLE_CONNECT(udc, false);
+			dev_dbg(udc->dev, "Disconnection (0x%x, %s)\n",
+				link_state >> EXYNOS_USB3_DEVT_EvtInfo_SHIFT,
+				event & EXYNOS_USB3_DEVT_EvtInfo_SS ?
+				"SS" : "non-SS");
+		}
+	}
+#endif
 }
 
 /**
@@ -1970,27 +2022,10 @@ static void exynos_ss_udc_handle_depevt(struct exynos_ss_udc *udc, u32 event)
  */
 static void exynos_ss_udc_handle_devt(struct exynos_ss_udc *udc, u32 event)
 {
-	int event_info;
-
 	switch (event & EXYNOS_USB3_DEVT_EVENT_MASK) {
 	case EXYNOS_USB3_DEVT_EVENT_ULStChng:
 		dev_dbg(udc->dev, "USB-Link State Change");
-
-		/* Disconnect event detection for SMDK5250 EVT0 */
-#if defined(CONFIG_MACH_SMDK5250)
-		if (udc->release == 0x185a) {
-			event_info = event & EXYNOS_USB3_DEVT_EventParam_MASK;
-			if (event_info == EXYNOS_USB3_DEVT_EventParam(0x3) ||
-			    event_info == EXYNOS_USB3_DEVT_EventParam(0x4)) {
-				call_gadget(udc, disconnect);
-				EXYNOS_SS_UDC_CABLE_CONNECT(udc, false);
-				dev_dbg(udc->dev, "Disconnect %x %s speed\n",
-					event_info,
-					event & EXYNOS_USB3_DEVT_EventParam_SS ?
-					"Super" : "High");
-			}
-		}
-#endif
+		exynos_ss_udc_irq_ulstchng(udc, event);
 		break;
 
 	case EXYNOS_USB3_DEVT_EVENT_ConnectDone:
@@ -2766,8 +2801,7 @@ static int __devinit exynos_ss_udc_probe(struct platform_device *pdev)
 	udc = kzalloc(sizeof(struct exynos_ss_udc), GFP_KERNEL);
 	if (!udc) {
 		dev_err(dev, "cannot get memory\n");
-		ret = -ENOMEM;
-		goto err_mem;
+		return -ENOMEM;
 	}
 
 	udc->dev = dev;
@@ -2933,7 +2967,8 @@ static int __devexit exynos_ss_udc_remove(struct platform_device *pdev)
 	iounmap(udc->regs);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	release_mem_region(res->start, resource_size(res));
+	if (res)
+		release_mem_region(res->start, resource_size(res));
 
 	device_unregister(&udc->gadget.dev);
 

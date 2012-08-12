@@ -925,8 +925,12 @@ int usb_string_id(struct usb_composite_dev *cdev)
 		 * supported languages */
 		/* 255 reserved as well? -- mina86 */
 		cdev->next_string_id++;
+		printk(KERN_DEBUG "usb: %s cdev(0x%p)->next_string_id=%d\n",
+			__func__, cdev, cdev->next_string_id);
 		return cdev->next_string_id;
 	}
+	printk(KERN_DEBUG "usb: %s error cdev(0x%p)->next_string_id=%d\n",
+		__func__, cdev, cdev->next_string_id);
 	return -ENODEV;
 }
 
@@ -950,6 +954,8 @@ int usb_string_ids_tab(struct usb_composite_dev *cdev, struct usb_string *str)
 {
 	int next = cdev->next_string_id;
 
+	printk(KERN_DEBUG "usb: %s --cdev(0x%p)->next_string_id=%d\n",
+		__func__, cdev, cdev->next_string_id);
 	for (; str->s; ++str) {
 		if (unlikely(next >= 254))
 			return -ENODEV;
@@ -983,6 +989,8 @@ int usb_string_ids_tab(struct usb_composite_dev *cdev, struct usb_string *str)
 int usb_string_ids_n(struct usb_composite_dev *c, unsigned n)
 {
 	unsigned next = c->next_string_id;
+	printk(KERN_DEBUG "usb: %s --cdev(0x%p)->next_string_id=%d\n",
+		__func__, c, c->next_string_id);
 	if (unlikely(n > 254 || (unsigned)next + n > 254))
 		return -ENODEV;
 	c->next_string_id += n;
