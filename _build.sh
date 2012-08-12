@@ -1,10 +1,21 @@
 #!/bin/bash
 
 KERNEL_DIR=$PWD
-INITRAMFS_SRC_DIR=../sc02c_initramfs
+
+if [ "$1" = "N7000" ];then
+	echo "Build Device GT-N7000"
+	INITRAMFS_SRC_DIR=../n7000_initramfs
+else
+	echo "Build Device SC-02C"
+	INITRAMFS_SRC_DIR=../sc02c_initramfs
+fi
 
 if [ -z "$INITRAMFS_TMP_DIR" ]; then
+if [ "$1" = "N7000" ];then
+	INITRAMFS_TMP_DIR=/tmp/n7000_initramfs
+else
 	INITRAMFS_TMP_DIR=/tmp/sc02c_initramfs
+fi
 fi
 
 cpoy_initramfs()
@@ -32,8 +43,10 @@ case "$BUILD_TARGET" in
   "SAM" ) BUILD_DEFCONFIG=sc02c_samsung_defconfig ;;
   "MULTI" ) BUILD_DEFCONFIG=sc02c_multi_defconfig ;;
   "COMMON" ) BUILD_DEFCONFIG=sc02c_multi_defconfig ;;
+  "N7000" ) BUILD_DEFCONFIG=n7000_samsung_defconfig ;;
   * ) echo "error: not found BUILD_TARGET" && exit -1 ;;
 esac
+
 BIN_DIR=out/$BUILD_TARGET/bin
 OBJ_DIR=out/$BUILD_TARGET/obj
 mkdir -p $BIN_DIR
@@ -45,13 +58,22 @@ if [ -f ./drivers/video/samsung/logo_rgb24_user.h ]; then
 fi
 
 # generate LOCALVERSION
+if [ "$1" = "N7000" ];then
+. mod_version_n7000
+else
 . mod_version
+fi
 
 if [ -n "$BUILD_NUMBER" ]; then
 export KBUILD_BUILD_VERSION="$BUILD_NUMBER"
 fi
 # check and get compiler
+if [ "$1" = "N7000" ];then
+export BUILD_CROSS_COMPILE=/opt/toolchains/arm-eabi-4.4.3/bin/arm-eabi-
+export HAVE_NO_UNALIGNED_ACCESS=y
+else
 . cross_compile
+fi
 
 # set build env
 export ARCH=arm

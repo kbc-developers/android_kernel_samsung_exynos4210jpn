@@ -365,14 +365,18 @@ LINUXINCLUDE    := -I$(srctree)/arch/$(hdr-arch)/include \
 KBUILD_CPPFLAGS := -D__KERNEL__
 
 KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
-		   -fno-strict-aliasing -fno-common -mno-unaligned-access \
+		   -fno-strict-aliasing -fno-common \
 		   -Werror-implicit-function-declaration \
 		   -Wno-format-security \
 		   -fno-delete-null-pointer-checks \
                    -marm -mtune=cortex-a9 -mfpu=neon -march=armv7-a \
-                   -fgraphite-identity -floop-block -ftree-loop-linear \
+
+ifeq ($(HAVE_NO_UNALIGNED_ACCESS),y)
+else
+CFLAGS_MODULE   += -mno-unaligned-access -fgraphite-identity -floop-block -ftree-loop-linear \
                    -floop-strip-mine -ftree-loop-distribution \
                    -fmodulo-sched -fmodulo-sched-allow-regmoves
+endif
 KBUILD_AFLAGS_KERNEL :=
 KBUILD_CFLAGS_KERNEL :=
 KBUILD_AFLAGS   := -D__ASSEMBLY__
