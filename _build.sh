@@ -1,17 +1,18 @@
 #!/bin/bash
 
 KERNEL_DIR=$PWD
+BUILD_DEVICE=$1
 
-if [ "$1" = "N7000" ];then
-	echo "Build Device GT-N7000"
+if [ "$BUILD_DEVICE" = "N7000" ];then
+	echo "=====> Build Device GT-N7000"
 	INITRAMFS_SRC_DIR=../n7000_initramfs
 else
-	echo "Build Device SC-02C"
+	echo "=====> Build Device SC-02C"
 	INITRAMFS_SRC_DIR=../sc02c_initramfs
 fi
 
 if [ -z "$INITRAMFS_TMP_DIR" ]; then
-if [ "$1" = "N7000" ];then
+if [ "$BUILD_DEVICE" = "N7000" ];then
 	INITRAMFS_TMP_DIR=/tmp/n7000_initramfs
 else
 	INITRAMFS_TMP_DIR=/tmp/sc02c_initramfs
@@ -33,7 +34,6 @@ cpoy_initramfs()
   rm -rf $INITRAMFS_TMP_DIR/.git
   find $INITRAMFS_TMP_DIR -name .gitignore | xargs rm
 }
-
 
 # check target
 # (note) MULTI and COM use same defconfig
@@ -58,7 +58,7 @@ if [ -f ./drivers/video/samsung/logo_rgb24_user.h ]; then
 fi
 
 # generate LOCALVERSION
-if [ "$1" = "N7000" ];then
+if [ "$BUILD_DEVICE" = "N7000" ];then
 . mod_version_n7000
 else
 . mod_version
@@ -68,12 +68,7 @@ if [ -n "$BUILD_NUMBER" ]; then
 export KBUILD_BUILD_VERSION="$BUILD_NUMBER"
 fi
 # check and get compiler
-if [ "$1" = "N7000" ];then
-export BUILD_CROSS_COMPILE=/opt/toolchains/arm-eabi-4.4.3/bin/arm-eabi-
-export HAVE_NO_UNALIGNED_ACCESS=y
-else
 . cross_compile
-fi
 
 # set build env
 export ARCH=arm
@@ -165,7 +160,11 @@ fi
 mkdir -p ./tmp/META-INF/com/google/android
 cp zImage ./tmp/
 cp $KERNEL_DIR/release-tools/update-binary ./tmp/META-INF/com/google/android/
+if [ "$BUILD_DEVICE" = "N7000" ];then
+sed -e "s/@VERSION/$BUILD_LOCALVERSION/g" $KERNEL_DIR/release-tools/updater-script-n7000.sed > ./tmp/META-INF/com/google/android/updater-script
+else
 sed -e "s/@VERSION/$BUILD_LOCALVERSION/g" $KERNEL_DIR/release-tools/updater-script.sed > ./tmp/META-INF/com/google/android/updater-script
+fi
 cd tmp && zip -rq ../cwm.zip ./* && cd ../
 SIGNAPK_DIR=$KERNEL_DIR/release-tools/signapk
 java -jar $SIGNAPK_DIR/signapk.jar $SIGNAPK_DIR/testkey.x509.pem $SIGNAPK_DIR/testkey.pk8 cwm.zip $BUILD_LOCALVERSION-signed.zip
