@@ -158,10 +158,10 @@ int main(int argc, char** argv)
     PRINT_VAL(bmpInfoHeader.biClrImporant);
 #endif
 
-    if (bmpInfoHeader.biWidth != 480
-    ||  bmpInfoHeader.biHeight != 800
-    ||  bmpInfoHeader.biBitCount != 24) {
-        fprintf(stderr, "error: bitmap format is not 800x480 24bit.\n");
+    if (bmpInfoHeader.biWidth == 480 && bmpInfoHeader.biHeight == 800 && bmpInfoHeader.biBitCount == 24 );
+    else if (bmpInfoHeader.biWidth == 800 && bmpInfoHeader.biHeight == 1280 && bmpInfoHeader.biBitCount == 24 );
+    else {
+        fprintf(stderr, "error: bitmap format.\n");
         ret = -1;
         goto exit;
     }
