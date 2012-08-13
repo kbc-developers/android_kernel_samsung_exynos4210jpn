@@ -1,3 +1,3 @@
 #!/bin/bash
 
-./_build.sh "N7000" $1 $2
+./_build.sh "N7000SAM" $1 $2
