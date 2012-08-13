@@ -57,7 +57,7 @@
 #include <mach/regs-pmu.h>
 
 
-#if defined(CONFIG_FEATURE_TGS2) && defined(CONFIG_FB_S5P_MDNIE)
+#if defined(CONFIG_FEATURE_TGS2) && defined(CONFIG_FB_S5P_LD9040)
 bool s3cfb_mdnie_force_disable;
 bool s3cfb_mdnie_suspended;
 #endif
@@ -236,7 +236,7 @@ void s3cfb_trigger(void)
 EXPORT_SYMBOL(s3cfb_trigger);
 #endif
 
-#if defined(CONFIG_FEATURE_TGS2) && defined(CONFIG_FB_S5P_MDNIE)
+#if defined(CONFIG_FEATURE_TGS2) && defined(CONFIG_FB_S5P_LD9040)
 static int s3cfb_sysfs_store_mdnie_power(struct device *dev,
 				struct device_attribute *attr,
 				const char *buf, size_t len)
@@ -304,7 +304,7 @@ static int s3cfb_sysfs_store_mdnie_force_disable(struct device *dev,
 static DEVICE_ATTR(mdnie_force_disable, 0664,
 	s3cfb_sysfs_show_mdnie_force_disable, s3cfb_sysfs_store_mdnie_force_disable);
 
-#endif /* defined(CONFIG_FEATURE_TGS2) && defined(CONFIG_FB_S5P_MDNIE) */
+#endif /* defined(CONFIG_FEATURE_TGS2) && defined(CONFIG_FB_S5P_LD9040) */
 
 static int s3cfb_probe(struct platform_device *pdev)
 {
@@ -486,7 +486,7 @@ static int s3cfb_probe(struct platform_device *pdev)
 	if (ret < 0)
 		dev_err(fbdev[0]->dev, "failed to add sysfs entries\n");
 
-#if defined(CONFIG_FEATURE_TGS2) && (CONFIG_FB_S5P_MDNIE)
+#if defined(CONFIG_FEATURE_TGS2) && defined(CONFIG_FB_S5P_LD9040)
 	s3cfb_mdnie_force_disable = false;
 	s3cfb_mdnie_suspended = false;
 
@@ -666,7 +666,7 @@ void s3cfb_early_suspend(struct early_suspend *h)
 
 	printk(KERN_INFO "+%s\n", __func__);
 
-#if defined(CONFIG_FEATURE_TGS2)
+#if defined(CONFIG_FEATURE_TGS2) && defined(CONFIG_FB_S5P_LD9040)
 	s3cfb_mdnie_suspended = true;
 #endif
 
@@ -850,7 +850,7 @@ void s3cfb_late_resume(struct early_suspend *h)
 	s6e8ax0_late_resume();
 #endif
 
-#if defined(CONFIG_FEATURE_TGS2) && defined(CONFIG_FB_S5P_MDNIE)
+#if defined(CONFIG_FEATURE_TGS2) && defined(CONFIG_FB_S5P_LD9040)
 	if (s3cfb_mdnie_force_disable) {
 		for (i = 0; i < FIMD_MAX; i++) {
 			fbdev[i] = fbfimd->fbdev[i];
@@ -865,7 +865,7 @@ void s3cfb_late_resume(struct early_suspend *h)
 	}
 
 	s3cfb_mdnie_suspended = false;
-#endif /* defined(CONFIG_FEATURE_TGS2) && (CONFIG_FB_S5P_MDNIE) */
+#endif /* defined(CONFIG_FEATURE_TGS2) && defined(CONFIG_FB_S5P_LD9040) */
 
 	printk(KERN_INFO "-%s\n", __func__);
 

@@ -124,7 +124,7 @@ int mdnie_send_sequence(struct mdnie_info *mdnie, const unsigned short *seq)
 	s3c_mdnie_mask();
 
 	while (wbuf[i] != END_SEQ) {
-#ifdef CONFIG_FEATURE_TGS2
+#if defined(CONFIG_FEATURE_TGS2) && defined(CONFIG_FB_S5P_LD9040)
 		if (g_mdnie->user_mode != 0x0000) {
 			switch (wbuf[i]) {
 				case 0x0063:
@@ -653,7 +653,7 @@ static ssize_t negative_store(struct device *dev,
 	return count;
 }
 
-#ifdef CONFIG_FEATURE_TGS2
+#if defined(CONFIG_FEATURE_TGS2) && defined(CONFIG_FB_S5P_LD9040)
 static ssize_t user_mode_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -734,7 +734,7 @@ static ssize_t user_cr_store(struct device *dev,
 
 	return size;
 }
-#endif /* CONFIG_FEATURE_TGS2 */
+#endif /* defined(CONFIG_FEATURE_TGS2) && defined(CONFIG_FB_S5P_LD9040) */
 
 static struct device_attribute mdnie_attributes[] = {
 	__ATTR(mode, 0664, mode_show, mode_store),
@@ -745,7 +745,7 @@ static struct device_attribute mdnie_attributes[] = {
 #endif
 	__ATTR(tunning, 0664, tunning_show, tunning_store),
 	__ATTR(negative, 0664, negative_show, negative_store),
-#ifdef CONFIG_FEATURE_TGS2
+#if defined(CONFIG_FEATURE_TGS2) && defined(CONFIG_FB_S5P_LD9040)
 	__ATTR(user_mode, 0666, user_mode_show, user_mode_store),
 	__ATTR(user_cb, 0666, user_cb_show, user_cb_store),
 	__ATTR(user_cr, 0666, user_cr_show, user_cr_store),
@@ -865,7 +865,7 @@ static int mdnie_probe(struct platform_device *pdev)
 	mdnie->enable = TRUE;
 	mdnie->tunning = FALSE;
 	mdnie->negative = NEGATIVE_OFF;
-#ifdef CONFIG_FEATURE_TGS2
+#if defined(CONFIG_FEATURE_TGS2) && defined(CONFIG_FB_S5P_LD9040)
 	mdnie->user_mode = 0x0000;
 	mdnie->user_cb = 0x8000;
 	mdnie->user_cr = 0x0080;
