@@ -1,7 +1,11 @@
 ###########################################################
 # set kernel version
 ###########################################################
+if [ "$BUILD_DEVICE" = "N7000JB" ];then
+TARGET_DEVICE=N7000-JB
+else
 TARGET_DEVICE=N7000-ICS
+fi
 BUILD_MOD=KBC
 BUILD_VERSION=V3.0.0
 
