@@ -1509,4 +1509,4 @@ config PADATA
 
 source "kernel/Kconfig.locks"
 
-source "kernel/Kconfig.custom"
+source "kernel/Kconfig.cust"
