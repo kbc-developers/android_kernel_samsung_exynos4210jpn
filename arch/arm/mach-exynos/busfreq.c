@@ -48,10 +48,12 @@
 #define MAX_LOAD		100
 #define DIVIDING_FACTOR		10000
 #define UP_THRESHOLD_DEFAULT	23
+#define DOWN_THRESHOLD_DEFAULT	23
 
 #define SYSFS_DEBUG_BUSFREQ
 
 static unsigned up_threshold;
+static unsigned down_threshold;
 static struct regulator *int_regulator;
 static struct exynos4_ppmu_hw dmc[2];
 static struct exynos4_ppmu_hw cpu;
@@ -403,7 +405,7 @@ static int busfreq_target(struct busfreq_table *freq_table,
 		target_freq = freq_table[0].mem_clk;
 	} else {
 		target_freq = (ppc_load * freq_table[pre_idx].mem_clk) /
-			up_threshold;
+			down_threshold;
 
 		if (target_freq >= freq_table[pre_idx].mem_clk) {
 			for (i = 0; (freq_table[i].mem_clk != 0); i++) {
@@ -745,28 +747,6 @@ static ssize_t store_time_in_state(struct kobject *kobj,
 static struct global_attr busfreq_time_in_state_attr = __ATTR(busfreq_time_in_state,
 		0644, show_time_in_state, store_time_in_state);
 
-static ssize_t show_up_threshold(struct kobject *kobj,
-		struct attribute *attr, char *buf)
-{
-	return sprintf(buf, "%u\n", up_threshold);
-}
-
-static ssize_t store_up_threshold(struct kobject *kobj,
-		struct attribute *attr, const char *buf, size_t count)
-{
-	int ret;
-
-	ret = sscanf(buf, "%u", &up_threshold);
-	if (ret != 1)
-		return -EINVAL;
-	printk(KERN_ERR "** Up_Threshold is changed to %u **\n", up_threshold);
-
-	return count;
-}
-
-static struct global_attr busfreq_up_threshold_attr = __ATTR(busfreq_up_threshold,
-		0644, show_up_threshold, store_up_threshold);
-
 static void exynos4_update_bus_volt(unsigned int asv_group)
 {
 	unsigned int i;
@@ -845,6 +825,52 @@ static ssize_t store_busfreq_asv_group(struct kobject *kobj,
 static struct global_attr busfreq_asv_group_attr = __ATTR(busfreq_asv_group,
 		0644, show_busfreq_asv_group, store_busfreq_asv_group);
 
+static ssize_t show_busfreq_up_threshold(struct kobject *kobj,
+		struct attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", up_threshold);
+}
+
+static ssize_t store_busfreq_up_threshold(struct kobject *kobj,
+		struct attribute *attr, const char *buf, size_t count)
+{
+	int input;
+
+	sscanf(buf, "%d", &input);
+	if (input < 10 || input > 50)
+		return -EINVAL;
+	else
+		up_threshold = input;
+
+	return count;
+}
+
+static struct global_attr busfreq_up_threshold_attr = __ATTR(busfreq_up_threshold,
+		0644, show_busfreq_up_threshold, store_busfreq_up_threshold);
+
+static ssize_t show_busfreq_down_threshold(struct kobject *kobj,
+		struct attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", down_threshold);
+}
+
+static ssize_t store_busfreq_down_threshold(struct kobject *kobj,
+		struct attribute *attr, const char *buf, size_t count)
+{
+	int input;
+
+	sscanf(buf, "%d", &input);
+	if (input < 10 || input > 50)
+		return -EINVAL;
+	else
+		down_threshold = input;
+
+	return count;
+}
+
+static struct global_attr busfreq_down_threshold_attr = __ATTR(busfreq_down_threshold,
+		0644, show_busfreq_down_threshold, store_busfreq_down_threshold);
+
 static int __init busfreq_mon_init(void)
 {
 	unsigned int i;
@@ -882,6 +908,7 @@ static int __init busfreq_mon_init(void)
 
 	p_idx = LV_0;
 	up_threshold = UP_THRESHOLD_DEFAULT;
+	down_threshold = DOWN_THRESHOLD_DEFAULT;
 
 	tmp = __raw_readl(EXYNOS4_CLKDIV_DMC0);
 
@@ -998,6 +1025,9 @@ static int __init busfreq_mon_init(void)
 #ifdef CONFIG_BUSFREQ_QOS
 	pm_qos_add_notifier(PM_QOS_BUS_QOS, &exynos4_busqos_notifier);
 #endif
+
+	if (sysfs_create_file(cpufreq_global_kobject, &busfreq_down_threshold_attr.attr))
+		pr_err("Failed to create sysfs file(down_threshold)\n");
 
 	return 0;
 
