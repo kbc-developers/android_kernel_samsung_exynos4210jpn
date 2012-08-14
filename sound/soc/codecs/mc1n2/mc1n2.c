@@ -323,7 +323,7 @@ static int mc1n2_current_mode;
 static struct snd_soc_codec *mc1n2_codec;
 #endif
 
-#if defined(CONFIG_FEATURE_TGS2) && defined(CONFIG_FREQ_OVERCLOCK)
+#if defined(CONFIG_FEATURE_TGS2)
 #include <mach/cpufreq.h>
 static int mc1n2_freq_lock = 0;
 #endif
@@ -4014,13 +4014,13 @@ static int mc1n2_hwdep_ioctl_notify(struct snd_soc_codec *codec,
 		}
 		break;
 	case MCDRV_NOTIFY_MEDIA_PLAY_START:
-#if defined(CONFIG_FEATURE_TGS2) && defined(CONFIG_FREQ_OVERCLOCK)
+#if defined(CONFIG_FEATURE_TGS2)
 		if (mc1n2_freq_lock)
-			exynos_cpufreq_lock(DVFS_LOCK_ID_SND, L15); // CPU CLK lower lock 100MHz
+			exynos_cpufreq_lock(DVFS_LOCK_ID_SND, L14); // CPU CLK lower lock 200MHz
 #endif
 		break;
 	case MCDRV_NOTIFY_MEDIA_PLAY_STOP:
-#if defined(CONFIG_FEATURE_TGS2) && defined(CONFIG_FREQ_OVERCLOCK)
+#if defined(CONFIG_FEATURE_TGS2)
 		exynos_cpufreq_lock_free(DVFS_LOCK_ID_SND);
 #endif
 		break;
@@ -5008,7 +5008,6 @@ static ssize_t update_reg_vol(struct device *dev, struct device_attribute *attr,
 
 static DEVICE_ATTR(update_volume, S_IWUGO | S_IRUGO, NULL, update_reg_vol);
 
-#ifdef CONFIG_FREQ_OVERCLOCK
 static ssize_t mc1n2_show_freq_lock(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	return sprintf(buf,"%d\n", mc1n2_freq_lock);
@@ -5024,7 +5023,6 @@ static ssize_t mc1n2_store_freq_lock(struct device *dev, struct device_attribute
 }
 
 static DEVICE_ATTR(freq_lock, S_IWUGO | S_IRUGO, mc1n2_show_freq_lock, mc1n2_store_freq_lock);
-#endif
 #endif /* CONFIG_FEATURE_TGS2 */
 
 void mc1n2_reboot(void)
@@ -5141,11 +5139,9 @@ static int __init mc1n2_init(void)
 	if (device_create_file(sound_mc1n2, &dev_attr_update_volume)< 0) {
 		printk(KERN_ERR "Failed to create device file(%s)!\n", dev_attr_update_volume.attr.name);
 	}
-#ifdef CONFIG_FREQ_OVERCLOCK
 	if (device_create_file(sound_mc1n2, &dev_attr_freq_lock)< 0) {
 		printk(KERN_ERR "Failed to create device file(%s)!\n", dev_attr_freq_lock.attr.name);
 	}
-#endif
 #endif /* CONFIG_FEATURE_TGS2 */
 	return i2c_add_driver(&mc1n2_i2c_driver);
 }
