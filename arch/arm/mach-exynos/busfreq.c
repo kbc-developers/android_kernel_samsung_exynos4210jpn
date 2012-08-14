@@ -57,6 +57,7 @@ static struct exynos4_ppmu_hw dmc[2];
 static struct exynos4_ppmu_hw cpu;
 static unsigned int bus_utilization[2];
 static struct cpufreq_freqs *freqs;
+static unsigned int asv_group;
 
 static unsigned int g_busfreq_lock_id;
 static enum busfreq_level_request g_busfreq_lock_val[DVFS_LOCK_ID_END];
@@ -167,13 +168,15 @@ static unsigned int exynos4_qos_value[BUS_QOS_MAX][LV_END][4] = {
 #endif
 #endif
 
-#define ASV_GROUP	5
+#define ASV_GROUP	7
 static unsigned int exynos4_asv_volt[ASV_GROUP][LV_END] = {
 	{1150000, 1050000, 1050000},
 	{1125000, 1025000, 1025000},
 	{1100000, 1000000, 1000000},
-	{1075000, 975000, 975000},
-	{1050000, 950000, 950000},
+	{1075000,  975000,  975000},
+	{1050000,  950000,  950000},
+	{1025000,  950000,  925000},
+	{1000000,  925000,  900000},
 };
 
 static unsigned int clkdiv_dmc0[LV_END][8] = {
@@ -681,12 +684,9 @@ void exynos4_request_apply(unsigned long freq, struct device *dev)
 	/* not supported yet */
 }
 
-static void __init exynos4_set_bus_volt(void)
+static void __init exynos4_set_bus_volt(unsigned int asv_group)
 {
-	unsigned int asv_group;
 	unsigned int i;
-
-	asv_group = exynos_result_of_asv & 0xF;
 
 	printk(KERN_INFO "DVFS : VDD_INT Voltage table set with %d Group\n", asv_group);
 
@@ -767,6 +767,20 @@ static ssize_t store_up_threshold(struct kobject *kobj,
 static struct global_attr busfreq_up_threshold_attr = __ATTR(busfreq_up_threshold,
 		0644, show_up_threshold, store_up_threshold);
 
+static void exynos4_update_bus_volt(unsigned int asv_group)
+{
+	unsigned int i;
+
+	printk(KERN_INFO "DVFS : VDD_INT Voltage table updated with %d Group\n", asv_group);
+
+	for (i = 0 ; i < LV_END ; i++) {
+		exynos4_busfreq_table[i].volt =
+			exynos4_asv_volt[asv_group][i];
+	}
+
+	return;
+}
+
 static ssize_t show_busfreq_level_lock(struct kobject *kobj,
 		struct attribute *attr, char *buf)
 {
@@ -809,6 +823,27 @@ static ssize_t show_busfreq_level(struct kobject *kobj,
 static struct global_attr busfreq_level_attr = __ATTR(busfreq_current_level,
 		S_IRUGO, show_busfreq_level, NULL);
 #endif
+
+static ssize_t show_busfreq_asv_group(struct kobject *kobj,
+		struct attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", asv_group);
+}
+
+static ssize_t store_busfreq_asv_group(struct kobject *kobj,
+		struct attribute *attr, const char *buf, size_t count)
+{
+	sscanf(buf, "%d", &asv_group);
+	if (asv_group < 0 || asv_group > 6)
+		return -EINVAL;
+	else
+		exynos4_update_bus_volt(asv_group);
+
+	return count;
+}
+
+static struct global_attr busfreq_asv_group_attr = __ATTR(busfreq_asv_group,
+		0644, show_busfreq_asv_group, store_busfreq_asv_group);
 
 static int __init busfreq_mon_init(void)
 {
@@ -890,7 +925,8 @@ static int __init busfreq_mon_init(void)
 		exynos4_busfreq_table[i].clk_topdiv = tmp;
 	}
 
-	exynos4_set_bus_volt();
+	asv_group = exynos_result_of_asv & 0xF;
+	exynos4_set_bus_volt(asv_group);
 
 	int_regulator = regulator_get(NULL, "vdd_int");
 	if (IS_ERR(int_regulator)) {
@@ -954,6 +990,10 @@ static int __init busfreq_mon_init(void)
 
 	if (sysfs_create_file(cpufreq_global_kobject, &busfreq_level_attr.attr))
 		pr_err("Failed to create sysfs file(level)\n");
+
+	if (sysfs_create_file(cpufreq_global_kobject, &busfreq_asv_group_attr.attr))
+		pr_err("Failed to create sysfs file(asv_group)\n");
+
 #endif
 #ifdef CONFIG_BUSFREQ_QOS
 	pm_qos_add_notifier(PM_QOS_BUS_QOS, &exynos4_busqos_notifier);
