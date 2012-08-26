@@ -33,6 +33,14 @@ cpoy_initramfs()
   cp -a $INITRAMFS_SRC_DIR $INITRAMFS_TMP_DIR
   rm -rf $INITRAMFS_TMP_DIR/.git
   find $INITRAMFS_TMP_DIR -name .gitignore | xargs rm
+
+
+  if [ "$BUILD_DEVICE" = "MULTI" ]; then
+	IS_MODE=1
+  else
+    IS_MODE=0
+  fi
+  sed -i -e s/IS_MODE=./IS_MODE=$IS_MODE/g $INITRAMFS_TMP_DIR/init
 }
 
 # check target
