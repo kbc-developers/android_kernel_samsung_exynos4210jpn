@@ -276,15 +276,27 @@ static int k3dh_accel_disable(struct k3dh_data *data)
 /*  open command for K3DH device file  */
 static int k3dh_open(struct inode *inode, struct file *file)
 {
+#if 0
 	k3dh_infomsg("is called.\n");
 	return 0;
+#else
+	struct k3dh_data *k3dh = container_of(file->private_data,
+						struct k3dh_data,
+						k3dh_device);
+	return k3dh_accel_enable(k3dh);
+#endif
 }
 
 /*  release command for K3DH device file */
 static int k3dh_close(struct inode *inode, struct file *file)
 {
+#if 0
 	k3dh_infomsg("is called.\n");
 	return 0;
+#else
+	struct k3dh_data *k3dh = file->private_data;
+	return k3dh_accel_disable(k3dh);
+#endif
 }
 
 static s64 k3dh_get_delay(struct k3dh_data *data)
@@ -347,6 +359,7 @@ static long k3dh_ioctl(struct file *file,
 
 	/* cmd mapping */
 	switch (cmd) {
+#if 0
 	case K3DH_IOCTL_SET_ENABLE:
 		if (copy_from_user(&enable, (void __user *)arg,
 					sizeof(enable)))
@@ -358,6 +371,7 @@ static long k3dh_ioctl(struct file *file,
 		else
 			err = k3dh_accel_disable(data);
 		break;
+#endif
 	case K3DH_IOCTL_SET_DELAY:
 		if (copy_from_user(&delay_ns, (void __user *)arg,
 					sizeof(delay_ns)))
