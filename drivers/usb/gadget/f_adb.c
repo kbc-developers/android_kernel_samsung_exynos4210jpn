@@ -57,6 +57,11 @@ struct adb_dev {
 	int rx_done;
 };
 
+#ifdef CONFIG_FEATURE_AOSP
+static void adb_ready_callback(void);
+static void adb_closed_callback(void);
+#endif
+
 static struct usb_interface_descriptor adb_interface_desc = {
 	.bLength                = USB_DT_INTERFACE_SIZE,
 	.bDescriptorType        = USB_DT_INTERFACE,
@@ -441,7 +446,11 @@ static ssize_t adb_write(struct file *fp, const char __user *buf,
 
 static int adb_open(struct inode *ip, struct file *fp)
 {
+#ifdef CONFIG_FEATURE_AOSP
+	pr_info("adb_open\n");
+#else
 	printk(KERN_INFO "adb_open\n");
+#endif
 	if (!_adb_dev)
 		return -ENODEV;
 
@@ -453,12 +462,20 @@ static int adb_open(struct inode *ip, struct file *fp)
 	/* clear the error latch */
 	_adb_dev->error = 0;
 
+#ifdef CONFIG_FEATURE_AOSP
+    adb_ready_callback();
+#endif
 	return 0;
 }
 
 static int adb_release(struct inode *ip, struct file *fp)
 {
+#ifdef CONFIG_FEATURE_AOSP
+	pr_info("adb_release\n");
+    adb_closed_callback();
+#else
 	printk(KERN_INFO "adb_release\n");
+#endif
 	adb_unlock(&_adb_dev->open_excl);
 	return 0;
 }
