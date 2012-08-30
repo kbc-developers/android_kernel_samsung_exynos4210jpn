@@ -278,6 +278,9 @@ static int k3dh_open(struct inode *inode, struct file *file)
 {
 #if 0
 	k3dh_infomsg("is called.\n");
+    struct k3dh_data *data = container_of(file->private_data,
+            struct k3dh_data, k3dh_device);
+    k3dh_accel_enable(data);
 	return 0;
 #else
 	struct k3dh_data *k3dh = container_of(file->private_data,
@@ -292,6 +295,9 @@ static int k3dh_close(struct inode *inode, struct file *file)
 {
 #if 0
 	k3dh_infomsg("is called.\n");
+    struct k3dh_data *data = container_of(file->private_data,
+        struct k3dh_data, k3dh_device);
+    k3dh_accel_disable(data);
 	return 0;
 #else
 	struct k3dh_data *k3dh = file->private_data;
