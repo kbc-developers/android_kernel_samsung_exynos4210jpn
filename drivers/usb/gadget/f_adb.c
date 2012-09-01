@@ -57,7 +57,7 @@ struct adb_dev {
 	int rx_done;
 };
 
-#ifdef CONFIG_FEATURE_AOSP
+#ifdef CONFIG_BUILD_TARGET_AOSP
 static void adb_ready_callback(void);
 static void adb_closed_callback(void);
 #endif
@@ -446,7 +446,7 @@ static ssize_t adb_write(struct file *fp, const char __user *buf,
 
 static int adb_open(struct inode *ip, struct file *fp)
 {
-#ifdef CONFIG_FEATURE_AOSP
+#ifdef CONFIG_BUILD_TARGET_AOSP
 	pr_info("adb_open\n");
 #else
 	printk(KERN_INFO "adb_open\n");
@@ -462,7 +462,7 @@ static int adb_open(struct inode *ip, struct file *fp)
 	/* clear the error latch */
 	_adb_dev->error = 0;
 
-#ifdef CONFIG_FEATURE_AOSP
+#ifdef CONFIG_BUILD_TARGET_AOSP
     adb_ready_callback();
 #endif
 	return 0;
@@ -470,7 +470,7 @@ static int adb_open(struct inode *ip, struct file *fp)
 
 static int adb_release(struct inode *ip, struct file *fp)
 {
-#ifdef CONFIG_FEATURE_AOSP
+#ifdef CONFIG_BUILD_TARGET_AOSP
 	pr_info("adb_release\n");
     adb_closed_callback();
 #else
