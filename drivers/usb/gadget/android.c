@@ -33,6 +33,8 @@
 
 #include "gadget_chips.h"
 
+static int feature_aosp_rom = 0;
+
 /*
  * Kbuild is not very cooperative with respect to linking separately
  * compiled library objects into one module.  So for now we won't use
@@ -97,12 +99,11 @@ struct android_usb_function {
 	int (*init)(struct android_usb_function *, struct usb_composite_dev *);
 	/* Optional: cleanup during gadget unbind */
 	void (*cleanup)(struct android_usb_function *);
-#ifdef CONFIG_BUILD_TARGET_AOSP
-    /* Optional: called when the function is added the list of enabled functions */
-    void (*enable)(struct android_usb_function *);
-    /* Optional: called when it is removed */
-    void (*disable)(struct android_usb_function *);
-#endif
+
+	/* Optional: called when the function is added the list of enabled functions */
+	void (*enable)(struct android_usb_function *);
+	/* Optional: called when it is removed */
+	void (*disable)(struct android_usb_function *);
 
 	int (*bind_config)(struct android_usb_function *, struct usb_configuration *);
 
@@ -121,9 +122,7 @@ struct android_dev {
 	struct device *dev;
 
 	bool enabled;
-#ifdef CONFIG_BUILD_TARGET_AOSP
 	int disable_depth;
-#endif
 	struct mutex mutex;
 	bool connected;
 	bool sw_connected;
@@ -211,24 +210,20 @@ static void android_work(struct work_struct *data)
 
 	if (uevent_envp) {
 		kobject_uevent_env(&dev->dev->kobj, KOBJ_CHANGE, uevent_envp);
-#ifdef CONFIG_BUILD_TARGET_AOSP
-		pr_info("%s: sent uevent %s\n", __func__, uevent_envp[0]);
-#else
-		printk(KERN_DEBUG "usb: %s sent uevent %s\n",
-			 __func__, uevent_envp[0]);
-#endif
+		if (feature_aosp_rom)
+			pr_info("%s: sent uevent %s\n", __func__, uevent_envp[0]);
+		else
+			printk(KERN_DEBUG "usb: %s sent uevent %s\n", __func__, uevent_envp[0]);
 	} else {
-#ifdef CONFIG_BUILD_TARGET_AOSP
-		pr_info("%s: did not send uevent (%d %d %p)\n", __func__,
-			 dev->connected, dev->sw_connected, cdev->config);
-#else
-		printk(KERN_DEBUG "usb: %s did not send uevent (%d %d %p)\n",
-		 __func__, dev->connected, dev->sw_connected, cdev->config);
-#endif
+		if (feature_aosp_rom)
+			pr_info("%s: did not send uevent (%d %d %p)\n", __func__,
+				 dev->connected, dev->sw_connected, cdev->config);
+		else		
+			printk(KERN_DEBUG "usb: %s did not send uevent (%d %d %p)\n",
+			 __func__, dev->connected, dev->sw_connected, cdev->config);
 	}
 }
 
-#ifdef CONFIG_BUILD_TARGET_AOSP
 static void android_enable(struct android_dev *dev)
 {
 	struct usb_composite_dev *cdev = dev->cdev;
@@ -254,34 +249,27 @@ static void android_disable(struct android_dev *dev)
 		usb_remove_config(cdev, &android_config_driver);
 	}
 }
-#endif
 
 /*-------------------------------------------------------------------------*/
 /* Supported functions initialization */
 
-#ifdef CONFIG_BUILD_TARGET_AOSP
 struct adb_data {
 	bool opened;
 	bool enabled;
 };
-#endif
 
 static int adb_function_init(struct android_usb_function *f, struct usb_composite_dev *cdev)
 {
-#ifdef CONFIG_BUILD_TARGET_AOSP
-    f->config = kzalloc(sizeof(struct adb_data), GFP_KERNEL);
-    if (!f->config)
-        return -ENOMEM;
-#endif
+	f->config = kzalloc(sizeof(struct adb_data), GFP_KERNEL);
+	if (!f->config)
+		return -ENOMEM;
 	return adb_setup();
 }
 
 static void adb_function_cleanup(struct android_usb_function *f)
 {
 	adb_cleanup();
-#ifdef CONFIG_BUILD_TARGET_AOSP
 	kfree(f->config);
-#endif
 }
 
 static int adb_function_bind_config(struct android_usb_function *f, struct usb_configuration *c)
@@ -289,7 +277,6 @@ static int adb_function_bind_config(struct android_usb_function *f, struct usb_c
 	return adb_bind_config(c);
 }
 
-#ifdef CONFIG_BUILD_TARGET_AOSP
 static void adb_android_function_enable(struct android_usb_function *f)
 {
 	struct android_dev *dev = _android_dev;
@@ -313,20 +300,16 @@ static void adb_android_function_disable(struct android_usb_function *f)
 	if (!data->opened)
 		android_enable(dev);
 }
-#endif
 
 static struct android_usb_function adb_function = {
 	.name		= "adb",
-#ifdef CONFIG_BUILD_TARGET_AOSP
 	.enable		= adb_android_function_enable,
 	.disable	= adb_android_function_disable,
-#endif
 	.init		= adb_function_init,
 	.cleanup	= adb_function_cleanup,
 	.bind_config	= adb_function_bind_config,
 };
 
-#ifdef CONFIG_BUILD_TARGET_AOSP
 static void adb_ready_callback(void)
 {
 	struct android_dev *dev = _android_dev;
@@ -356,7 +339,6 @@ static void adb_closed_callback(void)
 
 	mutex_unlock(&dev->mutex);
 }
-#endif
 
 
 #define MAX_ACM_INSTANCES 4
@@ -814,53 +796,54 @@ static int mass_storage_function_init(struct android_usb_function *f,
 	} else {
 #endif
 
-#ifdef CONFIG_BUILD_TARGET_AOSP
-        // default number of luns
-        config->fsg.nluns = 2;
-        for (i = 0; i < config->fsg.nluns; i++) {
-            config->fsg.luns[i].removable = 1;
-            config->fsg.luns[i].nofua = 1;
-        }
-        common = fsg_common_init(NULL, cdev, &config->fsg);
-        if (IS_ERR(common)) {
-            kfree(config);
-            return PTR_ERR(common);
-        }
+		if (feature_aosp_rom) {
+			// default number of luns
+			config->fsg.nluns = 2;
+			for (i = 0; i < config->fsg.nluns; i++) {
+				config->fsg.luns[i].removable = 1;
+				config->fsg.luns[i].nofua = 1;
+			}
+			common = fsg_common_init(NULL, cdev, &config->fsg);
+			if (IS_ERR(common)) {
+				kfree(config);
+				return PTR_ERR(common);
+			}
 
-        for (i = 0; i < config->fsg.nluns; i++) {
-            char luns[5];
-            err = snprintf(luns, 5, "lun%d", i);
-            if (err == 0) {
-                printk(KERN_ERR "usb: %s snprintf error\n", __func__);
-                return err;
-            }
-            err = sysfs_create_link(&f->dev->kobj,
-                        &common->luns[i].dev.kobj,
-                        luns);
-            if (err) {
-                kfree(config);
-                return err;
-            }
-#else
-		/* original mainline code */
-		printk(KERN_DEBUG "usb: %s pdata is not available. nluns=1\n",
-				__func__);
-		config->fsg.nluns = 1;
-		config->fsg.luns[0].removable = 1;
+			for (i = 0; i < config->fsg.nluns; i++) {
+				char luns[5];
+				err = snprintf(luns, 5, "lun%d", i);
+				if (err == 0) {
+					printk(KERN_ERR "usb: %s snprintf error\n", __func__);
+					return err;
+				}
+				err = sysfs_create_link(&f->dev->kobj,
+							&common->luns[i].dev.kobj,
+							luns);
+				if (err) {
+					kfree(config);
+					return err;
+				}
+			}
+		} else {
+			/* original mainline code */
+			printk(KERN_DEBUG "usb: %s pdata is not available. nluns=1\n",
+					__func__);
+			config->fsg.nluns = 1;
+			config->fsg.luns[0].removable = 1;
 
-		common = fsg_common_init(NULL, cdev, &config->fsg);
-		if (IS_ERR(common)) {
-			kfree(config);
-			return PTR_ERR(common);
-		}
+			common = fsg_common_init(NULL, cdev, &config->fsg);
+			if (IS_ERR(common)) {
+				kfree(config);
+				return PTR_ERR(common);
+			}
 
-		err = sysfs_create_link(&f->dev->kobj,
-				&common->luns[0].dev.kobj,
-				"lun");
-		if (err) {
-			kfree(config);
-			return err;
-#endif
+			err = sysfs_create_link(&f->dev->kobj,
+					&common->luns[0].dev.kobj,
+					"lun");
+			if (err) {
+				kfree(config);
+				return err;
+			}
 		}
 #ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
 	}
@@ -1322,9 +1305,7 @@ static ssize_t enable_store(struct device *pdev, struct device_attribute *attr,
 {
 	struct android_dev *dev = dev_get_drvdata(pdev);
 	struct usb_composite_dev *cdev = dev->cdev;
-#ifdef CONFIG_BUILD_TARGET_AOSP
 	struct android_usb_function *f;
-#endif
 	int enabled = 0;
 
 	mutex_lock(&dev->mutex);
@@ -1371,17 +1352,17 @@ static ssize_t enable_store(struct device *pdev, struct device_attribute *attr,
 				cdev->desc.bDeviceProtocol);
 		printk(KERN_DEBUG "usb: %s next cmd : usb_add_config\n",
 				__func__);
-#ifdef CONFIG_BUILD_TARGET_AOSP
-		list_for_each_entry(f, &dev->enabled_functions, enabled_list) {
-			if (f->enable)
-				f->enable(f);
+		if (feature_aosp_rom) {
+			list_for_each_entry(f, &dev->enabled_functions, enabled_list) {
+				if (f->enable)
+					f->enable(f);
+			}
+			android_enable(dev);
+		} else {
+			usb_add_config(cdev, &android_config_driver,
+						android_bind_config);
+			usb_gadget_connect(cdev->gadget);
 		}
-		android_enable(dev);
-#else
-		usb_add_config(cdev, &android_config_driver,
-					android_bind_config);
-		usb_gadget_connect(cdev->gadget);
-#endif
 		dev->enabled = true;
 	} else if (!enabled && dev->enabled) {
 #ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
@@ -1390,18 +1371,18 @@ static ssize_t enable_store(struct device *pdev, struct device_attribute *attr,
 		 */
 		cdev->mute_switch = true;
 #endif
-#ifdef CONFIG_BUILD_TARGET_AOSP
-		android_disable(dev);
-		list_for_each_entry(f, &dev->enabled_functions, enabled_list) {
-			if (f->disable)
-				f->disable(f);
+		if (feature_aosp_rom) {
+			android_disable(dev);
+			list_for_each_entry(f, &dev->enabled_functions, enabled_list) {
+				if (f->disable)
+					f->disable(f);
+			}
+		} else {
+			usb_gadget_disconnect(cdev->gadget);
+			/* Cancel pending control requests */
+			usb_ep_dequeue(cdev->gadget->ep0, cdev->req);
+			usb_remove_config(cdev, &android_config_driver);
 		}
-#else
-		usb_gadget_disconnect(cdev->gadget);
-		/* Cancel pending control requests */
-		usb_ep_dequeue(cdev->gadget->ep0, cdev->req);
-		usb_remove_config(cdev, &android_config_driver);
-#endif
 		dev->enabled = false;
 		mdelay(5);
 	} else if (!enabled) {
@@ -1758,7 +1739,9 @@ int late_init_android_gadget(int romtype)
 	struct android_dev *dev;
 	int err;
 
-	printk(KERN_DEBUG "%s\n", __func__);
+	feature_aosp_rom = romtype;
+
+	printk(KERN_DEBUG "%s romtype=%d\n", __func__, romtype);
 	android_class = class_create(THIS_MODULE, "android_usb");
 	if (IS_ERR(android_class))
 		return PTR_ERR(android_class);
@@ -1767,9 +1750,9 @@ int late_init_android_gadget(int romtype)
 	if (!dev)
 		return -ENOMEM;
 
-#ifdef CONFIG_BUILD_TARGET_AOSP
-	dev->disable_depth = 1;
-#endif
+	if (feature_aosp_rom)
+		dev->disable_depth = 1;
+
 	if(!romtype) dev->functions = supported3sung_functions;
 	else dev->functions = supported_functions;
 	INIT_LIST_HEAD(&dev->enabled_functions);
