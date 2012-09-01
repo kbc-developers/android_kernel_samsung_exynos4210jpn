@@ -57,10 +57,8 @@ struct adb_dev {
 	int rx_done;
 };
 
-#ifdef CONFIG_BUILD_TARGET_AOSP
 static void adb_ready_callback(void);
 static void adb_closed_callback(void);
-#endif
 
 static struct usb_interface_descriptor adb_interface_desc = {
 	.bLength                = USB_DT_INTERFACE_SIZE,
