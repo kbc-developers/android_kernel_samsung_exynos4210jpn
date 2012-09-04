@@ -40,7 +40,12 @@ cpoy_initramfs()
   else
     IS_MODE=0
   fi
-  sed -i -e s/IS_MODE=./IS_MODE=$IS_MODE/g $INITRAMFS_TMP_DIR/init
+
+  if [ -z `grep IS_MODE= $INITRAMFS_TMP_DIR/init` ]; then
+    sed -i -e s/BOOT_MODE=./BOOT_MODE=$IS_MODE/g $INITRAMFS_TMP_DIR/init    
+  else
+    sed -i -e s/IS_MODE=./IS_MODE=$IS_MODE/g $INITRAMFS_TMP_DIR/init
+  fi
 }
 
 # check target
