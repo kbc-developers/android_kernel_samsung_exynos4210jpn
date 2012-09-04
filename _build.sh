@@ -24,7 +24,7 @@ cpoy_initramfs()
   echo copy to $INITRAMFS_TMP_DIR ... $(dirname $INITRAMFS_TMP_DIR)
   
   if [ ! -d $(dirname $INITRAMFS_TMP_DIR) ]; then
-	mkdir -p $(dirname $INITRAMFS_TMP_DIR)
+    mkdir -p $(dirname $INITRAMFS_TMP_DIR)
   fi
 
   if [ -d $INITRAMFS_TMP_DIR ]; then
@@ -36,15 +36,15 @@ cpoy_initramfs()
 
 
   if [ "$BUILD_DEVICE" = "MULTI" ]; then
-	IS_MODE=1
+    BOOT_MODE=1
   else
-    IS_MODE=0
+    BOOT_MODE=0
   fi
 
   if [ -z `grep IS_MODE= $INITRAMFS_TMP_DIR/init` ]; then
-    sed -i -e s/BOOT_MODE=./BOOT_MODE=$IS_MODE/g $INITRAMFS_TMP_DIR/init    
+    sed -i -e s/BOOT_MODE=./BOOT_MODE=$BOOT_MODE/g $INITRAMFS_TMP_DIR/init    
   else
-    sed -i -e s/IS_MODE=./IS_MODE=$IS_MODE/g $INITRAMFS_TMP_DIR/init
+    sed -i -e s/IS_MODE=./IS_MODE=$BOOT_MODE/g $INITRAMFS_TMP_DIR/init
   fi
 }
 
