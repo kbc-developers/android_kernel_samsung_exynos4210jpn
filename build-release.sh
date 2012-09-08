@@ -1,6 +1,11 @@
 #!/bin/bash
 
+BUILD_TYPE=$1
+RELEASE_DIR=$2
+
 KERNEL_DIR=$PWD
+
+
 
 if [ -f $KERNEL_DIR/release.conf ]; then
 	BUILD_SAM=`grep BUILD_SAM $KERNEL_DIR/release.conf | cut -d'=' -f2`
@@ -28,60 +33,62 @@ fi
 
 cd $KERNEL_DIR
 
-read -p "select build type? [(r)elease/(n)ightly] " BUILD_TYPE
+if [ -z "$BUILD_TYPE" ]; then
+	read -p "select build type? [(r)elease/(n)ightly] " BUILD_TYPE
+fi
 if [ "$BUILD_TYPE" = 'release' -o "$BUILD_TYPE" = 'r' ]; then
   export RELEASE_BUILD=y
 else
   unset RELEASE_BUILD
 fi
+. mod_version
 
 # create release dir＿
-RELEASE_DIR=../release/`date +%Y%m%d`
+if [ -z $RELEASE_DIR ]; then
+  RELEASE_DIR=../release
+fi
+RELEASE_DIR=$RELEASE_DIR/$BUILD_VERSION
 mkdir -p $RELEASE_DIR
-
+echo $RELEASE_DIR
 
 # build for samsung
 if [ $BUILD_SAM == 1 ]; then
-	bash ./build-samsung.sh a $1
+	bash ./build-samsung.sh a
 	if [ $? != 0 ]; then
 	  echo 'error: samsung build fail'
 	  exit -1
 	fi
-	mkdir $RELEASE_DIR/SAM
-	cp -v ./out/SAM/bin/* $RELEASE_DIR/SAM/
+	cp -v ./out/SAM/bin/* $RELEASE_DIR/
 fi
 
 # build for aosp
 if [ $BUILD_AOSP == 1 ]; then
-	bash ./build-aosp.sh a $1
+	bash ./build-aosp.sh a
 	if [ $? != 0 ]; then
 	  echo 'error: aosp build fail'
 	  exit -1
 	fi
-	mkdir $RELEASE_DIR/AOSP
-	cp -v ./out/AOSP/bin/* $RELEASE_DIR/AOSP
+	cp -v ./out/AOSP/bin/* $RELEASE_DIR/
 fi
 
 # build for common
 if [ $BUILD_COMMON == 1 ]; then
-	bash ./build-common.sh a $1
+	bash ./build-common.sh a
 	if [ $? != 0 ]; then
 	  echo 'error: common build fail'
 	  exit -1
 	fi
-	mkdir $RELEASE_DIR/COMMON
-	cp -v ./out/COMMON/bin/* $RELEASE_DIR/COMMON
+	cp -v ./out/COMMON/bin/* $RELEASE_DIR/
 fi
 
 # build for multiboot
 if [ $BUILD_MULTI == 1 ]; then
-	bash ./build-multi.sh a $1
+	bash ./build-multi.sh a
 	if [ $? != 0 ]; then
 	  echo 'error: multi build fail'
 	  exit -1
 	fi
-	mkdir $RELEASE_DIR/MULTI
-	cp -v ./out/MULTI/bin/* $RELEASE_DIR/MULTI
+	cp -v ./out/MULTI/bin/* $RELEASE_DIR/
 fi
 
 

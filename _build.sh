@@ -187,11 +187,8 @@ rm cwm.zip
 rm -rf tmp
 echo "  $BIN_DIR/$BUILD_LOCALVERSION-signed.zip"
 
-# rename zImage for multiboot
-if [ "$BUILD_TARGET" = "MULTI" ]; then
-    echo "  rename $BIN_DIR/zImage => $BIN_DIR/zImage_ics"
-    cp $KERNEL_DIR/$BIN_DIR/zImage $KERNEL_DIR/$BIN_DIR/zImage_ics
-fi
+#cleanup
+rm $KERNEL_DIR/$BIN_DIR/zImage
 
 cd $KERNEL_DIR
 echo ""
