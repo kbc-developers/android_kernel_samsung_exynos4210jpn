@@ -1511,6 +1511,7 @@ shrink_inactive_list(unsigned long nr_to_scan, struct zone *zone,
 	unsigned long nr_taken;
 	unsigned long nr_anon;
 	unsigned long nr_file;
+	isolate_mode_t reclaim_mode = ISOLATE_INACTIVE;
 #ifdef CONFIG_ZRAM_FOR_ANDROID
 	struct timeval start, end;
 #endif /* CONFIG_ZRAM_FOR_ANDROID */
