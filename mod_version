@@ -3,7 +3,7 @@
 ###########################################################
 TARGET_DEVICE=SC02C-JB
 BUILD_MOD=KBC
-BUILD_VERSION=V3.0.0
+BUILD_VERSION=V5.0.0
 
 
 ###########################################################
@@ -21,6 +21,11 @@ export KBUILD_BUILD_HOST="KBC"
 # release build
 if [ ! "$RELEASE_BUILD" = 'y' ]; then
   BUILD_VERSION=`date +%Y%m%d`
+  
+  if [ -n "$BUILD_NUMBER" ]; then
+    BUILD_VERSION=`date +%Y%m%d`"#$BUILD_NUMBER"
+    export KBUILD_BUILD_VERSION="$BUILD_NUMBER"
+  fi
 fi
 export BUILD_LOCALVERSION="$TARGET_DEVICE-$BUILD_MOD-$BUILD_VERSION-$BUILD_TARGET"
 

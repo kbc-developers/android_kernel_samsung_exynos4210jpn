@@ -1,10 +1,22 @@
 #!/bin/bash
 
 KERNEL_DIR=$PWD
-INITRAMFS_SRC_DIR=../sc02c_initramfs
+export BUILD_DEVICE=$1
+
+if [ "$BUILD_DEVICE" = "N7000SAM" -o "$BUILD_DEVICE" = "N7000AOSP" -o "$BUILD_DEVICE" = "N7000JB" ];then
+	echo "=====> Build Device GT-N7000"
+	INITRAMFS_SRC_DIR=../n7000_initramfs
+else
+	echo "=====> Build Device SC-02C"
+	INITRAMFS_SRC_DIR=../sc02c_initramfs
+fi
 
 if [ -z "$INITRAMFS_TMP_DIR" ]; then
+if [ "$BUILD_DEVICE" = "N7000SAM" -o "$BUILD_DEVICE" = "N7000AOSP" -o "$BUILD_DEVICE" = "N7000JB" ];then
+	INITRAMFS_TMP_DIR=/tmp/n7000_initramfs
+else
 	INITRAMFS_TMP_DIR=/tmp/sc02c_initramfs
+fi
 fi
 
 cpoy_initramfs()
@@ -12,7 +24,7 @@ cpoy_initramfs()
   echo copy to $INITRAMFS_TMP_DIR ... $(dirname $INITRAMFS_TMP_DIR)
   
   if [ ! -d $(dirname $INITRAMFS_TMP_DIR) ]; then
-	mkdir -p $(dirname $INITRAMFS_TMP_DIR)
+    mkdir -p $(dirname $INITRAMFS_TMP_DIR)
   fi
 
   if [ -d $INITRAMFS_TMP_DIR ]; then
@@ -24,13 +36,17 @@ cpoy_initramfs()
 
 
   if [ "$BUILD_DEVICE" = "MULTI" ]; then
-	IS_MODE=1
+    BOOT_MODE=1
   else
-    IS_MODE=0
+    BOOT_MODE=0
   fi
-  sed -i -e s/IS_MODE=./IS_MODE=$IS_MODE/g $INITRAMFS_TMP_DIR/init
-}
 
+  if [ -z `grep IS_MODE= $INITRAMFS_TMP_DIR/init` ]; then
+    sed -i -e s/BOOT_MODE=./BOOT_MODE=$BOOT_MODE/g $INITRAMFS_TMP_DIR/init    
+  else
+    sed -i -e s/IS_MODE=./IS_MODE=$BOOT_MODE/g $INITRAMFS_TMP_DIR/init
+  fi
+}
 
 # check target
 # (note) MULTI and COM use same defconfig
@@ -40,8 +56,12 @@ case "$BUILD_TARGET" in
   "SAM" ) BUILD_DEFCONFIG=sc02c_samsung_defconfig ;;
   "MULTI" ) BUILD_DEFCONFIG=sc02c_multi_defconfig ;;
   "COMMON" ) BUILD_DEFCONFIG=sc02c_multi_defconfig ;;
+  "N7000SAM" ) BUILD_DEFCONFIG=n7000_samsung_defconfig ;;
+  "N7000AOSP" ) BUILD_DEFCONFIG=n7000_aosp_defconfig ;;
+  "N7000JB" ) BUILD_DEFCONFIG=n7000_aosp_defconfig ;;
   * ) echo "error: not found BUILD_TARGET" && exit -1 ;;
 esac
+
 BIN_DIR=out/$BUILD_TARGET/bin
 OBJ_DIR=out/$BUILD_TARGET/obj
 mkdir -p $BIN_DIR
@@ -53,7 +73,11 @@ if [ -f ./drivers/video/samsung/logo_rgb24_user.h ]; then
 fi
 
 # generate LOCALVERSION
+if [ "$BUILD_DEVICE" = "N7000SAM" -o "$BUILD_DEVICE" = "N7000AOSP" -o "$BUILD_DEVICE" = "N7000JB" ];then
+. mod_version_n7000
+else
 . mod_version
+fi
 
 if [ -n "$BUILD_NUMBER" ]; then
 export KBUILD_BUILD_VERSION="$BUILD_NUMBER"
@@ -151,7 +175,11 @@ fi
 mkdir -p ./tmp/META-INF/com/google/android
 cp zImage ./tmp/
 cp $KERNEL_DIR/release-tools/update-binary ./tmp/META-INF/com/google/android/
+if [ "$BUILD_DEVICE" = "N7000SAM" -o "$BUILD_DEVICE" = "N7000AOSP" -o "$BUILD_DEVICE" = "N7000JB" ];then
+sed -e "s/@VERSION/$BUILD_LOCALVERSION/g" $KERNEL_DIR/release-tools/updater-script-n7000.sed > ./tmp/META-INF/com/google/android/updater-script
+else
 sed -e "s/@VERSION/$BUILD_LOCALVERSION/g" $KERNEL_DIR/release-tools/updater-script.sed > ./tmp/META-INF/com/google/android/updater-script
+fi
 cd tmp && zip -rq ../cwm.zip ./* && cd ../
 SIGNAPK_DIR=$KERNEL_DIR/release-tools/signapk
 java -jar $SIGNAPK_DIR/signapk.jar $SIGNAPK_DIR/testkey.x509.pem $SIGNAPK_DIR/testkey.pk8 cwm.zip $BUILD_LOCALVERSION-signed.zip
@@ -159,11 +187,8 @@ rm cwm.zip
 rm -rf tmp
 echo "  $BIN_DIR/$BUILD_LOCALVERSION-signed.zip"
 
-# rename zImage for multiboot
-if [ "$BUILD_TARGET" = "MULTI" ]; then
-    echo "  rename $BIN_DIR/zImage => $BIN_DIR/zImage_ics"
-    cp $KERNEL_DIR/$BIN_DIR/zImage $KERNEL_DIR/$BIN_DIR/zImage_ics
-fi
+#cleanup
+rm $KERNEL_DIR/$BIN_DIR/zImage
 
 cd $KERNEL_DIR
 echo ""
