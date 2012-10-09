@@ -18,11 +18,7 @@
 
 #include "mali_osk.h"
 
-#ifdef CONFIG_CPU_EXYNOS4210
 #define MALI_DVFS_STEPS 4
-#else
-#define MALI_DVFS_STEPS 4
-#endif
 
 #if !USING_MALI_PMM
 /* @brief System power up/down cores that can be passed into mali_platform_powerdown/up() */
@@ -145,6 +141,7 @@ void mali_default_step_set(int step, mali_bool boostup);
 int change_dvfs_tableset(int change_clk, int change_step);
 int mali_dvfs_bottom_lock_push(int lock_step);
 int mali_dvfs_bottom_lock_pop(void);
+#endif
 
 #if MALI_VOLTAGE_LOCK
 int mali_voltage_lock_push(int lock_vol);
