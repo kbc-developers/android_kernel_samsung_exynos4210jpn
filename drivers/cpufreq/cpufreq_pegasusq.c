@@ -233,7 +233,7 @@ struct cpu_dbs_info_s {
 };
 static DEFINE_PER_CPU(struct cpu_dbs_info_s, od_cpu_dbs_info);
 
-struct workqueue_struct *dvfs_workqueue;
+static struct workqueue_struct *dvfs_workqueue;
 
 static unsigned int dbs_enable;	/* number of CPUs using this policy */
 
@@ -317,7 +317,7 @@ static void apply_hotplug_lock(void)
 	queue_work_on(dbs_info->cpu, dvfs_workqueue, work);
 }
 
-int cpufreq_pegasusq_cpu_lock(int num_core)
+static int cpufreq_pegasusq_cpu_lock(int num_core)
 {
 	int prev_lock;
 
@@ -338,7 +338,7 @@ int cpufreq_pegasusq_cpu_lock(int num_core)
 	return 0;
 }
 
-int cpufreq_pegasusq_cpu_unlock(int num_core)
+static int cpufreq_pegasusq_cpu_unlock(int num_core)
 {
 	int prev_lock = atomic_read(&g_hotplug_lock);
 
@@ -368,7 +368,7 @@ struct cpu_usage_history {
 	unsigned int num_hist;
 };
 
-struct cpu_usage_history *hotplug_history;
+static struct cpu_usage_history *hotplug_history;
 
 static inline cputime64_t get_cpu_idle_time_jiffy(unsigned int cpu,
 						  cputime64_t *wall)
@@ -1100,9 +1100,8 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		hotplug_history->num_hist = 0;
 
 	/* Check for frequency increase */
-	if (policy->cur < FREQ_FOR_RESPONSIVENESS) {
+	if (policy->cur < FREQ_FOR_RESPONSIVENESS)
 		up_threshold = UP_THRESHOLD_AT_MIN_FREQ;
-	}
 
 	if (max_load_freq > up_threshold * policy->cur) {
 		int inc = (policy->max * dbs_tuners_ins.freq_step) / 100;
