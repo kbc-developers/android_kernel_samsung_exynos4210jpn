@@ -1732,8 +1732,21 @@ static ssize_t touchkey_led_control(struct device *dev,
 	data = ledCmd[data-1];
 #endif
 
-	ret = i2c_touchkey_write(tkey_i2c->client, (u8 *) &data, 1);
+#ifdef CONFIG_CM_BLN
+	/* we have timed out or the lights should be on */
+	if (led_timer.expires > jiffies || led_timeout != BL_ALWAYS_OFF) {
+		int data = touchkey_conv_led_data(tkey_i2c->module_ver, 1);
+		change_touch_key_led_voltage(tkey_i2c->brightness);
+		ret = i2c_touchkey_write(tkey_i2c->client, (u8 *)&data, 1); /* turn on */
+	}
 
+	/* restart the timer */
+	if (led_timeout > 0) {
+		mod_timer(&led_timer, jiffies + msecs_to_jiffies(led_timeout));
+	}
+#else
+	ret = i2c_touchkey_write(tkey_i2c->client, (u8 *) &data, 1);
+#endif
 	if (ret == -ENODEV) {
 		printk(KERN_DEBUG"[Touchkey] error to write i2c\n");
 		touchled_cmd_reversed = 1;
@@ -2055,7 +2068,7 @@ static DEVICE_ATTR(recommended_version, S_IRUGO | S_IWUSR | S_IWGRP,
 		   touch_version_read, touch_version_write);
 static DEVICE_ATTR(updated_version, S_IRUGO | S_IWUSR | S_IWGRP,
 		   touch_update_read, touch_update_write);
-static DEVICE_ATTR(brightness, S_IRUGO | S_IWUSR | S_IWGRP, NULL,
+static DEVICE_ATTR(brightness, S_IRUGO | S_IWUGO, NULL,
 		   touchkey_led_control);
 static DEVICE_ATTR(touchkey_menu, S_IRUGO | S_IWUSR | S_IWGRP,
 		   touchkey_menu_show, NULL);
