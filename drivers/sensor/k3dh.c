@@ -276,20 +276,18 @@ static int k3dh_accel_disable(struct k3dh_data *data)
 /*  open command for K3DH device file  */
 static int k3dh_open(struct inode *inode, struct file *file)
 {
-	k3dh_infomsg("is called.\n");
-    struct k3dh_data *data = container_of(file->private_data,
-            struct k3dh_data, k3dh_device);
-    k3dh_accel_enable(data);
+	struct k3dh_data *data = container_of(file->private_data,
+		struct k3dh_data, k3dh_device);
+	k3dh_accel_enable(data);
 	return 0;
 }
 
 /*  release command for K3DH device file */
 static int k3dh_close(struct inode *inode, struct file *file)
 {
-	k3dh_infomsg("is called.\n");
-    struct k3dh_data *data = container_of(file->private_data,
-        struct k3dh_data, k3dh_device);
-    k3dh_accel_disable(data);
+	struct k3dh_data *data = container_of(file->private_data,
+		struct k3dh_data, k3dh_device);
+	k3dh_accel_disable(data);
 	return 0;
 }
 
