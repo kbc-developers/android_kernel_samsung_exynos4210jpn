@@ -12,30 +12,16 @@ config BUILD_TARGET_SAMSUNG
 
 config BUILD_TARGET_AOSP
 	bool "AOSP"
-        select FEATURE_AOSP
 	help
 	 This option makes to select build target AOSP ROM.
 
 config BUILD_TARGET_MULTI
 	bool "Multi"
-        select FEATURE_AOSP
 	help
 	 This option makes to select build target Multi ROM.
 endchoice
 
-
-config FEATURE_AOSP
-	bool "Enable AOSP feature support"
-	help
-	 This option enable AOSP freature support.
-
 endmenu
-
-config CM_KERNEL
-	bool "CyanogenMod kernel build"
-	default n
-	help
-	 This option makes to select CyanogenMod kernel build.
 
 config FEATURE_TGS2
 	bool "Enable TweakGS2 feature support"
