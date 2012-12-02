@@ -760,7 +760,9 @@ static int exynos_cpufreq_cpu_init(struct cpufreq_policy *policy)
 {
 	int ret;
 
-	policy->cur = policy->min = policy->max = exynos_getspeed(policy->cpu);
+	policy->cur = policy->min = policy->max =
+		policy->max_suspend = policy->min_suspend =
+			exynos_getspeed(policy->cpu);
 
 	cpufreq_frequency_table_get_attr(exynos_info->freq_table, policy->cpu);
 
@@ -788,7 +790,9 @@ static int exynos_cpufreq_cpu_init(struct cpufreq_policy *policy)
 #else
 	policy->max = 1200000;
 #endif
+	policy->max_suspend = 500000;
 	policy->min = 200000;
+	policy->min_suspend = 200000;
 
 	return ret;
 }
