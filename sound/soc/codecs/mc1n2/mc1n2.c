@@ -5025,6 +5025,14 @@ static ssize_t mc1n2_store_freq_lock(struct device *dev, struct device_attribute
 static DEVICE_ATTR(freq_lock, S_IWUGO | S_IRUGO, mc1n2_show_freq_lock, mc1n2_store_freq_lock);
 #endif /* CONFIG_FEATURE_TGS2 */
 
+void mc1n2_reboot(void)
+{
+	/* Force term */
+	_McDrv_Ctrl(MCDRV_TERM, NULL, 0);
+	/* Force MCLK OFF */
+	mc1n2_set_mclk_source(0);
+}
+
 /*
  * Module init and exit
  */
