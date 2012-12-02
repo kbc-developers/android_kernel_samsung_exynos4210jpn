@@ -443,39 +443,6 @@ static void __init set_volt_table(unsigned int asv_group)
 	}
 }
 
-static unsigned int asv_group;
-
-void update_volt_table(unsigned int asv_group)
-{
-	unsigned int i;
-
-	printk(KERN_INFO "DVFS : VDD_ARM Voltage table updated with %d Group\n", asv_group);
-
-	for (i = 0 ; i < CPUFREQ_LEVEL_END ; i++) {
-		exynos_info->volt_table[i] = asv_voltage_A[i][asv_group];
-	}
-	max8997_set_arm_voltage_table(exynos_info->volt_table, CPUFREQ_LEVEL_END);
-}
-
-ssize_t show_asv_group(struct cpufreq_policy *policy, char *buf)
-{
-	return sprintf(buf, "asv_group: %d\n", asv_group);
-}
-
-ssize_t store_asv_group(struct cpufreq_policy *policy,
-				const char *buf, size_t count)
-{
-	unsigned int ret;
-	ret = sscanf(buf, "%d", &asv_group);
-
-	if (ret != 1 || asv_group < 0 || asv_group > 7)
-		return -EINVAL;
-	else
-		update_volt_table(asv_group);
-
-	return count;
-}
-
 #if defined(CONFIG_REGULATOR_MAX8997)
 extern void max8997_set_arm_voltage_table(int *voltage_table, int arr_size);
 
@@ -496,6 +463,40 @@ static void exynos4210_cpufreq_set_pmic_vol_table(void)
 }
 #endif /* CONFIG_MACH_U1 */
 
+static unsigned int asv_group;
+
+void update_volt_table(unsigned int asv_group)
+{
+	unsigned int i;
+
+	printk(KERN_INFO "DVFS : VDD_ARM Voltage table updated with %d Group\n", asv_group);
+
+	for (i = 0 ; i < CPUFREQ_LEVEL_END ; i++) {
+		exynos_info->volt_table[i] = asv_voltage_A[i][asv_group];
+	}
+#if defined(CONFIG_REGULATOR_MAX8997)
+	max8997_set_arm_voltage_table(exynos_info->volt_table, CPUFREQ_LEVEL_END);
+#endif
+}
+
+ssize_t show_asv_group(struct cpufreq_policy *policy, char *buf)
+{
+	return sprintf(buf, "asv_group: %d\n", asv_group);
+}
+
+ssize_t store_asv_group(struct cpufreq_policy *policy,
+				const char *buf, size_t count)
+{
+	unsigned int ret;
+	ret = sscanf(buf, "%d", &asv_group);
+
+	if (ret != 1 || asv_group < 0 || asv_group > 7)
+		return -EINVAL;
+	else
+		update_volt_table(asv_group);
+
+	return count;
+}
 
 int exynos4210_cpufreq_init(struct exynos_dvfs_info *info)
 {

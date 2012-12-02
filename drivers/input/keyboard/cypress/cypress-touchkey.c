@@ -1774,31 +1774,7 @@ static ssize_t touchkey_led_control(struct device *dev,
 
 void touchscreen_state_report(int state)
 {
-    static const int ledCmd[] = {TK_CMD_LED_ON, TK_CMD_LED_OFF};
-
-    if (touch_led_disabled == 0) {
-        if (state == 1) {
-            if(touchkey_led_status == TK_CMD_LED_OFF) {
-                pr_debug("[Touchkey] %s: enable touchleds\n", __func__);
-                i2c_touchkey_write(tkey_i2c_local->client, (u8 *) &ledCmd[0], 1);
-                touchkey_led_status = TK_CMD_LED_ON;
-            } else {
-                if (timer_pending(&touch_led_timer) == 1) {
-                    pr_debug("[Touchkey] %s: mod_timer\n", __func__);
-                    mod_timer(&touch_led_timer, jiffies + (HZ * touch_led_timeout));
-                }
-            }
-        } else if (state == 0) {
-            if (timer_pending(&touch_led_timer) == 1) {
-                pr_debug("[Touchkey] %s: mod_timer\n", __func__);
-                mod_timer(&touch_led_timer, jiffies + (HZ * touch_led_timeout));
-            } else if (touchkey_led_status == TK_CMD_LED_ON){
-                pr_debug("[Touchkey] %s: add_timer\n", __func__);
-                touch_led_timer.expires = jiffies + (HZ * touch_led_timeout);
-                add_timer(&touch_led_timer);
-            }
-        }
-    }
+	// noop
 }
 
 #if defined(TK_USE_4KEY)
