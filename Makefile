@@ -579,7 +579,8 @@ KBUILD_CFLAGS	+= -fdiagnostics-show-option -Werror \
 		   -Wno-error=unused-label \
 		   -Wno-error=uninitialized \
 		   -Wno-error=address \
-		   -Wno-error=enum-compare
+		   -Wno-error=enum-compare \
+                   -Wno-error=declaration-after-statement
 endif
 
 include $(srctree)/arch/$(SRCARCH)/Makefile
