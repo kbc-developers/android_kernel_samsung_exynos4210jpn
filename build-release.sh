@@ -13,10 +13,10 @@ if [ -f $KERNEL_DIR/release.conf ]; then
 	BUILD_MULTI=`grep BUILD_MULTI $KERNEL_DIR/release.conf | cut -d'=' -f2`
 	BUILD_COMMON=`grep BUILD_COMMON $KERNEL_DIR/release.conf | cut -d'=' -f2`
 else
-	BUILD_SAM=1
+	BUILD_SAM=0
 	BUILD_AOSP=1
-	BUILD_MULTI=1
-	BUILD_COMMON=1
+	BUILD_MULTI=0
+	BUILD_COMMON=0
 fi
 
 

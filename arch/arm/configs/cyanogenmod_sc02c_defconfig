@@ -1,6 +1,6 @@
 #
 # Automatically generated make config: don't edit
-# Linux/arm 3.0.51 Kernel Configuration
+# Linux/arm 3.0.56 Kernel Configuration
 #
 CONFIG_ARM=y
 CONFIG_HAVE_PWM=y
@@ -1259,6 +1259,7 @@ CONFIG_SEC_DEV_JACK=y
 CONFIG_MUIC_MAX8997=y
 # CONFIG_MUIC_MAX8997_OVPUI is not set
 # CONFIG_USBHUB_USB3503 is not set
+# CONFIG_USBHUB_USB3503_OTG_CONN is not set
 # CONFIG_PN544 is not set
 # CONFIG_STMPE811_ADC is not set
 # CONFIG_MPU_SENSORS_MPU3050 is not set
