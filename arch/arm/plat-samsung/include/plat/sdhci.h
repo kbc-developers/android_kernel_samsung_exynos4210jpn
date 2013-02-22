@@ -89,6 +89,7 @@ struct s3c_sdhci_platdata {
 			    void __iomem *regbase,
 			    struct mmc_ios *ios,
 			    struct mmc_card *card);
+	int enable_intr_on_resume;
 #ifdef CONFIG_MACH_PX
 	int (*ext_pdev)(struct platform_device *dev_id);
 #endif

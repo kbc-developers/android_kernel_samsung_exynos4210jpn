@@ -396,7 +396,7 @@ static enum power_supply_property sec_power_props[] = {
 };
 
 #ifdef CONFIG_TARGET_LOCALE_NA
-static struct sec_bat_info *pchg;
+static struct sec_bat_info *pchg = NULL;
 #endif
 
 struct power_supply *get_power_supply_by_name(char *name)
