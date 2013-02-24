@@ -52,10 +52,10 @@ cpoy_initramfs()
 # (note) MULTI and COM use same defconfig
 BUILD_TARGET=$1
 case "$BUILD_TARGET" in
-  "AOSP" ) BUILD_DEFCONFIG=sc02c_aosp_defconfig ;;
-  "SAM" ) BUILD_DEFCONFIG=sc02c_samsung_defconfig ;;
-  "MULTI" ) BUILD_DEFCONFIG=sc02c_multi_defconfig ;;
-  "COMMON" ) BUILD_DEFCONFIG=sc02c_multi_defconfig ;;
+  "AOSP" ) BUILD_DEFCONFIG=kbc_sc02c_aosp_defconfig ;;
+  "SAM" ) BUILD_DEFCONFIG=kbc_sc02c_samsung_defconfig ;;
+  "MULTI" ) BUILD_DEFCONFIG=kbc_sc02c_multi_defconfig ;;
+  "COMMON" ) BUILD_DEFCONFIG=kbc_sc02c_multi_defconfig ;;
   "N7000SAM" ) BUILD_DEFCONFIG=n7000_samsung_defconfig ;;
   "N7000AOSP" ) BUILD_DEFCONFIG=n7000_aosp_defconfig ;;
   "N7000JB" ) BUILD_DEFCONFIG=n7000_aosp_defconfig ;;
