@@ -48,7 +48,7 @@ check_and_get_linaro()
 export BUILD_CROSS_COMPILE=$TOOLCHAIN_DIR/arm-eabi-4.6/bin/arm-eabi-
 
 # export compiler option
-export USE_CFLAGS_OPTION=y
-export HAVE_NO_UNALIGNED_ACCESS=y
+#export USE_CFLAGS_OPTION=y
+#export HAVE_NO_UNALIGNED_ACCESS=y
 # export HAVE_TUNE_CORTEX_A15=y
 
