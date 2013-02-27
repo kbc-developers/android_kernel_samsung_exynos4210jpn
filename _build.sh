@@ -137,6 +137,9 @@ fi
 
 # *.ko replace
 find -name '*.ko' -exec cp -av {} $INITRAMFS_TMP_DIR/lib/modules/ \;
+chmod 644 $INITRAMFS_TMP_DIR/lib/modules/*
+STRIP=strip
+$CROSS_COMPILE$STRIP --strip-unneeded $INITRAMFS_TMP_DIR/lib/modules/*
 
 # build zImage
 echo ""
