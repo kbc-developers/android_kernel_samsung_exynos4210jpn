@@ -115,6 +115,11 @@ struct mdnie_info {
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	struct early_suspend    early_suspend;
 #endif
+#if defined(CONFIG_FEATURE_TGS2) && defined(CONFIG_FB_S5P_LD9040)
+	unsigned short user_mode;
+	unsigned short user_cb;
+	unsigned short user_cr;
+#endif
 };
 
 extern struct mdnie_info *g_mdnie;
