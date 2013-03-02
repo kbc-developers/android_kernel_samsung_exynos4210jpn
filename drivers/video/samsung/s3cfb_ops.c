@@ -53,8 +53,10 @@
 #include <plat/s5p-sysmmu.h>
 #endif
 
-#ifdef USER_BOOT_SPLASH
+#if defined(USER_BOOT_SPLASH) && defined(CONFIG_MACH_U1_BD)
 #include "logo_rgb24_user.h"
+#elif defined(USER_BOOT_SPLASH) && defined(CONFIG_MACH_Q1_BD)
+#include "logo_rgb24_n7000.h"
 #endif
 
 struct s3c_platform_fb *to_fb_plat(struct device *dev)
