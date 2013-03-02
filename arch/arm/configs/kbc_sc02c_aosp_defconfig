@@ -1,6 +1,6 @@
 #
 # Automatically generated make config: don't edit
-# Linux/arm 3.0.66 Kernel Configuration
+# Linux/arm 3.0.67 Kernel Configuration
 #
 CONFIG_ARM=y
 CONFIG_HAVE_PWM=y
@@ -1294,6 +1294,7 @@ CONFIG_PN544=y
 # CONFIG_STMPE811_ADC is not set
 # CONFIG_MPU_SENSORS_MPU3050 is not set
 # CONFIG_MPU_SENSORS_MPU6050 is not set
+CONFIG_GENERIC_BLN=y
 # CONFIG_C2PORT is not set
 
 #
@@ -1509,6 +1510,8 @@ CONFIG_KEYBOARD_GPIO=y
 # CONFIG_KEYBOARD_SUNKBD is not set
 # CONFIG_KEYBOARD_XTKBD is not set
 CONFIG_KEYBOARD_CYPRESS_TOUCH=y
+CONFIG_CM_BLN=y
+CONFIG_TWEAK_REPLACE_BACK_MENU=y
 # CONFIG_INPUT_MOUSE is not set
 # CONFIG_INPUT_JOYSTICK is not set
 # CONFIG_INPUT_TABLET is not set
