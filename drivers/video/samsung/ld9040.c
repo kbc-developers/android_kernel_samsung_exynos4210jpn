@@ -1324,6 +1324,20 @@ static int ld9040_probe(struct spi_device *spi)
 	if (ret < 0)
 		dev_err(&lcd->ld->dev, "failed to add sysfs entries\n");
 
+#ifdef CONFIG_FEATURE_TGS2
+	ret = device_create_file(&lcd->ld->dev, &dev_attr_user_lcdtype);
+	if (ret < 0)
+		dev_err(&(spi->dev), "failed to add sysfs entries\n");
+
+	ret = device_create_file(&lcd->ld->dev, &dev_attr_user_gamma_adjust);
+	if (ret < 0)
+		dev_err(&(spi->dev), "failed to add sysfs entries\n");
+
+	ret = device_create_file(&lcd->ld->dev, &dev_attr_user_gamma_adjust_table);
+	if (ret < 0)
+		dev_err(&(spi->dev), "failed to add sysfs entries\n");
+#endif
+
 	mutex_init(&lcd->lock);
 	mutex_init(&lcd->bl_lock);
 
