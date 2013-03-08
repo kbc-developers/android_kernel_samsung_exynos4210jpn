@@ -504,7 +504,9 @@ CONFIG_SEC_DEBUG_USER=y
 # CONFIG_SEC_DEBUG_UMP_ALLOC_FAIL is not set
 # CONFIG_SEC_DEBUG_LIST_CORRUPTION is not set
 # CONFIG_SEC_WATCHDOG_RESET is not set
-# CONFIG_SEC_LOG is not set
+CONFIG_SEC_LOG=y
+CONFIG_SEC_LOG_NONCACHED=y
+CONFIG_SEC_LOG_LAST_KMSG=y
 # CONFIG_EHCI_IRQ_DISTRIBUTION is not set
 
 #
@@ -1113,6 +1115,10 @@ CONFIG_BT_HCIUART_H4=y
 # CONFIG_BT_HCIBFUSB is not set
 # CONFIG_BT_HCIVHCI is not set
 # CONFIG_BT_MRVL is not set
+
+#
+# Bluetooth device drivers
+#
 
 #
 # Bluetooth device drivers
