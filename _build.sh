@@ -6,6 +6,8 @@ export BUILD_DEVICE=$1
 if [ "$BUILD_DEVICE" = "N7000SAM" -o "$BUILD_DEVICE" = "N7000AOSP" -o "$BUILD_DEVICE" = "N7000JB" ];then
 	echo "=====> Build Device GT-N7000"
 	INITRAMFS_SRC_DIR=../n7000_initramfs
+elif [ "$BUILD_DEVICE" = "ISW11SC" ];then
+	INITRAMFS_SRC_DIR=../isw11sc_initramfs
 else
 	echo "=====> Build Device SC-02C"
 	INITRAMFS_SRC_DIR=../sc02c_initramfs
@@ -14,6 +16,8 @@ fi
 if [ -z "$INITRAMFS_TMP_DIR" ]; then
 if [ "$BUILD_DEVICE" = "N7000SAM" -o "$BUILD_DEVICE" = "N7000AOSP" -o "$BUILD_DEVICE" = "N7000JB" ];then
 	INITRAMFS_TMP_DIR=/tmp/n7000_initramfs
+elif [ "$BUILD_DEVICE" = "ISW11SC" ];then
+	INITRAMFS_TMP_DIR=/tmp/isw11sc_initramfs
 else
 	INITRAMFS_TMP_DIR=/tmp/sc02c_initramfs
 fi
@@ -59,6 +63,7 @@ case "$BUILD_TARGET" in
   "N7000SAM" ) BUILD_DEFCONFIG=n7000_samsung_defconfig ;;
   "N7000AOSP" ) BUILD_DEFCONFIG=n7000_aosp_defconfig ;;
   "N7000JB" ) BUILD_DEFCONFIG=n7000_aosp_defconfig ;;
+  "ISW11SC" ) BUILD_DEFCONFIG=isw11sc_aosp_defconfig ;;
   * ) echo "error: not found BUILD_TARGET" && exit -1 ;;
 esac
 
@@ -75,6 +80,8 @@ fi
 # generate LOCALVERSION
 if [ "$BUILD_DEVICE" = "N7000SAM" -o "$BUILD_DEVICE" = "N7000AOSP" -o "$BUILD_DEVICE" = "N7000JB" ];then
 . mod_version_n7000
+elif [ "$BUILD_DEVICE" = "ISW11SC" ];then
+. mod_version_isw11sc
 else
 . mod_version
 fi
@@ -177,6 +184,8 @@ cp zImage ./tmp/
 cp $KERNEL_DIR/release-tools/update-binary ./tmp/META-INF/com/google/android/
 if [ "$BUILD_DEVICE" = "N7000SAM" -o "$BUILD_DEVICE" = "N7000AOSP" -o "$BUILD_DEVICE" = "N7000JB" ];then
 sed -e "s/@VERSION/$BUILD_LOCALVERSION/g" $KERNEL_DIR/release-tools/updater-script-n7000.sed > ./tmp/META-INF/com/google/android/updater-script
+elif [ "$BUILD_DEVICE" = "ISW11SC" ];then
+sed -e "s/@VERSION/$BUILD_LOCALVERSION/g" $KERNEL_DIR/release-tools/updater-script-isw11sc.sed > ./tmp/META-INF/com/google/android/updater-script
 else
 sed -e "s/@VERSION/$BUILD_LOCALVERSION/g" $KERNEL_DIR/release-tools/updater-script.sed > ./tmp/META-INF/com/google/android/updater-script
 fi
