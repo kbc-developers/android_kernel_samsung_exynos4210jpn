@@ -487,7 +487,7 @@ void g2d_early_suspend(struct early_suspend *h)
 			break;
 
 		msleep_interruptible(2);
-
+#if defined(CONFIG_MACH_C1_KDDI_REV00)
 		i++;
 		/* Timeout 1sec */
 		if (i > 500) {
@@ -496,6 +496,7 @@ void g2d_early_suspend(struct early_suspend *h)
 			g2d_clk_disable(g2d_dev);
 			break;
 		}
+#endif
 	}
 
 	g2d_sysmmu_off(g2d_dev);
@@ -535,6 +536,7 @@ static int g2d_suspend(struct platform_device *dev, pm_message_t state)
 
 		msleep_interruptible(2);
 
+#if defined(CONFIG_MACH_C1_KDDI_REV00)
 		i++;
 		/* Timeout 1sec */
 		if (i > 500) {
@@ -543,6 +545,7 @@ static int g2d_suspend(struct platform_device *dev, pm_message_t state)
 			g2d_clk_disable(g2d_dev);
 			break;
 		}
+#endif
 	}
 
 	g2d_sysmmu_off(g2d_dev);

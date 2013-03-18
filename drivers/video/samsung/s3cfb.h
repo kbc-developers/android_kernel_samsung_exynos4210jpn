@@ -45,7 +45,7 @@
 
 #define VSYNC_TIMEOUT_MSEC 50
 
-#if defined(CONFIG_MACH_PX) || defined(CONFIG_MACH_Q1_BD)
+#if defined(CONFIG_MACH_PX) || defined(CONFIG_MACH_Q1_BD) || defined(CONFIG_MACH_C1_KDDI_REV00)
 #define FEATURE_BUSFREQ_LOCK /* Now, this feature only avaliable in 4210 */
 #endif
 

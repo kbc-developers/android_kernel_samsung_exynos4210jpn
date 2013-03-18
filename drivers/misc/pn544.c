@@ -302,6 +302,9 @@ static int pn544_probe(struct i2c_client *client,
 	int irq_num;
 	struct pn544_i2c_platform_data *platform_data;
 	struct pn544_dev *pn544_dev;
+#if defined(CONFIG_MACH_C1_KDDI_REV00)	// CL 804976
+    extern int sec_isLpmMode(void);
+#endif
 
 	platform_data = client->dev.platform_data;
 
@@ -376,12 +379,23 @@ static int pn544_probe(struct i2c_client *client,
 		goto err_request_irq_failed;
 	}
 	pn544_disable_irq(pn544_dev);
-#if defined(CONFIG_TARGET_LOCALE_EUR_U1_NFC)
+#if defined(CONFIG_TARGET_LOCALE_EUR_U1_NFC) || defined(CONFIG_MACH_C1_KDDI_REV00)
 	enable_irq_wake(client->irq);
 #endif
 	i2c_set_clientdata(client, pn544_dev);
 	pn544_dev_imsi = pn544_dev;
 	/* printk("pn544 prove success\n"); */
+
+#if defined(CONFIG_MACH_C1_KDDI_REV00)	// CL 804976
+    //for power supply charging mode
+    if (sec_isLpmMode())
+    {
+        gpio_set_value(pn544_dev->firm_gpio, 0);
+        usleep_range(10000, 10000);
+        gpio_set_value_cansleep(pn544_dev->ven_gpio, 1);
+        usleep_range(10000, 10000);
+    }	
+#endif
 
 	return 0;
 

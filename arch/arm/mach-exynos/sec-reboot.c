@@ -8,7 +8,7 @@
 
 /* charger cable state */
 extern bool is_cable_attached;
-#ifdef CONFIG_MACH_U1_NA_SPR
+#if defined(CONFIG_MACH_U1_NA_SPR) || defined(CONFIG_MACH_C1_KDDI_REV00)
 static void cdma_wimax_chk_modem_pwroff(void);
 #endif
 static void sec_power_off(void)
@@ -20,7 +20,7 @@ static void sec_power_off(void)
 	pr_emerg("%s : cable state=%d\n", __func__, is_cable_attached);
 
 	while (1) {
-#ifdef CONFIG_MACH_U1_NA_SPR
+#if defined(CONFIG_MACH_U1_NA_SPR) || defined(CONFIG_MACH_C1_KDDI_REV00)
 		cdma_wimax_chk_modem_pwroff();
 #endif
 		/* Check reboot charging */
@@ -77,7 +77,7 @@ static void sec_power_off(void)
 #define REBOOT_SET_SWSEL	0x000e0000
 #define REBOOT_SET_SUD		0x000f0000
 
-#ifdef CONFIG_MACH_U1_NA_SPR
+#if defined(CONFIG_MACH_U1_NA_SPR) || defined(CONFIG_MACH_C1_KDDI_REV00)
 static void cdma_wimax_chk_modem_pwroff(void)
 {
 	int phone_wait_cnt = 0;

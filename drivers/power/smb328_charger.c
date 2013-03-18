@@ -376,6 +376,22 @@ static void smb328a_charger_function_conrol(struct i2c_client *client)
 			data = (u8)val;
 			dev_info(&client->dev, "%s : reg (0x%x) = 0x%x\n",
 				__func__, reg, data);
+
+			#if defined(CONFIG_MACH_C1_KDDI_REV00)
+			if (data != 0xcc) 
+			{
+				data = 0xcc; /* 4.22V float voltage | 0xCE==4.24V | 0xCA==4.20V | 0xCC==4.22V*/
+				if (smb328_i2c_write(client, reg, data) < 0)
+					pr_err("%s : error!\n", __func__);
+				val = smb328_i2c_read(client, reg, &data);
+				if (val >= 0) 
+				{
+					data = (u8)val;
+					dev_info(&client->dev, "%s : => reg (0x%x) = 0x%x\n",
+						__func__, reg, data);
+				}
+			}
+			#else
 			if (data != 0xca) {
 				data = 0xca; /* 4.2V float voltage */
 				if (smb328_i2c_write(client, reg, data) < 0)
@@ -388,6 +404,7 @@ static void smb328a_charger_function_conrol(struct i2c_client *client)
 						__func__, reg, data);
 				}
 			}
+			#endif
 		}
 
 		reg = SMB328A_FUNCTION_CONTROL_A1;

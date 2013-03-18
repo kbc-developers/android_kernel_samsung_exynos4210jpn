@@ -52,6 +52,9 @@
 #if defined(CONFIG_TARGET_LOCALE_NA)
 /* #define M5MOOE_FW_PATH "RS_M5LS_OE.bin" */ /* FIBEROPTICS - SONY */
 #endif
+#if defined(CONFIG_MACH_C1_KDDI_REV00)
+#define M5MOOP_FW_PATH		"RS_M5LS_OP.bin"	/* S.LSI - (DALI KDDI)*/
+#endif
 #if defined(CONFIG_MACH_Q1_BD)
 #define M5MOOO_FW_PATH "RS_M5LS_OO.bin" /* FIBEROPTICS - SONY */
 #endif
@@ -96,6 +99,9 @@ static const struct m5mo_frmsizeenum preview_frmsizes[] = {
 	{ M5MO_PREVIEW_VGA,	640,	480,	0x17 },
 	{ M5MO_PREVIEW_D1,	720,	480,	0x18 },
 	{ M5MO_PREVIEW_WVGA,	800,	480,	0x1A },
+#if defined(CONFIG_MACH_C1_KDDI_REV00)
+	{ M5MO_PREVIEW_SVGA,	800,	600,	0x1f },
+#endif
 	{ M5MO_PREVIEW_720P,	1280,	720,	0x21 },
 
 #if defined(CONFIG_MACH_Q1_BD)
@@ -115,8 +121,15 @@ static const struct m5mo_frmsizeenum capture_frmsizes[] = {
 	{ M5MO_CAPTURE_VGA,	640,		480,		0x09 },
 	{ M5MO_CAPTURE_WVGA,	800,		480,		0x0A },
 	{ M5MO_CAPTURE_SXGA,	1280,	960,		0x14 },
+#if defined(CONFIG_MACH_C1_KDDI_REV00)
+	{ M5MO_CAPTURE_W2MP, 1280, 720, 0x10 },
+	{ M5MO_CAPTURE_3MP, 2048, 1536, 0x1B },
+	{ M5MO_CAPTURE_W4MP, 2560, 1440, 0x1C },
+	{ M5MO_CAPTURE_W6MP,  3264, 1836, 0x21 },
+#else
 	{ M5MO_CAPTURE_W2MP,	2048,	1232,	0x2C },
 	{ M5MO_CAPTURE_3MP,	2048,	1536,	0x1B },
+#endif
 	{ M5MO_CAPTURE_W7MP,	3264,	1968,	0x2D },
 	{ M5MO_CAPTURE_8MP,	3264,	2448,	0x25 },
 };
@@ -810,6 +823,11 @@ request_fw:
 		} else if (sensor_ver[0] == 'S' && sensor_ver[1] == 'C') {
 			err = request_firmware(&fw, M5MOSC_FW_PATH, dev);
 #endif
+#if defined(CONFIG_MACH_C1_KDDI_REV00)
+		}else if (sensor_ver[0] == 'O') {
+			cam_dbg("SENSOR VER is OC or OP\n");
+			err = request_firmware(&fw, M5MOOP_FW_PATH, dev);
+#endif
 		} else {
 			cam_warn("cannot find the matched F/W file\n");
 #if defined(CONFIG_MACH_Q1_BD)
@@ -981,6 +999,38 @@ retry:
 	return 0;
 }
 
+#if defined(CONFIG_MACH_C1_KDDI_REV00)
+static int m5mo_set_flash_temp(struct v4l2_subdev *sd, int val, int force)
+{
+	struct m5mo_state *state = to_state(sd);
+	int err;
+	cam_dbg("E, value %d\n", val);
+
+	if (!force)
+		state->flash_temp_mode = val;
+
+retry:
+	switch (val) {
+	case FLASH_MODE_TEMP_LOW:
+		err = m5mo_writeb(sd, M5MO_CATEGORY_CAPPARM,
+			0x21, 1);
+		break;
+
+	case FLASH_MODE_TEMP_NORMAL:
+		err = m5mo_writeb(sd, M5MO_CATEGORY_CAPPARM,
+			0x21, 0);
+		break;
+
+	default:
+		cam_warn("invalid value, %d\n", val);
+		val = FLASH_MODE_TEMP_NORMAL;
+		goto retry;
+	}
+
+	cam_trace("X\n");
+	return 0;
+}
+#endif
 static int m5mo_set_iso(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
 {
 	struct m5mo_state *state = to_state(sd);
@@ -1582,6 +1632,10 @@ retry:
 		break;
 
 	case FOCUS_MODE_FACEDETECT:
+#if defined(CONFIG_MACH_C1_KDDI_REV00)
+		state->focus.ui_mode = val;
+		state->focus.mode_select = FOCUS_MODE_SELECT_NORMAL;
+#endif
 		mode = 0x03;
 		break;
 
@@ -1977,6 +2031,11 @@ static int m5mo_s_ctrl(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
 	case V4L2_CID_CAMERA_FLASH_MODE:
 		err = m5mo_set_flash(sd, ctrl->value, 0);
 		break;
+#if defined(CONFIG_MACH_C1_KDDI_REV00)
+	case V4L2_CID_CAMERA_FLASH_TEMP_MODE:
+		err = m5mo_set_flash_temp(sd, ctrl->value, 0);
+		break;
+#endif
 
 	case V4L2_CID_CAMERA_ISO:
 		err = m5mo_set_iso(sd, ctrl);
@@ -2319,6 +2378,12 @@ request_fw:
 #if defined(CONFIG_TARGET_LOCALE_NTT)
 	} else if (sensor_ver[0] == 'S' && sensor_ver[1] == 'C') {
 		err = request_firmware(&fw, M5MOSC_FW_PATH, dev);
+#endif
+#if defined(CONFIG_MACH_C1_KDDI_REV00)
+	}else if (sensor_ver[0] == 'O') {
+		cam_dbg("SENSOR VER is OC or OP\n");
+		err = request_firmware(&fw, M5MOOP_FW_PATH, dev);
+
 #endif
 	} else {
 		cam_err("cannot find the matched F/W file\n");
@@ -2823,6 +2888,9 @@ static int m5mo_init(struct v4l2_subdev *sd, u32 val)
 	state->format_mode = V4L2_PIX_FMT_MODE_PREVIEW;
 	state->sensor_mode = SENSOR_CAMERA;
 	state->flash_mode = FLASH_MODE_OFF;
+#if defined(CONFIG_MACH_C1_KDDI_REV00)
+	state->flash_temp_mode = FLASH_MODE_TEMP_NORMAL;
+#endif
 	state->scene_mode = SCENE_MODE_NONE;
 
 	state->face_beauty = 0;

@@ -29,7 +29,7 @@ struct platform_device; /* don't need the contents */
 void s3c_fimc0_cfg_gpio(struct platform_device *pdev)
 {
 #if defined(CONFIG_MACH_SMDK4212) || defined(CONFIG_MACH_SMDK4210) \
-	|| defined(CONFIG_VIDEO_S5K5BBGX)
+	|| defined(CONFIG_VIDEO_S5K5BBGX) || defined(CONFIG_MACH_C1_KDDI_REV00)
 	if (soc_is_exynos4210()) {
 		/* CAM A port(b0010) : PCLK, VSYNC, HREF, DATA[0-4] */
 		s3c_gpio_cfgrange_nopull(EXYNOS4210_GPJ0(0), 8,
@@ -38,7 +38,7 @@ void s3c_fimc0_cfg_gpio(struct platform_device *pdev)
 		* FIELD */
 		s3c_gpio_cfgrange_nopull(EXYNOS4210_GPJ1(0), 5,
 					S3C_GPIO_SFN(2));
-#if !defined(CONFIG_MACH_P8LTE) && !defined(CONFIG_VIDEO_S5K5BBGX)
+#if !defined(CONFIG_MACH_P8LTE) && !defined(CONFIG_VIDEO_S5K5BBGX) && !defined(CONFIG_MACH_C1_KDDI_REV00)
 		/* CAM B port(b0011) : DATA[0-7] */
 		s3c_gpio_cfgrange_nopull(EXYNOS4210_GPE1(0), 8,
 					S3C_GPIO_SFN(3));

@@ -19,10 +19,25 @@
 
 #define MELFAS_TS_NAME "melfas-ts"
 
+#if defined (CONFIG_MACH_C1_KDDI_REV00) 
+struct melfas_version {
+	uint8_t tsp_revision;	
+	uint8_t hardware;
+	uint8_t compatibility;
+	uint8_t core;
+	uint8_t private;
+	uint8_t public;
+	uint8_t product_code;
+};
+#endif
 struct melfas_tsi_platform_data {
 	int x_size;
 	int y_size;
-	int  version;
+#if defined (CONFIG_MACH_C1_KDDI_REV00) 
+	struct melfas_version *version;
+#else
+		int  version;
+#endif
 	int gpio_int;
 	int (*power)(int on);
 

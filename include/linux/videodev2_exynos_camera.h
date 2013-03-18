@@ -1168,6 +1168,15 @@ enum set_3dnr_mode {
 	CAMERA_3DNR_OFF
 };
 
+#if defined(CONFIG_MACH_C1_KDDI_REV00)
+#define V4L2_CID_CAMERA_FLASH_TEMP_MODE		(V4L2_CID_PRIVATE_BASE+ 130)
+enum v4l2_flash_temp_mode
+{
+	FLASH_MODE_TEMP_NORMAL,
+	FLASH_MODE_TEMP_LOW,
+};
+#endif
+
 #define V4L2_CID_CAMERA_BRACKET     (V4L2_CID_PRIVATE_BASE+134)
 enum v4l2_face_bracket_mode {
 	BRACKET_MODE_OFF = 0,

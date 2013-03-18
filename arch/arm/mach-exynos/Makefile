@@ -71,6 +71,7 @@ obj-$(CONFIG_MACH_U1)			+= mach-u1.o sec-common.o sec-switch_max8997.o
 obj-$(CONFIG_WIMAX_CMC)			+= u1-wimax.o
 ifneq ($(CONFIG_MACH_U1_NA_SPR),y)
 ifneq ($(CONFIG_MACH_U1_NA_USCC),y)
+ifneq ($(CONFIG_MACH_C1_KDDI_REV00),y)
 obj-$(CONFIG_MACH_U1_BD)		+= u1-gpio.o board-gps-gsd4t.o
 else
 obj-$(CONFIG_MACH_U1_BD)		+= u1-gpio.o
@@ -78,7 +79,13 @@ endif
 else
 obj-$(CONFIG_MACH_U1_BD)		+= u1-gpio.o
 endif
+else
+obj-$(CONFIG_MACH_U1_BD)		+= u1-gpio.o
+endif
 ifeq ($(CONFIG_MACH_U1_NA_SPR),y)
+obj-$(CONFIG_MACH_U1)			+= dev-c1-phone.o
+endif
+ifeq ($(CONFIG_MACH_C1_KDDI_REV00),y)
 obj-$(CONFIG_MACH_U1)			+= dev-c1-phone.o
 endif
 obj-$(CONFIG_MACH_Q1_BD)		+= q1-gpio.o board-gps-bcm475x.o

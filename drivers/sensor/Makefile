@@ -20,6 +20,7 @@ obj-$(CONFIG_SENSORS_CM3663)	+= cm3663.o
 obj-$(CONFIG_SENSORS_TAOS)		+= taos.o
 obj-$(CONFIG_SENSORS_GP2A)		+= gp2a_proximity.o gp2a_light.o
 obj-$(CONFIG_SENSORS_GP2A_ANALOG)	+= gp2a_analog.o
+obj-$(CONFIG_OPTICAL_GP2AP020)          += gp2ap020.o
 obj-$(CONFIG_SENSORS_CM36651)		+= cm36651.o
 obj-$(CONFIG_SENSORS_BH1721)		+= bh1721.o
 obj-$(CONFIG_SENSORS_AL3201)		+= al3201.o

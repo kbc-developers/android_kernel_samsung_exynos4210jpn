@@ -66,6 +66,9 @@ enum m5mo_prev_frmsize {
 	M5MO_PREVIEW_VGA,
 	M5MO_PREVIEW_D1,
 	M5MO_PREVIEW_WVGA,
+#if defined(CONFIG_MACH_C1_KDDI_REV00)
+	M5MO_PREVIEW_SVGA,
+#endif
 	M5MO_PREVIEW_720P,
 #if defined(CONFIG_MACH_Q1_BD)
 	M5MO_PREVIEW_880_720,
@@ -169,6 +172,9 @@ struct m5mo_state {
 	enum v4l2_pix_format_mode format_mode;
 	enum v4l2_sensor_mode sensor_mode;
 	enum v4l2_flash_mode flash_mode;
+#if defined(CONFIG_MACH_C1_KDDI_REV00)
+	enum v4l2_flash_temp_mode flash_temp_mode;
+#endif
 	enum v4l2_scene_mode scene_mode;
 	int vt_mode;
 	int zoom;

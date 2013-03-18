@@ -107,7 +107,7 @@ obj-$(CONFIG_PERF_EVENTS) += events/
 obj-$(CONFIG_USER_RETURN_NOTIFIER) += user-return-notifier.o
 obj-$(CONFIG_PADATA) += padata.o
 obj-$(CONFIG_CRASH_DUMP) += crash_dump.o
-ifeq ($(CONFIG_MACH_U1_NA_SPR),y)
+ifeq ($(CONFIG_MACH_C1_KDDI_REV00),y)
 obj-$(CONFIG_SEC_DEBUG) += kernel_sec_debug.o
 endif
 

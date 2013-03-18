@@ -24,7 +24,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  Cypress does not authorize its products for use as critical components in
  life-support systems where a malfunction or failure may reasonably be
  expected to result in significant injury to the user. The inclusion of
- Cypressï¿½ product in a life-support systems application implies that the
+ Cypressï¿?product in a life-support systems application implies that the
  manufacturer assumes all risk of such use and in doing so indemnifies
  Cypress against all charges.
 
@@ -61,13 +61,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "issp_defs.h"
 #include "issp_errors.h"
 #include "issp_directives.h"
-#include <linux/i2c/touchkey_i2c.h>
+#include "u1-cypress-gpio.h"
 
 extern unsigned char bTargetDataPtr;
 extern unsigned char abTargetDataOUT[TARGET_DATABUFF_LEN];
-
-/* enable ldo11 */
-extern struct touchkey_i2c *issp_tkey_i2c;
 
 /* ****************************** PORT BIT MASKS ******************************
 * ****************************************************************************
@@ -82,11 +79,18 @@ extern struct touchkey_i2c *issp_tkey_i2c;
 
 unsigned int nBlockCount = 1;	/*test, KIMC */
 
+#if defined(CONFIG_MACH_Q1_REV02) || defined(CONFIG_MACH_C1_KDDI_REV00)
+extern unsigned char *firmware_data;
+#else
 extern unsigned char firmware_data[];
+#endif
 
 /* ((((((((((((((((((((((( DEMO ISSP SUBROUTINE SECTION )))))))))))))))))))))))
 * ((((( Demo Routines can be deleted in final ISSP project if not used   )))))
 * ((((((((((((((((((((((((((((((((((((()))))))))))))))))))))))))))))))))))))*/
+
+/* enable ldo11 */
+extern int touchkey_ldo_on(bool on);
 
 /* ============================================================================
 * InitTargetTestData()
@@ -239,8 +243,8 @@ signed char fLoadSecurityData(unsigned char bBankNum)
 * ***************************************************************************/
 unsigned char fSDATACheck(void)
 {
-	gpio_direction_input(issp_tkey_i2c->pdata->gpio_sda);
-	if (gpio_get_value(issp_tkey_i2c->pdata->gpio_sda))
+	gpio_direction_input(_3_TOUCH_SDA_28V);
+	if (gpio_get_value(_3_TOUCH_SDA_28V))
 		return 1;
 	else
 		return 0;
@@ -257,7 +261,7 @@ unsigned char fSDATACheck(void)
 * ***************************************************************************/
 void SCLKHigh(void)
 {
-	gpio_direction_output(issp_tkey_i2c->pdata->gpio_scl, 1);
+	gpio_direction_output(_3_TOUCH_SCL_28V, 1);
 }
 
 /* ********************* LOW-LEVEL ISSP SUBROUTINE SECTION ********************
@@ -271,7 +275,7 @@ void SCLKHigh(void)
 * ***************************************************************************/
 void SCLKLow(void)
 {
-	gpio_direction_output(issp_tkey_i2c->pdata->gpio_scl, 0);
+	gpio_direction_output(_3_TOUCH_SCL_28V, 0);
 }
 
 #ifndef RESET_MODE		/*Only needed for power cycle mode */
@@ -286,7 +290,7 @@ void SCLKLow(void)
 * ***************************************************************************/
 void SetSCLKHiZ(void)
 {
-	gpio_direction_input(issp_tkey_i2c->pdata->gpio_scl);
+	gpio_direction_input(_3_TOUCH_SCL_28V);
 }
 #endif
 
@@ -301,7 +305,7 @@ void SetSCLKHiZ(void)
 * ***************************************************************************/
 void SetSCLKStrong(void)
 {
-	/*gpio_direction_output(issp_tkey_i2c->pdata->gpio_scl, 1); */
+	//gpio_direction_output(_3_TOUCH_SCL_28V, 1);
 }
 
 /* ********************* LOW-LEVEL ISSP SUBROUTINE SECTION ********************
@@ -315,7 +319,7 @@ void SetSCLKStrong(void)
 * ***************************************************************************/
 void SetSDATAHigh(void)
 {
-	gpio_direction_output(issp_tkey_i2c->pdata->gpio_sda, 1);
+	gpio_direction_output(_3_TOUCH_SDA_28V, 1);
 }
 
 /* ********************* LOW-LEVEL ISSP SUBROUTINE SECTION ********************
@@ -329,7 +333,7 @@ void SetSDATAHigh(void)
 * ***************************************************************************/
 void SetSDATALow(void)
 {
-	gpio_direction_output(issp_tkey_i2c->pdata->gpio_sda, 0);
+	gpio_direction_output(_3_TOUCH_SDA_28V, 0);
 }
 
 /* ********************* LOW-LEVEL ISSP SUBROUTINE SECTION ********************
@@ -343,7 +347,7 @@ void SetSDATALow(void)
 * ***************************************************************************/
 void SetSDATAHiZ(void)
 {
-	gpio_direction_input(issp_tkey_i2c->pdata->gpio_sda);	/*ENA-> DIS */
+	gpio_direction_input(_3_TOUCH_SDA_28V);	// ENA-> DIS
 }
 
 /* ********************* LOW-LEVEL ISSP SUBROUTINE SECTION ********************
@@ -358,7 +362,7 @@ void SetSDATAHiZ(void)
 * ***************************************************************************/
 void SetSDATAStrong(void)
 {
-	/*gpio_direction_output(issp_tkey_i2c->pdata->gpio_sda, 1); */
+	/* gpio_direction_output(_3_TOUCH_SDA_28V, 1); */
 }
 
 #ifdef RESET_MODE
@@ -438,15 +442,14 @@ void SetTargetVDDStrong(void)
 * ***************************************************************************/
 void ApplyTargetVDD(void)
 {
-	int ret;
-
-	gpio_direction_input(issp_tkey_i2c->pdata->gpio_sda);
-	gpio_direction_input(issp_tkey_i2c->pdata->gpio_scl);
-
-	/* enable ldo */
-	ret = issp_tkey_i2c->pdata->resume();
-	if (ret == 0)
-		printk(KERN_ERR "[Touchkey]regulator get fail!!!\n");
+    int ret;
+	gpio_direction_input(_3_TOUCH_SDA_28V);
+	gpio_direction_input(_3_TOUCH_SCL_28V);
+	gpio_direction_output(_3_GPIO_TOUCH_EN, 1);
+	/* enable ldo11 */
+	ret=touchkey_ldo_on(1);
+    if(ret==0)
+		printk(KERN_ERR"[Touchkey]regulator get fail!!!\n");
 
 	mdelay(1);
 }
@@ -462,7 +465,9 @@ void ApplyTargetVDD(void)
 * ***************************************************************************/
 void RemoveTargetVDD(void)
 {
-	issp_tkey_i2c->pdata->suspend();
+	gpio_direction_output(_3_GPIO_TOUCH_EN, 0);
+		/* disable ldo11 */
+	touchkey_ldo_on(0);
 }
 #endif
 

@@ -58,6 +58,9 @@ struct max17042_chip {
 #endif
 };
 
+#if defined(CONFIG_MACH_C1_KDDI_REV00)
+#define FUEL_ALERT_SOC_VALUE 7
+#endif
 static int max17042_get_property(struct power_supply *psy,
 			    enum power_supply_property psp,
 			    union power_supply_propval *val)
@@ -334,6 +337,20 @@ static void max17042_get_soc(struct i2c_client *client)
 	int soc;
 	int diff = 0;
 
+	#if defined(CONFIG_MACH_C1_KDDI_REV00)   && defined (BATT_SYSFS_TEST_MODE)
+	{
+		extern int sysfs_get_testmode_status(void);
+		int testmode_status = sysfs_get_testmode_status();
+
+		dev_err(&chip->client->dev, "max17042_get_soc: sysfs_test_mode status = %x\n", testmode_status);
+		if ((testmode_status & 0x001F) == (0x0012))
+		{
+			dev_err(&chip->client->dev, "Test mode SOC is ON so don't read from REGISTERS\n");
+			return;
+		}
+	}
+	#endif
+
 	if (chip->is_enable) {
 		if (max17042_read_reg(client, MAX17042_REG_SOC_VF, data) < 0)
 			return;
@@ -424,6 +441,20 @@ static void max17042_get_temperature(struct i2c_client *client)
 	struct max17042_chip *chip = i2c_get_clientdata(client);
 	u8 data[2];
 	s32 temper = 0;
+
+	#if defined(CONFIG_MACH_C1_KDDI_REV00)   && defined (BATT_SYSFS_TEST_MODE)
+	{
+		extern int sysfs_get_testmode_status(void);
+		int testmode_status = sysfs_get_testmode_status();
+
+		dev_err(&chip->client->dev, "max17042_get_temperature: sysfs_test_mode status = %x\n", testmode_status);
+		if ((testmode_status & 0x001F) == (0x0011))
+		{
+			dev_err(&chip->client->dev, "Test mode TEMP is ON so don't read from REGISTERS\n");
+			return;
+		}
+	}
+	#endif
 
 	if (chip->is_enable) {
 		if (max17042_read_reg(client,
@@ -922,11 +953,17 @@ static int __devinit max17042_probe(struct i2c_client *client,
 			       "fuel_alerted");
 
 		data = chip->pdata->alert_init;
+		#if defined(CONFIG_MACH_C1_KDDI_REV00) // FIX FOR PLM - 3569 issue
+		for (i = 0; i < chip->pdata->alert_init_size; i += 3)
+			if ((data + i)->reg_addr == MAX17042_REG_SALRT_TH)
+				chip->fuel_alert_soc = FUEL_ALERT_SOC_VALUE;
+		#else
 		for (i = 0; i < chip->pdata->alert_init_size; i += 3)
 			if ((data + i)->reg_addr ==
 				MAX17042_REG_SALRT_TH)
 				chip->fuel_alert_soc =
 				(data + i)->reg_data1;
+		#endif
 
 		dev_info(&client->dev, "fuel alert soc (%d)\n",
 			chip->fuel_alert_soc);

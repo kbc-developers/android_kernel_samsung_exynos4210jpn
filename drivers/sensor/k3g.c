@@ -606,12 +606,20 @@ static ssize_t k3g_get_temp(struct device *dev,
 	return sprintf(buf, "%d\n", temp);
 }
 
+#if defined(CONFIG_MACH_C1_KDDI_REV00)
+static int k3g_fifo_self_test(struct k3g_data *k3g_data,s16 *zero_rate_data)
+#else
 static int k3g_fifo_self_test(struct k3g_data *k3g_data)
+#endif
 {
 	struct k3g_t raw_data;
 	int err;
 	int i, j;
+#if defined(CONFIG_MACH_C1_KDDI_REV00)
+        s16 *raw = zero_rate_data;
+#else
 	s16 raw[3] = { 0, };
+#endif
 	u8 reg[5];
 	u8 fifo_pass = 2;
 	u8 status_reg;
@@ -719,6 +727,11 @@ static int k3g_fifo_self_test(struct k3g_data *k3g_data)
 exit:
 	k3g_data->fifo_test = false;
 
+#if defined(CONFIG_MACH_C1_KDDI_REV00)
+        raw[0] = raw[0] * MIN_ST/10000;
+        raw[1] = raw[1] * MIN_ST/10000;
+        raw[2] = raw[2] * MIN_ST/10000;
+#endif
 	/* make sure clearing interrupt */
 	enable_irq(k3g_data->client->irq);
 	disable_irq(k3g_data->client->irq);
@@ -944,6 +957,9 @@ static ssize_t k3g_self_test(struct device *dev,
 {
 	struct k3g_data *data = dev_get_drvdata(dev);
 	int NOST[3] = { 0, }, ST[3] = { 0, };
+#if defined(CONFIG_MACH_C1_KDDI_REV00)
+        s16 zero_rate_data[3] = { 0, };
+#endif
 	int err;
 	int i;
 	u8 backup_regs[5];
@@ -968,8 +984,11 @@ static ssize_t k3g_self_test(struct device *dev,
 
 	/* fifo self test */
 	printk(KERN_INFO "\n[gyro_self_test] fifo self-test\n");
-
+#if defined(CONFIG_MACH_C1_KDDI_REV00)
+        fifo_pass = k3g_fifo_self_test(data, zero_rate_data);
+#else
 	fifo_pass = k3g_fifo_self_test(data);
+#endif
 	if (fifo_pass)
 		printk(KERN_INFO "[gyro_self_test] fifo self-test success\n");
 	else if (!fifo_pass)
@@ -1014,9 +1033,17 @@ exit:
 		printk(KERN_INFO "[gyro_self_test] self-test result : %s\n",
 			fifo_pass & bypass_pass ? "pass" : "fail");
 
+#if defined(CONFIG_MACH_C1_KDDI_REV00)
+        return sprintf(buf, "%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d\n",
+                NOST[0], NOST[1], NOST[2], ST[0], ST[1], ST[2],
+                fifo_pass & bypass_pass, fifo_pass,
+                zero_rate_data[0],zero_rate_data[1],zero_rate_data[2]);
+#else
+
 	return sprintf(buf, "%d,%d,%d,%d,%d,%d,%d,%d\n",
 		NOST[0], NOST[1], NOST[2], ST[0], ST[1], ST[2],
 		fifo_pass & bypass_pass, fifo_pass);
+#endif
 }
 
 

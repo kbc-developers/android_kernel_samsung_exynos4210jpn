@@ -243,6 +243,10 @@ static int uart_switch_init(void)
 	}
 	s3c_gpio_setpull(GPIO_UART_SEL, S3C_GPIO_PULL_NONE);
 	val = gpio_get_value(GPIO_UART_SEL);
+#if defined(CONFIG_MACH_C1_KDDI_REV00)
+	//val = 1; //ssong100805. HW team requests for me to make RF UART calibration work fine. 
+	val = 0; //ssong110626. Sleep current over(40mA), CmdCheckTool error. 
+#endif
 	pr_info("##MUIC [ %s ]- func : %s !! val:-%d-\n", __FILE__, __func__,
 		val);
 	gpio_direction_output(GPIO_UART_SEL, val);
@@ -250,6 +254,33 @@ static int uart_switch_init(void)
 	gpio_export(GPIO_UART_SEL, 1);
 
 	gpio_export_link(switch_dev, "uart_sel", GPIO_UART_SEL);
+#if defined(CONFIG_MACH_C1_KDDI_REV00)
+//ssong100805. HW team requests for me to make RF UART calibration work fine. 
+	uartswitch_dev = device_create(sec_class, NULL, 0, NULL, "uart_switch1");
+	if (IS_ERR(uartswitch_dev)) {
+		pr_err("Failed to create device(uart_switch1)!\n");
+		return 0;
+	}
+
+#endif
+
+#if defined(CONFIG_MACH_C1_NA_SPR_REV05) || defined(CONFIG_MACH_C1_NA_USCC_REV05) || defined(CONFIG_MACH_C1_KDDI_REV00)
+	ret = gpio_request(GPIO_UART_SEL1, "UART_SEL1");
+	if (ret < 0) {
+		pr_err("Failed to request GPIO_UART_SEL1!\n");
+		return 0;
+	}
+	s3c_gpio_setpull(GPIO_UART_SEL1, S3C_GPIO_PULL_NONE);
+	val = gpio_get_value(GPIO_UART_SEL1);
+#if defined(CONFIG_MACH_C1_KDDI_REV00)
+	val = 0;
+#endif
+	gpio_direction_output(GPIO_UART_SEL1, val);
+
+	gpio_export(GPIO_UART_SEL1, 1);
+
+	gpio_export_link(uartswitch_dev, "UART_SEL1", GPIO_UART_SEL1);
+#endif	
 
 	return 0;
 }

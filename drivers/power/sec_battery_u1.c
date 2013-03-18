@@ -29,6 +29,11 @@
 #include <plat/adc.h>
 #include <linux/power/sec_battery_u1.h>
 
+#if defined(CONFIG_MACH_C1_KDDI_REV00)
+#include <mach/cpufreq.h>
+#include <linux/rtc.h>
+#endif
+
 #if defined(CONFIG_TARGET_LOCALE_NA) || defined(CONFIG_TARGET_LOCALE_NAATT)
 #define POLLING_INTERVAL	(10 * 1000)
 #else
@@ -71,12 +76,18 @@
 #endif
 
 #if defined(CONFIG_TARGET_LOCALE_NA) || defined(CONFIG_MACH_Q1_BD)
+#if defined(CONFIG_MACH_C1_KDDI_REV00)
+#define RECHARGING_VOLTAGE	(4135 * 1000)	/* 4.135 V */
+#else
 #define RECHARGING_VOLTAGE	(4130 * 1000)	/* 4.13 V */
+#endif
 #else
 #define RECHARGING_VOLTAGE	(4150 * 1000)	/* 4.15 V */
 #endif
 
-#ifdef CONFIG_TARGET_LOCALE_NA
+#if defined (CONFIG_MACH_C1_KDDI_REV00)
+#define RECHARGING_CND_COUNT    1
+#elif CONFIG_TARGET_LOCALE_NA
 #define RECHARGING_CND_COUNT    2
 #endif
 
@@ -142,6 +153,25 @@
 #define LOW_BLOCK_TEMP_ADC_LPM		506
 #define HIGH_RECOVER_TEMP_ADC_LPM	702
 #define LOW_RECOVER_TEMP_ADC_LPM	512
+#elif defined(CONFIG_MACH_C1_KDDI_REV00)
+#define EVENT_BLOCK_TEMP_ADC           764	//777
+#define HIGH_BLOCK_TEMP_ADC 767 //751 //707 GUMI Team gives us a command-> 258 -- 65 degrees
+#define LOW_BLOCK_TEMP_ADC 507 //498 GUMI Team gives us a command-> 1561 -- -2 degrees
+#define HIGH_RECOVER_TEMP_ADC 707 //701 //705 GUMI Team gives us a command-> 562  -- 42 degrees
+#define LOW_RECOVER_TEMP_ADC 523 //514 GUMI Team gives us a command-> 1476 = 2 degrees
+
+#define HIGH_BLOCK_TEMP_ADC_LPM        767 //751 //710
+#define LOW_BLOCK_TEMP_ADC_LPM         507 //498 //506
+#define HIGH_RECOVER_TEMP_ADC_LPM      707 //701 //702
+#define LOW_RECOVER_TEMP_ADC_LPM       523 //514 //512
+
+#define SYSFS_TEST_MODE_TEMP	0xF001
+#define SYSFS_TEST_MODE_SOC	0xF002
+#define SYSFS_TEST_MODE_ADC	0xF004
+#define SYSFS_TEST_MODE_ON	0xF010
+#define SYSFS_TEST_MODE_OFF	0xF000
+
+static int sysfs_test_mode = SYSFS_TEST_MODE_OFF;	// default OFF;
 #else
 #define EVENT_BLOCK_TEMP_ADC           777
 #define HIGH_BLOCK_TEMP_ADC            729
@@ -182,6 +212,10 @@
 #ifdef CONFIG_TARGET_LOCALE_NA
 #if defined(CONFIG_MACH_U1_NA_SPR_EPIC2_REV00)
 #define CURRENT_OF_FULL_CHG                     1
+#elif defined(CONFIG_MACH_C1_KDDI_REV00)
+//ssong. my goal == 200mA cutoff current. try offset 140!(X, 212mA)| try 115!(X, 185mA) | try 130 ()
+//#define CURRENT_OF_FULL_CHG			720	//560 |: 720==230mA, 560==140mA cutoff current.
+#define CURRENT_OF_FULL_CHG		640 //200mA cutoff current
 #else
 #define CURRENT_OF_FULL_CHG			350
 #endif				/* CONFIG_MACH_U1_NA_SPR_EPIC2_REV00 */
@@ -200,7 +234,12 @@
 #define CURRENT_OF_FULL_CHG			520
 #endif
 
+#if defined (CONFIG_MACH_C1_KDDI_REV00)
+#define TEMP_BLOCK_COUNT			2
+#else
 #define TEMP_BLOCK_COUNT			3
+#endif
+
 #ifdef SEC_BATTERY_INDEPEDENT_VF_CHECK
 #define BAT_DET_COUNT				0
 #else
@@ -224,12 +263,41 @@
 #define SPRINT_SLATE_TEST
 #endif
 
-enum tmu_status_t {
-	TMU_STATUS_NORMAL = 0,
-	TMU_STATUS_TRIPPED,
-	TMU_STATUS_THROTTLED,
-	TMU_STATUS_WARNING,
-};
+#if defined(CONFIG_MACH_C1_KDDI_REV00)
+//#define RTC_USE_FOR_WAKEUP_TIMER
+//#define BATT_SYSFS_TEST_MODE 
+#define EMPTY			(8/10)
+#define FULL			95
+
+#if defined(CONFIG_MACH_C1_KDDI_REV00)
+#define VCELL_SAMPLING_CNT	6
+#endif
+int sysfs_get_testmode_status(void)
+{
+	pr_err("%s: sysfs_test_mode val = %x\n", __func__, sysfs_test_mode);
+	return sysfs_test_mode;
+}
+
+
+#if defined (CONFIG_MACH_C1_KDDI_REV00) && defined (BATT_SYSFS_TEST_MODE)
+static int sysfs_set_testmode_status(int val)
+{
+	val = (SYSFS_TEST_MODE_ON | val);
+	
+	if ((val  < (SYSFS_TEST_MODE_ON|SYSFS_TEST_MODE_TEMP)) || (val >  (SYSFS_TEST_MODE_ON|SYSFS_TEST_MODE_ADC)))
+	{
+		pr_err("%s: ERROR - Input Param[%x] outside range. sysfs_test_mode curr status = %x\n", __func__, val, sysfs_test_mode);
+		return -1;
+	}
+	else
+	{
+		pr_err("%s: sysfs_test_mode curr status = %x, new status = %x\n", __func__, sysfs_test_mode, val);
+		sysfs_test_mode = val;
+	}
+	return 0;
+}
+#endif
+#endif
 
 enum cable_type_t {
 	CABLE_TYPE_NONE = 0,
@@ -527,13 +595,31 @@ static int sec_bat_get_property(struct power_supply *ps,
 		break;
 #endif
 	case POWER_SUPPLY_PROP_CAPACITY:
-#ifdef CONFIG_TARGET_LOCALE_NA
+#if defined(CONFIG_MACH_C1_KDDI_REV00)
+            {
+              int temp;
+		if ((info->charging_status == POWER_SUPPLY_STATUS_FULL) ||(info->batt_soc >= FULL)) {
+			val->intval = 100;
+			break;
+		}		
+		val->intval = ((1000*info->batt_soc)/FULL); 
+		temp = val->intval/10; 
+		temp = temp*10; 
+		if(val->intval - temp >= 5) 
+		val->intval=(val->intval/10) + 1;
+		else
+		val->intval=(val->intval/10);	
+		if (val->intval == -1)
+			return -EINVAL;
+		break;
+            }
+#elif defined (CONFIG_TARGET_LOCALE_NA)
 		if (info->charging_status != POWER_SUPPLY_STATUS_FULL
 		    && info->batt_soc == 100) {
 			val->intval = 99;
 			break;
 		}
-#endif				/*CONFIG_TARGET_LOCALE_NA */
+#else				/*CONFIG_TARGET_LOCALE_NA */
 
 		if (info->charging_status == POWER_SUPPLY_STATUS_FULL) {
 			val->intval = 100;
@@ -543,6 +629,7 @@ static int sec_bat_get_property(struct power_supply *ps,
 		if (val->intval == -1)
 			return -EINVAL;
 		break;
+#endif
 	case POWER_SUPPLY_PROP_TECHNOLOGY:
 		val->intval = POWER_SUPPLY_TECHNOLOGY_LION;
 		break;
@@ -774,7 +861,39 @@ static int sec_bat_get_adc_data(struct sec_bat_info *info, int adc_ch)
 static inline int s3c_read_temper_adc(struct sec_bat_info *info)
 {
 	int adc;
+	#if defined(CONFIG_MACH_C1_KDDI_REV00) && defined (BATT_SYSFS_TEST_MODE)
+	int testmode_status = sysfs_get_testmode_status();
 
+	pr_err("%s: sysfs_test_mode status = %x\n", __func__, testmode_status);
+	if (testmode_status == (SYSFS_TEST_MODE_ON | SYSFS_TEST_MODE_TEMP))
+	{
+		int low, high, mid;
+		int i32_batt_temp = (int)info->batt_temp;
+		low =  mid = 0;
+		high = info->adc_arr_size - 1;
+		
+		pr_err("%s: sysfs_test_mode is ON. batt_temp = %d\n", __func__, i32_batt_temp);
+
+		while (low <= high) 
+		{
+			mid = (low + high) / 2;
+			if (info->adc_table[mid].temperature < i32_batt_temp)
+				high = mid - 1;
+			else if (info->adc_table[mid].temperature > i32_batt_temp)
+				low = mid + 1;
+			else
+				break;
+		}
+
+		info->batt_temp_adc = info->adc_table[mid].adc;
+		pr_err("%s: sysfs_test_mode is ON. batt_temp_adc = %d\n", __func__, i32_batt_temp);
+	}
+	else if (testmode_status == (SYSFS_TEST_MODE_ON | SYSFS_TEST_MODE_ADC))
+	{
+		pr_err("%s: sysfs_test_mode is ON. User Given ADC = %d\n", __func__, info->batt_temp_adc);
+	}
+	else if (testmode_status == SYSFS_TEST_MODE_OFF)
+	#endif
 	mutex_lock(&info->adclock);
 	adc = sec_bat_get_adc_data(info, info->adc_channel);
 	mutex_unlock(&info->adclock);
@@ -916,6 +1035,19 @@ static int sec_bat_check_temper(struct sec_bat_info *info)
 		info->batt_temp = temp;
 		return temp;
 	}
+
+	#if defined(CONFIG_MACH_C1_KDDI_REV00)  && defined (BATT_SYSFS_TEST_MODE)
+	int testmode_status = sysfs_get_testmode_status();
+	
+	pr_err("%s: sysfs_test_mode status = %x\n", __func__, testmode_status);
+	if (testmode_status == (SYSFS_TEST_MODE_ON | SYSFS_TEST_MODE_TEMP))
+	{
+		pr_err("%s: batt_temp already set by user[%d], mapped ADC = [%d], RADC = [%d]\n", __func__, info->batt_temp,temp_adc, temp_radc);
+		temp = info->batt_temp;
+	}
+	else
+	#endif
+
 	high = info->adc_arr_size - 1;
 
 	while (low <= high) {
@@ -1403,13 +1535,25 @@ static int sec_bat_check_temper(struct sec_bat_info *info)
 #endif
 static void check_chgcurrent(struct sec_bat_info *info)
 {
+#if defined(CONFIG_MACH_C1_KDDI_REV00)
+	int chg_current_adc = 0;
+#else
 	unsigned long chg_current_adc = 0;
+#endif
 
 	mutex_lock(&info->adclock);
 	chg_current_adc = sec_bat_get_adc_data(info, ADC_CH_CHGCURRENT);
 	mutex_unlock(&info->adclock);
+#if defined(CONFIG_MACH_C1_KDDI_REV00)
+	if (chg_current_adc < 0)
+	{
+		dev_err(info->dev, "%s: ERROR! adc data(=%d) is wrong! make it as previous one.\n", __func__, chg_current_adc);
+		chg_current_adc = info->batt_current_adc;
+	}
+#else
 	if (chg_current_adc < 0)
 		chg_current_adc = info->batt_current_adc;
+#endif
 	info->batt_current_adc = chg_current_adc;
 
 	dev_dbg(info->dev,
@@ -1466,11 +1610,92 @@ static bool sec_check_chgcurrent(struct sec_bat_info *info)
 	return false;
 }
 
+#if defined(CONFIG_MACH_C1_KDDI_REV00)
+static int sec_bat_get_vcell_avg(struct sec_bat_info *info)
+{
+	int vcell_data;
+	int vcell_max = 0;
+	int vcell_min = 0;
+	int vcell_total = 0;
+	int i;
+	int err_value;
+
+	for (i = 0; i < VCELL_SAMPLING_CNT; i++) {
+		vcell_data = sec_bat_get_fuelgauge_data(info, FG_T_AVGVCELL);
+
+		if (vcell_data < 0) {
+			dev_err(info->dev, "%s : err(%d) returned, skip read\n",
+				__func__, vcell_data);
+			err_value = vcell_data;
+			goto err;
+		}
+
+		if (i != 0) {
+			if (vcell_data > vcell_max)
+				vcell_max = vcell_data;
+			else if (vcell_data < vcell_min)
+				vcell_min = vcell_data;
+		} else {
+			vcell_max = vcell_data;
+			vcell_min = vcell_data;
+		}
+		vcell_total += vcell_data;
+	}
+
+	return (vcell_total - vcell_max - vcell_min) / (VCELL_SAMPLING_CNT - 2);
+err:
+	return err_value;
+}
+#endif
+
 static void sec_bat_update_info(struct sec_bat_info *info)
 {
+#if defined(CONFIG_MACH_C1_KDDI_REV00)  && defined (BATT_SYSFS_TEST_MODE)
+	int testmode_status = sysfs_get_testmode_status();
+
+	pr_err("%s: sysfs_test_mode status = %x\n", __func__, testmode_status);
+	if (testmode_status == (SYSFS_TEST_MODE_ON | SYSFS_TEST_MODE_SOC))
+	{
+		pr_err("%s: batt_soc already set by user[%d], mapped raw_soc = [%d]\n", __func__, info->batt_soc, info->batt_raw_soc);
+	}
+	else if (testmode_status == (SYSFS_TEST_MODE_OFF))
+		info->batt_raw_soc = sec_bat_get_fuelgauge_data(info, FG_T_PSOC);
+#else
 	info->batt_raw_soc = sec_bat_get_fuelgauge_data(info, FG_T_PSOC);
+#endif
+
+#if defined(CONFIG_MACH_C1_KDDI_REV00)
+	//info->batt_soc = ((info->batt_raw_soc-EMPTY)/(FULL-EMPTY))*100;
+	info->batt_soc = (100*info->batt_raw_soc)/FULL;
+	if(info->batt_soc >=100)
+		info->batt_soc = 100;
+	else if(info->batt_soc <= 0)
+		info->batt_soc = 0;
+#else
 	info->batt_soc = sec_bat_get_fuelgauge_data(info, FG_T_SOC);
+#endif
+
+#if defined(CONFIG_MACH_C1_KDDI_REV00)
+	if((info->charging_status == POWER_SUPPLY_STATUS_FULL) && (info->recharging_status == false))
+	{
+		int temp_vcell =  sec_bat_get_vcell_avg(info);
+		dev_err(info->dev, "%s: POWER_SUPPLY_STATUS_FULL avg_vcell = %d and previous batt_vcell = %d\n", __func__, temp_vcell, info->batt_vcell);
+		if(temp_vcell <= info->batt_vcell)
+			info->batt_vcell = temp_vcell;
+
+		dev_err(info->dev, "%s: POWER_SUPPLY_STATUS_FULL new batt_vcell = %d\n", __func__, info->batt_vcell);
+
+		//gi32_full_chg_curr = 720;	// changing the full cutoff current around ~230 mA
+	}
+	else
+	{
+		info->batt_vcell = sec_bat_get_fuelgauge_data(info, FG_T_VCELL);
+		//dev_err(info->dev, "%s:charging_status is %d and recharging_status is %d..  new batt_vcell = %d\n", __func__, info->charging_status, info->recharging_status, info->batt_vcell);
+		
+	}
+#else
 	info->batt_vcell = sec_bat_get_fuelgauge_data(info, FG_T_VCELL);
+#endif
 	info->batt_vfocv = sec_bat_get_fuelgauge_data(info, FG_T_VFOCV);
 }
 
@@ -1573,7 +1798,7 @@ static int sec_bat_enable_charging_sub(struct sec_bat_info *info, bool enable)
 				" status-main(%d)\n", __func__, ret);
 			return ret;
 		}
-#if defined(CONFIG_MACH_Q1_BD)
+#if defined(CONFIG_MACH_Q1_BD) || defined(CONFIG_MACH_C1_KDDI_REV00)
 		/* Set charging current only in charging start time */
 		if (info->charging_start_time == 0) {
 #endif
@@ -1612,7 +1837,7 @@ static int sec_bat_enable_charging_sub(struct sec_bat_info *info, bool enable)
 					__func__, ret);
 				return ret;
 			}
-#if defined(CONFIG_MACH_Q1_BD)
+#if defined(CONFIG_MACH_Q1_BD) || defined(CONFIG_MACH_C1_KDDI_REV00)
 			/* Reset charging */
 		} else
 			val_type.intval = POWER_SUPPLY_STATUS_CHARGING;
@@ -1736,7 +1961,7 @@ static bool sec_bat_charging_time_management(struct sec_bat_info *info)
 		break;
 #endif
 	case POWER_SUPPLY_STATUS_CHARGING:
-#if defined(CONFIG_MACH_Q1_BD)
+#if defined(CONFIG_MACH_Q1_BD) || defined(CONFIG_MACH_C1_KDDI_REV00)
 		if (info->cable_type != CABLE_TYPE_USB) {
 #endif
 			if (time_after(info->charging_passed_time,
@@ -1753,7 +1978,7 @@ static bool sec_bat_charging_time_management(struct sec_bat_info *info)
 					return true;
 				}
 			}
-#if defined(CONFIG_MACH_Q1_BD)
+#if defined(CONFIG_MACH_Q1_BD) || defined(CONFIG_MACH_C1_KDDI_REV00)
 		}
 #endif
 		if (time_after(info->charging_passed_time,
@@ -1886,7 +2111,8 @@ static void sec_bat_check_vf(struct sec_bat_info *info)
 	return;
 }
 
-#if (defined(CONFIG_MACH_Q1_BD) && defined(CONFIG_SMB328_CHARGER))
+#if (defined(CONFIG_MACH_Q1_BD) && defined(CONFIG_SMB328_CHARGER)) \
+	|| (defined(CONFIG_MACH_C1_KDDI_REV00) && defined(CONFIG_SMB328_CHARGER))
 static void sec_bat_check_ovp(struct sec_bat_info *info)
 {
 	struct power_supply *psy =
@@ -2145,7 +2371,7 @@ static void sec_bat_monitor_work(struct work_struct *work)
 	if (sec_bat_check_ing_level_trigger(info))
 		goto full_charged;
 
-#if !defined(CONFIG_MACH_Q1_BD)
+#if !defined(CONFIG_MACH_Q1_BD) && !defined(CONFIG_MACH_C1_KDDI_REV00)
 	if (info->cable_type == CABLE_TYPE_AC)
 #endif
 		if (sec_check_chgcurrent(info))
@@ -2305,7 +2531,8 @@ static void sec_bat_vf_check_work(struct work_struct *work)
 	sec_bat_check_vf_adc(info);
 #endif
 
-#if (defined(CONFIG_MACH_Q1_BD) && defined(CONFIG_SMB328_CHARGER))
+#if (defined(CONFIG_MACH_Q1_BD) && defined(CONFIG_SMB328_CHARGER)) \
+	|| (defined(CONFIG_MACH_C1_KDDI_REV00) && defined(CONFIG_SMB328_CHARGER))
 	sec_bat_check_ovp(info);
 
 	if ((info->batt_health == POWER_SUPPLY_HEALTH_UNSPEC_FAILURE) ||
@@ -2402,6 +2629,18 @@ static struct device_attribute sec_battery_attrs[] = {
 	SEC_BATTERY_ATTR(data_call),
 	SEC_BATTERY_ATTR(wimax),
 #endif
+#if defined (CONFIG_MACH_C1_KDDI_REV00)  && defined (BATT_SYSFS_TEST_MODE)
+	SEC_BATTERY_ATTR(sysfs_test),
+	SEC_BATTERY_ATTR(test_event_block_temp),
+	SEC_BATTERY_ATTR(test_high_block_radc),
+	SEC_BATTERY_ATTR(test_low_block_radc),
+	SEC_BATTERY_ATTR(test_high_recover_radc),
+	SEC_BATTERY_ATTR(test_low_recover_radc),
+	SEC_BATTERY_ATTR(test_high_block_lpm),
+	SEC_BATTERY_ATTR(test_low_block_lpm),
+	SEC_BATTERY_ATTR(test_high_recover_lpm),
+	SEC_BATTERY_ATTR(test_low_recover_lpm),
+#endif
 };
 
 enum {
@@ -2450,6 +2689,20 @@ enum {
 	BATT_CAMERA,
 	BATT_DATA_CALL,
 	BATT_WIMAX,
+#endif
+#if defined (CONFIG_MACH_C1_KDDI_REV00)  && defined (BATT_SYSFS_TEST_MODE)
+	BATT_SYSFS_TESTMODE,
+	BATT_SYSFS_EVENT_BLOCK_TEMP_RADC,
+	BATT_SYSFS_HIGH_BLOCK_TEMP_RADC,
+	BATT_SYSFS_LOW_BLOCK_TEMP_RADC,
+	BATT_SYSFS_HIGH_RECOVER_TEMP_RADC,
+	BATT_SYSFS_LOW_RECOVER_TEMP_RADC,
+
+	BATT_SYSFS_HIGH_BLOCK_TEMP_RADC_LPM,
+	BATT_SYSFS_LOW_BLOCK_TEMP_RADC_LPM,
+	BATT_SYSFS_HIGH_RECOVER_TEMP_RADC_LPM,
+	BATT_SYSFS_LOW_RECOVER_TEMP_RADC_LPM,
+	
 #endif
 };
 
@@ -2542,6 +2795,9 @@ static ssize_t sec_bat_show_property(struct device *dev,
 		break;
 	case BATT_TEMP_ADC:
 		val = s3c_read_temper_adc(info);
+#ifdef CONFIG_MACH_C1_KDDI_REV00
+		val = 2000 - val;
+#endif	
 		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n", val);
 		break;
 #ifdef CONFIG_TARGET_LOCALE_NA
@@ -2722,6 +2978,13 @@ static ssize_t sec_bat_show_property(struct device *dev,
 		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n", info->use_wimax);
 		break;
 #endif
+
+#if defined(CONFIG_MACH_C1_KDDI_REV00)  && defined (BATT_SYSFS_TEST_MODE)
+	case BATT_SYSFS_TESTMODE:
+		i += scnprintf(buf + i, PAGE_SIZE - i, "%x\n", sysfs_test_mode);
+	break;
+#endif
+
 	default:
 		i = -EINVAL;
 		break;
@@ -2846,6 +3109,189 @@ static ssize_t sec_bat_store(struct device *dev,
 #endif
 		}
 		break;
+
+#if defined(CONFIG_MACH_C1_KDDI_REV00)  && defined (BATT_SYSFS_TEST_MODE)
+	case BATT_SYSFS_TESTMODE:
+		if (sscanf(buf, "%d\n", &x) == 1) 
+		{
+			dev_info(info->dev, "%s: SYSFS_TESTMODE(%d)\n", __func__, x);
+			sysfs_set_testmode_status(x);
+			ret = count;
+		}
+	break;
+	
+	case BATT_SYSFS_EVENT_BLOCK_TEMP_RADC:
+		if (sscanf(buf, "%d\n", &x) == 1) 
+		{
+			#ifdef EVENT_BLOCK_TEMP_ADC 
+			#undef EVENT_BLOCK_TEMP_ADC
+			#define EVENT_BLOCK_TEMP_ADC  (x)
+			#endif
+			dev_info(info->dev, "%s: EVENT_BLOCK_TEMP(%d)\n", __func__, EVENT_BLOCK_TEMP_ADC);
+			ret = count;
+		}
+	break;
+
+	case BATT_SYSFS_HIGH_BLOCK_TEMP_RADC:
+		if (sscanf(buf, "%d\n", &x) == 1) 
+		{
+			#ifdef HIGH_BLOCK_TEMP_ADC 
+			#undef HIGH_BLOCK_TEMP_ADC
+			#define HIGH_BLOCK_TEMP_ADC  (x)
+			#endif
+			dev_info(info->dev, "%s: HIGH_BLOCK_TEMP(%d)\n", __func__, HIGH_BLOCK_TEMP_ADC);
+			ret = count;
+		}
+	break;
+
+	case BATT_SYSFS_LOW_BLOCK_TEMP_RADC:
+		if (sscanf(buf, "%d\n", &x) == 1) 
+		{
+			#ifdef LOW_BLOCK_TEMP_ADC 
+			#undef LOW_BLOCK_TEMP_ADC
+			#define LOW_BLOCK_TEMP_ADC  (x)
+			#endif
+			dev_info(info->dev, "%s: LOW_BLOCK_TEMP(%d)\n", __func__, LOW_BLOCK_TEMP_ADC);
+			ret = count;
+		}
+	break;
+
+	case BATT_SYSFS_HIGH_RECOVER_TEMP_RADC:
+		if (sscanf(buf, "%d\n", &x) == 1) 
+		{
+			#ifdef HIGH_RECOVER_TEMP_ADC 
+			#undef HIGH_RECOVER_TEMP_ADC
+			#define HIGH_RECOVER_TEMP_ADC  (x)
+			#endif
+			dev_info(info->dev, "%s: HIGH_RECOVER_TEMP(%d)\n", __func__, HIGH_RECOVER_TEMP_ADC);
+			ret = count;
+		}
+	break;
+
+	case BATT_SYSFS_LOW_RECOVER_TEMP_RADC:
+		if (sscanf(buf, "%d\n", &x) == 1) 
+		{
+			#ifdef LOW_RECOVER_TEMP_ADC 
+			#undef LOW_RECOVER_TEMP_ADC
+			#define LOW_RECOVER_TEMP_ADC  (x)
+			#endif
+			dev_info(info->dev, "%s: LOW_RECOVER_TEMP(%d)\n", __func__, LOW_RECOVER_TEMP_ADC);
+			ret = count;
+		}
+	break;
+
+	case BATT_SYSFS_HIGH_BLOCK_TEMP_RADC_LPM:
+		if (sscanf(buf, "%d\n", &x) == 1) 
+		{
+			#ifdef HIGH_BLOCK_TEMP_ADC_LPM 
+			#undef HIGH_BLOCK_TEMP_ADC_LPM
+			#define HIGH_BLOCK_TEMP_ADC_LPM  (x)
+			#endif
+			dev_info(info->dev, "%s: HIGH_BLOCK_TEMP_ADC_LPM(%d)\n", __func__, HIGH_BLOCK_TEMP_ADC_LPM);
+			ret = count;
+		}
+	break;
+
+	case BATT_SYSFS_LOW_BLOCK_TEMP_RADC_LPM:
+		if (sscanf(buf, "%d\n", &x) == 1) 
+		{
+			#ifdef LOW_BLOCK_TEMP_ADC_LPM 
+			#undef LOW_BLOCK_TEMP_ADC_LPM
+			#define LOW_BLOCK_TEMP_ADC_LPM  (x)
+			#endif
+			dev_info(info->dev, "%s: LOW_BLOCK_TEMP_ADC_LPM(%d)\n", __func__, LOW_BLOCK_TEMP_ADC_LPM);
+			ret = count;
+		}
+	break;
+
+	case BATT_SYSFS_HIGH_RECOVER_TEMP_RADC_LPM:
+		if (sscanf(buf, "%d\n", &x) == 1) 
+		{
+			#ifdef HIGH_RECOVER_TEMP_ADC_LPM 
+			#undef HIGH_RECOVER_TEMP_ADC_LPM
+			#define HIGH_RECOVER_TEMP_ADC_LPM  (x)
+			#endif
+			dev_info(info->dev, "%s: HIGH_RECOVER_TEMP_ADC_LPM(%d)\n", __func__, HIGH_RECOVER_TEMP_ADC_LPM);
+			ret = count;
+		}
+	break;
+
+	case BATT_SYSFS_LOW_RECOVER_TEMP_RADC_LPM:
+		if (sscanf(buf, "%d\n", &x) == 1) 
+		{
+			#ifdef LOW_RECOVER_TEMP_ADC_LPM 
+			#undef LOW_RECOVER_TEMP_ADC_LPM
+			#define LOW_RECOVER_TEMP_ADC_LPM  (x)
+			#endif
+			dev_info(info->dev, "%s: LOW_RECOVER_TEMP_ADC_LPM(%d)\n", __func__, LOW_RECOVER_TEMP_ADC_LPM);
+			ret = count;
+		}
+	break;
+	
+	case BATT_TEMP:
+		// User will set the desired temp.  corresponding adc has to be brought from the array.
+		if (sscanf(buf, "%d\n", &x) == 1) 
+		{
+			int testmode_status = sysfs_get_testmode_status();
+
+			pr_err("%s: BATT_TEMP -- sysfs_test_mode status = %x\n", __func__, testmode_status);
+			if (testmode_status == (SYSFS_TEST_MODE_ON | SYSFS_TEST_MODE_TEMP))
+			{
+				pr_err("%s: Batt_temp use sysfs & overwrite original.\n", __func__);
+				info->batt_temp = x;
+			}
+			else 	if (testmode_status == SYSFS_TEST_MODE_OFF) 
+			{
+				pr_err("%s: Sysfs Test mode is set to OFF \n", __func__);				
+			}
+			ret = count;
+		}
+	break;
+
+	case BATT_SOC:
+	{
+		if (sscanf(buf, "%d\n", &x) == 1) 
+		{
+			int testmode_status = sysfs_get_testmode_status();
+
+			pr_err("%s: BATT_SOC -- sysfs_test_mode status = %x\n", __func__, testmode_status);
+			if (testmode_status == (SYSFS_TEST_MODE_ON | SYSFS_TEST_MODE_SOC))
+			{
+				pr_err("%s: batt_temp_adc use sysfs & overwrite original.\n", __func__);
+				info->batt_soc = x;
+			}
+			else 	if (testmode_status == SYSFS_TEST_MODE_OFF) 
+			{
+				pr_err("%s: Sysfs Test mode is set to OFF \n", __func__);				
+			}
+			ret = count;
+		}
+	}
+	break;
+
+	case BATT_TEMP_ADC:
+	{
+		if (sscanf(buf, "%d\n", &x) == 1) 
+		{
+			int testmode_status = sysfs_get_testmode_status();
+
+			pr_err("%s: BATT_TEMP_ADC -- sysfs_test_mode status = %x\n", __func__, testmode_status);
+			if (testmode_status == (SYSFS_TEST_MODE_ON | SYSFS_TEST_MODE_ADC))
+			{
+				info->batt_temp_adc = x;
+				pr_err("%s: batt_temp_adc use sysfs[%d] & overwrite original.\n", __func__, info->batt_temp_adc);
+			}
+			else 	if (testmode_status == SYSFS_TEST_MODE_OFF) 
+			{
+				pr_err("%s: Sysfs Test mode is set to OFF \n", __func__);				
+			}
+			ret = count;
+		}
+	}
+	break;
+
+#endif
+
 	case BATT_TEST_VALUE:
 		if (sscanf(buf, "%d\n", &x) == 1) {
 			info->test_value = x;
@@ -3239,9 +3685,17 @@ static __devinit int sec_bat_probe(struct platform_device *pdev)
 #endif
 	if (info->get_lpcharging_state) {
 		if (info->get_lpcharging_state())
+			#if defined (CONFIG_MACH_C1_KDDI_REV00)
+			info->polling_interval = POLLING_INTERVAL*2;
+			#else
 			info->polling_interval = POLLING_INTERVAL / 4;
+			#endif
 		else
+			#if defined (CONFIG_MACH_C1_KDDI_REV00)
+			info->polling_interval = POLLING_INTERVAL*2;
+			#else
 			info->polling_interval = POLLING_INTERVAL;
+			#endif
 	}
 
 	info->test_value = 0;

@@ -24,6 +24,10 @@ static int current_mode;
 #define SP_ILOCK_REG    0xE7
 #define CFGP_REG    0xEE
 #define PDS_REG     0x0A
+#if defined(CONFIG_MACH_C1_KDDI_REV00)
+#define BSTUP3_REG              0xF6
+#define BST21_REG               0xF8
+#endif
 
 /*
  * 0x06; only AP (disable CP and WiMax)
@@ -236,6 +240,18 @@ int usb3803_set_mode(int mode)
 				, __func__, hub_port);
 			pr_info("[%s] read  PDS_REG : 0x%x\n"
 				, __func__, data);
+
+#if defined(CONFIG_MACH_C1_KDDI_REV00)
+                                data = 0x44; // drive strength +20%
+                                usb3803_register_write(BSTUP3_REG, data);
+                                usb3803_register_read(BSTUP3_REG, &data);
+                                pr_info("[%s] read  BSTUP3_REG : 0x%x\n", __func__, data);
+
+                                data = 0x44; // drive strength +20%
+                                usb3803_register_write(BST21_REG, data);
+                                usb3803_register_read(BST21_REG, &data);
+                                pr_info("[%s] read  BST21_REG : 0x%x\n", __func__, data);
+#endif
 
 			/* Step 3. Set bit 7 (SELF_BUS_PWR) of
 			register 0x06 to high.*/

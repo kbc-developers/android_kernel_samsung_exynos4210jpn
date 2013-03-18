@@ -581,6 +581,11 @@ static int s3cfb_probe(struct platform_device *pdev)
 		fbdev[i]->timeline_max = 0;
 #endif
 
+#if defined(CONFIG_MACH_C1_KDDI_REV00)
+		/* hw setting */
+		s3cfb_init_global(fbdev[i]);
+#endif
+
 		/* irq */
 		fbdev[i]->irq = platform_get_irq(pdev, 0);
 		if (request_irq(fbdev[i]->irq, s3cfb_irq_frame, IRQF_SHARED,
@@ -606,9 +611,11 @@ static int s3cfb_probe(struct platform_device *pdev)
 		if (i == 0)
 			s3c_mdnie_setup();
 #endif
+
+#if !defined(CONFIG_MACH_C1_KDDI_REV00)
 		/* hw setting */
 		s3cfb_init_global(fbdev[i]);
-
+#endif
 		fbdev[i]->system_state = POWER_ON;
 
 		spin_lock_init(&fbdev[i]->slock);

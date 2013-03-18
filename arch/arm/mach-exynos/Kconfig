@@ -821,6 +821,16 @@ config MACH_U1_NA_USCC
 	select S3C_DEV_I2C17_EMUL
 	select S3C_DEV_I2C4
 	select EXYNOS4_SETUP_I2C4
+
+config MACH_C1_KDDI_REV00
+	bool "Mobile KDDI DALI board"
+	select S3C_DEV_I2C17_EMUL
+	select S3C_DEV_I2C4
+	select EXYNOS4_SETUP_I2C4
+	select S3C_DEV_I2C14_EMUL
+	help
+	  Machine Support for KDDI JPN Board.
+
 config MACH_U1
 	bool "U1 board"
 	select CPU_EXYNOS4210
