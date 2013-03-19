@@ -373,7 +373,7 @@ static inline int check_gps_uart_op(void)
 #if defined(CONFIG_INTERNAL_MODEM_IF) || defined(CONFIG_SAMSUNG_PHONE_TTY)
 static int check_idpram_op(void)
 {
-#ifdef CONFIG_SEC_MODEM_U1_SPR
+#if defined(CONFIG_SEC_MODEM_U1_SPR) || defined(CONFIG_MACH_C1_KDDI_REV00)
 	/* This pin is high when CP might be accessing dpram */
 	/* return !!gpio_get_value(GPIO_CP_DUMP_INT); */
 	int x1_2 = __raw_readl(S5P_VA_GPIO2 + 0xC24) & 4; /* GPX1(2) */
@@ -382,7 +382,7 @@ static int check_idpram_op(void)
 	return x1_2;
 #else
 	/* This pin is high when CP might be accessing dpram */
-#ifdef CONFIG_MACH_U1_NA_SPR
+#if defined(CONFIG_SEC_MODEM_U1_SPR) || defined(CONFIG_MACH_C1_KDDI_REV00)
 	int cp_int = __raw_readl(S5P_VA_GPIO2 + 0xC24) & 4;
 #else
 	int cp_int = gpio_get_value(GPIO_CP_AP_DPRAM_INT);

@@ -278,15 +278,12 @@ cy_as_mail_box_process_data(cy_as_device *dev_p, uint16_t *data)
 	ctxt_p = dev_p->context[context];
 
 	if (cy_as_mbox_is_request(data[0])) {
-#if defined(CONFIG_MACH_U1_NA_SPR) || defined(CONFIG_MACH_U1_NA_USCC)
-		if (ctxt_p->req_p == 0) {
-			cy_as_hal_print_message(KERN_ERR
-			"mailbox process : request pointer NULL\n");
+		//cy_as_hal_assert(ctxt_p->req_p != 0) ;
+		if( ctxt_p->req_p == 0)
+		{
+			cy_as_hal_print_message(KERN_ERR"mailbox process : request pointer NULL \n");
 			return;
 		}
-#else
-	 cy_as_hal_assert(ctxt_p->req_p != 0);
-#endif
 		rec_p = ctxt_p->req_p;
 		len_p = &ctxt_p->request_length;
 
@@ -940,7 +937,7 @@ cy_as_ll_send_request(
 
 	context = cy_as_mbox_get_context(box0);
 	cy_as_hal_assert(context < CY_RQT_CONTEXT_COUNT);
-	if (context < CY_RQT_CONTEXT_COUNT)
+	if(context < CY_RQT_CONTEXT_COUNT)
 		ctxt_p = dev_p->context[context] ;
 	else
 		return CY_AS_ERROR_INVALID_PARAMETER;
@@ -1025,17 +1022,13 @@ cy_as_ll_send_request_wait_reply(
 	uint8_t context;
 	/* Larger 8 sec time-out to handle the init
 	 * delay for slower storage devices in USB FS. */
-#if defined(CONFIG_MACH_U1_NA_SPR) || defined(CONFIG_MACH_U1_NA_USCC)
 	uint32_t loopcount = 400 ;
-#else
-	 uint32_t loopcount = 800;
-#endif
 	cy_as_context *ctxt_p;
 
 	/* Get the context for the request */
 	context = cy_as_ll_request_response__get_context(req);
 	cy_as_hal_assert(context < CY_RQT_CONTEXT_COUNT);
-	if (context < CY_RQT_CONTEXT_COUNT)
+	if(context < CY_RQT_CONTEXT_COUNT)
 		ctxt_p = dev_p->context[context] ;
 	else
 		return CY_AS_ERROR_INVALID_PARAMETER;
@@ -1077,7 +1070,7 @@ cy_as_ll_register_request_callback(
 {
 	cy_as_context *ctxt_p;
 	cy_as_hal_assert(context < CY_RQT_CONTEXT_COUNT);
-	if (context < CY_RQT_CONTEXT_COUNT)
+	if(context < CY_RQT_CONTEXT_COUNT)
 		ctxt_p = dev_p->context[context] ;
 	else
 		return CY_AS_ERROR_INVALID_PARAMETER;

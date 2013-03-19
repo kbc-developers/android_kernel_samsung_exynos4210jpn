@@ -38,6 +38,10 @@
 
 #include <linux/module.h>
 #include <linux/blkdev.h>
+#include <linux/kthread.h>
+#include <linux/freezer.h>
+#include <linux/scatterlist.h>
+#include <linux/slab.h>
 
 #include "cyasblkdev_queue.h"
 
@@ -71,6 +75,7 @@ const char *rq_flag_bit_names[] = {
 	"REQ_NR_BITS",		/* stops here */
 };
 
+static int	cyasblkdev_is_running;
 void verbose_rq_flags(int flags)
 {
 	int i;
@@ -92,18 +97,21 @@ void verbose_rq_flags(int flags)
 static int cyasblkdev_prep_request(
 	struct request_queue *q, struct request *req)
 {
+	struct cyasblkdev_queue *bq = q->queuedata;
 	DBGPRN_FUNC_NAME;
 
 	/* we only like normal block requests.*/
 	if (req->cmd_type != REQ_TYPE_FS && !(req->cmd_flags & REQ_DISCARD)) {
 		#ifndef WESTBRIDGE_NDEBUG
-		cy_as_hal_print_message("%s:%x bad request received\n",
-			__func__, current->pid);
+		cy_as_hal_print_message(KERN_INFO"%s:%x bad request received\n",
+			__func__, current->pid) ;
 		#endif
 
 		blk_dump_rq_flags(req, "cyasblkdev bad request");
 		return BLKPREP_KILL;
 	}
+	if (!bq)
+		return BLKPREP_KILL;
 
 	req->cmd_flags |= REQ_DONTPREP;
 
@@ -117,6 +125,7 @@ static int cyasblkdev_queue_thread(void *d)
 	struct cyasblkdev_queue *bq = d;
 	struct request_queue *q = bq->queue;
 	u32 qth_pid;
+	struct request *req ;
 
 	DBGPRN_FUNC_NAME;
 
@@ -135,35 +144,42 @@ static int cyasblkdev_queue_thread(void *d)
 	qth_pid = current->pid;
 
 	#ifndef WESTBRIDGE_NDEBUG
-	cy_as_hal_print_message(
-		"%s:%x started, bq:%p, q:%p\n", __func__, qth_pid, bq, q);
+	cy_as_hal_print_message(KERN_ERR
+		"%s:%x started, bq:%p, q:%p\n", __func__, qth_pid, bq, q) ;
 	#endif
 
 	do {
-		struct request *req = NULL;
+		req = NULL;
 
 		/* the thread wants to be woken up by signals as well */
 		set_current_state(TASK_INTERRUPTIBLE);
 
 		spin_lock_irq(q->queue_lock);
 
-		#ifndef WESTBRIDGE_NDEBUG
-		cy_as_hal_print_message(
+		#ifdef __DEBUG_BLK_LOW_LEVEL__
+		cy_as_hal_print_message(KERN_ERR
 			"%s: for bq->queue is null\n", __func__);
 		#endif
 
-		if (!bq->req) {
+		#if 1 /* def __USE_SYNC_FUNCTION__ */
+		if (!bq->req) 
+		#endif
+		{
 			/* chk if queue is plugged */
-			if (!blk_queue_plugged(q)) {
+			if (1) {
+#if defined(__FOR_KERNEL_2_6_35__) || defined(__FOR_KERNEL_2_6_32__)
 				bq->req = req = blk_fetch_request(q);
-				#ifndef WESTBRIDGE_NDEBUG
-				cy_as_hal_print_message(
+#else
+				bq->req = req = elv_next_request(q);
+#endif
+				#ifdef __DEBUG_BLK_LOW_LEVEL__
+				cy_as_hal_print_message(KERN_ERR
 					"%s: blk_fetch_request:%x\n",
 					__func__, (uint32_t)req);
 				#endif
 			} else {
-				#ifndef WESTBRIDGE_NDEBUG
-				cy_as_hal_print_message(
+				#ifdef __DEBUG_BLK_LOW_LEVEL__
+				cy_as_hal_print_message(KERN_ERR
 					"%s: queue plugged, "
 					"skip blk_fetch()\n", __func__);
 				#endif
@@ -171,41 +187,43 @@ static int cyasblkdev_queue_thread(void *d)
 		}
 		spin_unlock_irq(q->queue_lock);
 
-		#ifndef WESTBRIDGE_NDEBUG
-		cy_as_hal_print_message(
+		#ifdef __DEBUG_BLK_LOW_LEVEL__
+		cy_as_hal_print_message(KERN_ERR
 			"%s: checking if request queue is null\n", __func__);
 		#endif
 
 		if (!req) {
 			if (bq->flags & CYASBLKDEV_QUEUE_EXIT) {
-				#ifndef WESTBRIDGE_NDEBUG
-				cy_as_hal_print_message(
+				#ifdef __DEBUG_BLK_LOW_LEVEL__
+				cy_as_hal_print_message(KERN_ERR
 					"%s:got QUEUE_EXIT flag\n", __func__);
 				#endif
 
 				break;
 			}
 
-			#ifndef WESTBRIDGE_NDEBUG
-			cy_as_hal_print_message(
+			#ifdef __DEBUG_BLK_LOW_LEVEL__
+			cy_as_hal_print_message(KERN_ERR
 				"%s: request queue is null, goto sleep, "
 				"thread_sem->count=%d\n",
 				__func__, bq->thread_sem.count);
 			if (spin_is_locked(q->queue_lock)) {
-				cy_as_hal_print_message("%s: queue_lock "
+				cy_as_hal_print_message(KERN_ERR"%s: queue_lock "
 				"is locked, need to release\n", __func__);
 				spin_unlock(q->queue_lock);
 
 				if (spin_is_locked(q->queue_lock))
-					cy_as_hal_print_message(
+					cy_as_hal_print_message(KERN_ERR
 						"%s: unlock did not work\n",
 						__func__);
 			} else {
-				cy_as_hal_print_message(
+				cy_as_hal_print_message(KERN_ERR
 					"%s: checked lock, is not locked\n",
 					__func__);
 			}
 			#endif
+
+			cyasblkdev_is_running = 0;
 
 			up(&bq->thread_sem);
 
@@ -214,27 +232,27 @@ static int cyasblkdev_queue_thread(void *d)
 			schedule();
 			down(&bq->thread_sem);
 
-			#ifndef WESTBRIDGE_NDEBUG
-			cy_as_hal_print_message(
+			#ifdef __DEBUG_BLK_LOW_LEVEL__
+			cy_as_hal_print_message(KERN_ERR
 				"%s: wake_up,continue\n",
 				__func__);
 			#endif
 			continue;
 		}
 
-		/* new req received, issue it to the driver  */
+		/* new req recieved, issue it to the driver  */
 		set_current_state(TASK_RUNNING);
 
-		#ifndef WESTBRIDGE_NDEBUG
-		cy_as_hal_print_message(
+		#ifdef __DEBUG_BLK_LOW_LEVEL__
+		cy_as_hal_print_message(KERN_ERR
 			"%s: issued a RQ:%x\n",
 			__func__, (uint32_t)req);
 		#endif
-
+		cyasblkdev_is_running = 1;
 		bq->issue_fn(bq, req);
 
-		#ifndef WESTBRIDGE_NDEBUG
-		cy_as_hal_print_message(
+		#ifdef __DEBUG_BLK_LOW_LEVEL_2_
+		cy_as_hal_print_message(KERN_ERR
 			"%s: bq->issue_fn() returned\n",
 			__func__);
 		#endif
@@ -249,7 +267,7 @@ static int cyasblkdev_queue_thread(void *d)
 	complete_and_exit(&bq->thread_complete, 0);
 
 	#ifndef WESTBRIDGE_NDEBUG
-	cy_as_hal_print_message("%s: is finished\n", __func__);
+	cy_as_hal_print_message(KERN_ERR"%s: is finished\n", __func__) ;
 	#endif
 
 	return 0;
@@ -264,26 +282,49 @@ static int cyasblkdev_queue_thread(void *d)
 static void cyasblkdev_request(struct request_queue *q)
 {
 	struct cyasblkdev_queue *bq = q->queuedata;
+	struct request *req;
 	DBGPRN_FUNC_NAME;
 
-	#ifndef WESTBRIDGE_NDEBUG
-	cy_as_hal_print_message(
+	#ifdef __DEBUG_BLK_LOW_LEVEL__
+	cy_as_hal_print_message(KERN_ERR
 		"%s new request on cyasblkdev_queue_t bq:=%x\n",
 		__func__, (uint32_t)bq);
 	#endif
 
+
+	if (!bq) {
+		/* printk(KERN_ERR "cyasblkdev_request: killing requests for dead queue\n"); */
+#if defined(__FOR_KERNEL_2_6_35__) || defined(__FOR_KERNEL_2_6_32__)
+		while ((req = blk_fetch_request(q)) != NULL) {
+			req->cmd_flags |= REQ_QUIET;
+			__blk_end_request_all(req, -EIO);
+		}
+#else
+		while ((req = elv_next_request(q)) != NULL) {
+			do {
+				ret = __blk_end_request(req, -EIO, blk_rq_cur_bytes(req));
+			} while (ret);
+		}
+#endif
+		return;
+	}
+
 	if (!bq->req) {
-		#ifndef WESTBRIDGE_NDEBUG
-		cy_as_hal_print_message("%s wake_up(&bq->thread_wq)\n",
+		#ifdef __DEBUG_BLK_LOW_LEVEL_2_
+		cy_as_hal_print_message(KERN_ERR"%s wake_up(&bq->thread_wq)\n",
 			__func__);
 		#endif
 
 		/* wake up cyasblkdev_queue worker thread*/
 		wake_up(&bq->thread_wq);
 	} else {
-		#ifndef WESTBRIDGE_NDEBUG
-		cy_as_hal_print_message("%s: don't wake Q_thr, bq->req:%x\n",
+		#ifdef __DEBUG_BLK_LOW_LEVEL__
+		cy_as_hal_print_message(KERN_ERR"%s: don't wake Q_thr, bq->req:%x\n",
 			__func__, (uint32_t)bq->req);
+		#endif
+		#if 0 /* def __USE_SYNC_FUNCTION__ */
+		if( !cyasblkdev_is_running )
+			wake_up(&bq->thread_wq);
 		#endif
 	}
 }
@@ -316,15 +357,21 @@ int cyasblkdev_init_queue(struct cyasblkdev_queue *bq, spinlock_t *lock)
 
 	blk_queue_prep_rq(bq->queue, cyasblkdev_prep_request);
 
-	blk_queue_bounce_limit(bq->queue, BLK_BOUNCE_ANY);
+	blk_queue_bounce_limit(bq->queue, BLK_BOUNCE_HIGH);
+#ifdef __FOR_KERNEL_2_6_35__
 	blk_queue_max_hw_sectors(bq->queue, Q_MAX_SECTORS);
-
+#else
+	blk_queue_max_sectors(bq->queue, Q_MAX_SECTORS);
+#endif
 	/* As of now, we have the HAL/driver support to
 	 * merge scattered segments and handle them simultaneously.
 	 * so, setting the max_phys_segments to 8. */
-	/*blk_queue_max_phys_segments(bq->queue, Q_MAX_SGS);
-	blk_queue_max_hw_segments(bq->queue, Q_MAX_SGS);*/
+#ifdef __FOR_KERNEL_2_6_35__
 	blk_queue_max_segments(bq->queue, Q_MAX_SGS);
+#else
+	blk_queue_max_phys_segments(bq->queue, Q_MAX_SGS);
+	blk_queue_max_hw_segments(bq->queue, Q_MAX_SGS);
+#endif
 
 	/* should be < then HAL can handle */
 	blk_queue_max_segment_size(bq->queue, 512*Q_MAX_SECTORS);
@@ -332,6 +379,8 @@ int cyasblkdev_init_queue(struct cyasblkdev_queue *bq, spinlock_t *lock)
 	bq->queue->queuedata = bq;
 	bq->req = NULL;
 
+	bq->test_code=0x12345678;
+	
 	init_completion(&bq->thread_complete);
 	init_waitqueue_head(&bq->thread_wq);
 	sema_init(&bq->thread_sem, 1);
@@ -355,13 +404,27 @@ EXPORT_SYMBOL(cyasblkdev_init_queue);
 /*called from blk_put()  */
 void cyasblkdev_cleanup_queue(struct cyasblkdev_queue *bq)
 {
+	struct request_queue *q = bq->queue;
+	unsigned long flags;
+
 	DBGPRN_FUNC_NAME;
+
+	/* Make sure the queue isn't suspended, as that will deadlock */
+	cyasblkdev_queue_resume(bq);
 
 	bq->flags |= CYASBLKDEV_QUEUE_EXIT;
 	wake_up(&bq->thread_wq);
 	wait_for_completion(&bq->thread_complete);
 
-	blk_cleanup_queue(bq->queue);
+	/* Empty the queue */
+	spin_lock_irqsave(q->queue_lock, flags);
+	q->queuedata = NULL;
+	blk_start_queue(q);
+	spin_unlock_irqrestore(q->queue_lock, flags);
+	
+	cy_as_hal_print_message(KERN_ERR"%s: is finished\n", __func__) ;
+
+	/* blk_cleanup_queue(bq->queue); */
 }
 EXPORT_SYMBOL(cyasblkdev_cleanup_queue);
 

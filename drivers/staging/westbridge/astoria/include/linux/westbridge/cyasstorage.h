@@ -1219,7 +1219,7 @@ cy_as_storage_query_device(
 	/* Handle to the device of interest */
 	cy_as_device_handle		handle,
 	/* Parameters and return value for the query call */
-	cy_as_storage_query_device_data * data,
+	cy_as_storage_query_device_data *data,
 	/* Callback to be called when the operation is complete */
 	cy_as_function_callback		cb,
 	 /* Client data to be passed to the callback */
@@ -1288,7 +1288,7 @@ cy_as_storage_query_unit(
    to be instructed to disable the card detect feature. Also, if
    the hardware design does not use the SD_WP GPIO of the West
    Bridge to handle SD card's write protect notch, the handling
-   of write protection if firmware should be disabled. This AP
+   of write protection if firmware should be disabled. This API
    is used to enable/disable the card detect and write protect
    support in West Bridge firmware.
 
@@ -1432,7 +1432,7 @@ cy_as_storage_read(
    Notes
    If the Samsung CEATA drive is the target for a read/write
    operation, the maximum
-   number of sectors that can be accessed through a single AP
+   number of sectors that can be accessed through a single API
    call is limited to 2047.
    Longer accesses addressed to a Samsung CEATA drive can
    result in time-out errors.
@@ -1585,7 +1585,7 @@ cy_as_storage_write(
    Notes
    If the Samsung CEATA drive is the target for a read/write
    operation, the maximum
-   number of sectors that can be accessed through a single AP
+   number of sectors that can be accessed through a single API
    call is limited to 2047.
    Longer accesses addressed to a Samsung CEATA drive can
    result in time-out errors.
@@ -1887,7 +1887,7 @@ cy_as_storage_get_transfer_amount(
 	/* Device number of interest */
 	uint32_t device,
 	/* Return value containing read/write sector counts. */
-	cy_as_m_s_c_progress_data * data_p,
+	cy_as_m_s_c_progress_data *data_p,
 	/* Callback in case of async call */
 	cy_as_function_callback cb,
 	/* Client context to pass to the callback */
@@ -2059,7 +2059,7 @@ cy_as_sdio_query_card(
 	/* Device number */
 	uint32_t		device,
 	/* Buffer to store card properties */
-	cy_as_sdio_card		* data_p
+	cy_as_sdio_card		*data_p
 		);
 
 /* Summary
@@ -2534,7 +2534,7 @@ cy_as_sdio_query_function(
 	/* IO function Number */
 	uint8_t	n_function_no,
 	/* Buffer to store function properties */
-	cy_as_sdio_func * data_p
+	cy_as_sdio_func *data_p
 	);
 
 /* Summary
@@ -2785,21 +2785,21 @@ cy_as_sdio_resume(
 */
 cy_as_return_status_t
 cy_as_storage_change_sd_frequency (
-	 /* Handle to the West Bridge device. */
-	 cy_as_device_handle     handle,
-	 /* Target bus number on which to make the change. */
-	 cy_as_bus_number_t      bus,
-	 /* Clock source setting (can be 0x03, 0x01 or 0x11). */
-	 uint8_t		   clk_source,
-	 /* Factor by which to divide the source clock. The caller
-	    should make sure that the effective clock speed is
-	    greater than or equal to 5 MHz. */
-	 uint8_t		   clk_divider,
-	 /* Callback function to call on completion. */
-	 cy_as_function_callback cb,
-	 /* Client data to send to the callback. */
-	 uint32_t		  client
-	 );
+        /* Handle to the West Bridge device. */
+        cy_as_device_handle     handle,
+        /* Target bus number on which to make the change. */
+        cy_as_bus_number_t      bus,
+        /* Clock source setting (can be 0x03, 0x01 or 0x11). */
+        uint8_t                 clk_source,
+        /* Factor by which to divide the source clock. The caller
+           should make sure that the effective clock speed is
+           greater than or equal to 5 MHz. */
+        uint8_t                 clk_divider,
+        /* Callback function to call on completion. */
+        cy_as_function_callback cb,
+        /* Client data to send to the callback. */
+        uint32_t                client
+        );
 
 /* For supporting deprecated functions */
 #include "cyasstorage_dep.h"

@@ -256,8 +256,8 @@ static int uart_switch_init(void)
 	gpio_export_link(switch_dev, "uart_sel", GPIO_UART_SEL);
 #if defined(CONFIG_MACH_C1_KDDI_REV00)
 //ssong100805. HW team requests for me to make RF UART calibration work fine. 
-	uartswitch_dev = device_create(sec_class, NULL, 0, NULL, "uart_switch1");
-	if (IS_ERR(uartswitch_dev)) {
+	switch_dev = device_create(sec_class, NULL, 0, NULL, "uart_switch1");
+	if (IS_ERR(switch_dev)) {
 		pr_err("Failed to create device(uart_switch1)!\n");
 		return 0;
 	}
@@ -279,7 +279,7 @@ static int uart_switch_init(void)
 
 	gpio_export(GPIO_UART_SEL1, 1);
 
-	gpio_export_link(uartswitch_dev, "UART_SEL1", GPIO_UART_SEL1);
+	gpio_export_link(switch_dev, "UART_SEL1", GPIO_UART_SEL1);
 #endif	
 
 	return 0;

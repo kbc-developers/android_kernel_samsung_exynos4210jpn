@@ -34,6 +34,9 @@ struct mipi_lcd_driver {
 
 	s32	(*init)(struct device *dev);
 	void	(*display_on)(struct device *dev);
+	s32	(*set_link)(void *pd, u32 dsim_base,
+		u8 (*cmd_write)(u32 dsim_base, u32 data0, u32 data1, u32 data2),
+		int (*cmd_read)(u32 reg_base, u8 addr, u16 count, u8 *buf));
 	s32	(*probe)(struct device *dev);
 	s32	(*remove)(struct device *dev);
 	void	(*shutdown)(struct device *dev);

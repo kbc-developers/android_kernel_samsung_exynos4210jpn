@@ -18,6 +18,7 @@
 ## Boston, MA  02110-1301, USA.
 ## ===========================
 */
+
 #include <linux/fs.h>
 #include <linux/ioport.h>
 #include <linux/timer.h>
@@ -26,7 +27,7 @@
 #include <linux/scatterlist.h>
 #include <linux/mm.h>
 #include <linux/irq.h>
-#include <linux/gpio.h>
+#include <linux/gpio.h> 
 #include <asm/io.h>
 #include <linux/clk.h>
 
@@ -48,205 +49,143 @@ MODULE_PARM_DESC(mode, "firmware number, change switch=0, UMS=1");
 
 char *cyasswitch_buf;
 
-static int __init cy_as_switch_init(void)
+static int __init cy_as_switch_init (void)
 {
-	uint32_t retVal = 0;
+	uint32_t retVal = 0 ;
 
-	cyasswitch_buf = (uint8_t *) cy_as_hal_alloc(4096);
+	cyasswitch_buf = (uint8_t *)cy_as_hal_alloc(4096);
 	cy_as_hal_mem_set(cyasswitch_buf, 0, 4096);
 
-	switch (mode) {
-	case 1:
-		retVal =
-		    cy_as_diagnostics(CY_AS_DIAG_GET_VERSION,
-				      cyasswitch_buf);
-		if (retVal)
-			cy_as_hal_print_message
-			    ("<1>CyAsSwitch: CY_AS_DIAG_GET_VERSION failed.\n");
-		else
-			cy_as_hal_print_message
-			    ("<1>CyAsSwitch: CY_AS_DIAG_GET_VERSION - %s\n",
-			     cyasswitch_buf);
-		break;
-
-	case 10:
-		{
-			int i;
-			retVal =
-			    cy_as_diagnostics(CY_AS_DIAG_SD_MOUNT,
-					      cyasswitch_buf);
-			if (retVal)
-				cy_as_hal_print_message
-				    ("<1>CyAsSwitch: CY_AS_DIAG_SD_MOUNT failed.\n");
+		switch (mode) {
+		case 1:
+			retVal = cy_as_diagnostics(CY_AS_DIAG_GET_VERSION, cyasswitch_buf);
+			if( retVal )
+				cy_as_hal_print_message("<1>CyAsSwitch: CY_AS_DIAG_GET_VERSION failed.\n") ;
 			else
-				cy_as_hal_print_message
-				    ("<1>CyAsSwitch: CY_AS_DIAG_SD_MOUNT - %s\n",
-				     cyasswitch_buf);
-
-			for (i = 0; i < 4; i++) {
-				retVal =
-				    cy_as_diagnostics(CY_AS_DIAG_SD_WRITE,
-						      cyasswitch_buf);
-				if (retVal)
-					cy_as_hal_print_message
-					    ("<1>CyAsSwitch: CY_AS_DIAG_SD_MOUNT failed.\n");
+				cy_as_hal_print_message("<1>CyAsSwitch: CY_AS_DIAG_GET_VERSION - %s\n", cyasswitch_buf) ;
+			break;
+			
+		case 10:
+			{
+				int i;
+				retVal = cy_as_diagnostics(CY_AS_DIAG_SD_MOUNT, cyasswitch_buf);
+				if( retVal )
+					cy_as_hal_print_message("<1>CyAsSwitch: CY_AS_DIAG_SD_MOUNT failed.\n") ;
 				else
-					cy_as_hal_print_message
-					    ("<1>CyAsSwitch: CY_AS_DIAG_SD_MOUNT - %s KBytes/s\n",
-					     cyasswitch_buf);
+					cy_as_hal_print_message("<1>CyAsSwitch: CY_AS_DIAG_SD_MOUNT - %s\n", cyasswitch_buf) ;
 
+				for (i = 0 ; i < 4 ; i++) {
+					retVal = cy_as_diagnostics(CY_AS_DIAG_SD_WRITE, cyasswitch_buf);
+					if( retVal )
+						cy_as_hal_print_message("<1>CyAsSwitch: CY_AS_DIAG_SD_MOUNT failed.\n") ;
+					else
+						cy_as_hal_print_message("<1>CyAsSwitch: CY_AS_DIAG_SD_MOUNT - %s KBytes/s\n", cyasswitch_buf) ;
+
+				}
+			
+				for (i = 0 ; i < 32 ; i++) {
+					retVal = cy_as_diagnostics(CY_AS_DIAG_SD_READ, cyasswitch_buf);
+					if( retVal )
+						cy_as_hal_print_message("<1>CyAsSwitch: CY_AS_DIAG_SD_MOUNT failed.\n") ;
+					else
+						cy_as_hal_print_message("<1>CyAsSwitch: CY_AS_DIAG_SD_MOUNT - %s KBytes/s\n", cyasswitch_buf) ;
+
+				}
+			
 			}
-
-			for (i = 0; i < 32; i++) {
-				retVal =
-				    cy_as_diagnostics(CY_AS_DIAG_SD_READ,
-						      cyasswitch_buf);
-				if (retVal)
-					cy_as_hal_print_message
-					    ("<1>CyAsSwitch: CY_AS_DIAG_SD_MOUNT failed.\n");
-				else
-					cy_as_hal_print_message
-					    ("<1>CyAsSwitch: CY_AS_DIAG_SD_MOUNT - %s KBytes/s\n",
-					     cyasswitch_buf);
-
-			}
-
-		}
 		break;
 
-	case 20:
-		retVal =
-		    cy_as_diagnostics(CY_AS_DIAG_CONNECT_UMS,
-				      cyasswitch_buf);
-		if (retVal)
-			cy_as_hal_print_message
-			    ("<1>CyAsSwitch: CY_AS_DIAG_CONNECT_UMS failed.\n");
-		else
-			cy_as_hal_print_message
-			    ("<1>CyAsSwitch: CY_AS_DIAG_CONNECT_UMS - %s\n",
-			     cyasswitch_buf);
+		case 20:
+			retVal = cy_as_diagnostics(CY_AS_DIAG_CONNECT_UMS, cyasswitch_buf);
+			if( retVal )
+				cy_as_hal_print_message("<1>CyAsSwitch: CY_AS_DIAG_CONNECT_UMS failed.\n") ;
+			else
+				cy_as_hal_print_message("<1>CyAsSwitch: CY_AS_DIAG_CONNECT_UMS - %s\n", cyasswitch_buf) ;
 		break;
-
-	case 30:
-		retVal =
-		    cy_as_diagnostics(CY_AS_DIAG_CONNECT_MTP,
-				      cyasswitch_buf);
-		if (retVal)
-			cy_as_hal_print_message
-			    ("<1>CyAsSwitch: CY_AS_DIAG_CONNECT_MTP failed.\n");
-		else
-			cy_as_hal_print_message
-			    ("<1>CyAsSwitch: CY_AS_DIAG_CONNECT_MTP - %s\n",
-			     cyasswitch_buf);
+		
+	    case 30:
+			retVal = cy_as_diagnostics(CY_AS_DIAG_CONNECT_MTP, cyasswitch_buf);
+			if( retVal )
+				cy_as_hal_print_message("<1>CyAsSwitch: CY_AS_DIAG_CONNECT_MTP failed.\n") ;
+			else
+				cy_as_hal_print_message("<1>CyAsSwitch: CY_AS_DIAG_CONNECT_MTP - %s\n", cyasswitch_buf) ;
 		break;
+		
+	    case 40:
+			cy_as_diagnostics(CY_AS_DIAG_DISABLE_MSM_SDIO, cyasswitch_buf);
 
-	case 40:
-		cy_as_diagnostics(CY_AS_DIAG_DISABLE_MSM_SDIO,
-				  cyasswitch_buf);
+			cy_as_diagnostics(CY_AS_DIAG_LEAVE_STANDBY, cyasswitch_buf);
 
-		cy_as_diagnostics(CY_AS_DIAG_LEAVE_STANDBY,
-				  cyasswitch_buf);
-
-		retVal =
-		    cy_as_diagnostics(CY_AS_DIAG_CREATE_BLKDEV,
-				      cyasswitch_buf);
-		if (retVal)
-			cy_as_hal_print_message
-			    ("<1>CyAsSwitch: CY_AS_DIAG_CREATE_BLKDEV failed.\n");
-		else
-			cy_as_hal_print_message
-			    ("<1>CyAsSwitch: CY_AS_DIAG_CREATE_BLKDEV - %s\n",
-			     cyasswitch_buf);
+			retVal = cy_as_diagnostics(CY_AS_DIAG_CREATE_BLKDEV, cyasswitch_buf);
+			if( retVal )
+				cy_as_hal_print_message("<1>CyAsSwitch: CY_AS_DIAG_CREATE_BLKDEV failed.\n") ;
+			else
+				cy_as_hal_print_message("<1>CyAsSwitch: CY_AS_DIAG_CREATE_BLKDEV - %s\n", cyasswitch_buf) ;
 
 		break;
-
-	default:
-		cy_as_hal_print_message
-		    ("<1>CyAsSwitch: unkown mode, please run 'rmmod cyasswitch.ko' \n");
+		
+		default:
+		cy_as_hal_print_message("<1>CyAsSwitch: unkown mode, please run 'rmmod cyasswitch.ko' \n") ;
 		break;
 
 	}
 	return 0;
 }
+module_init (cy_as_switch_init);
 
-module_init(cy_as_switch_init);
-
-static void __exit cy_as_switch_cleanup(void)
+static void __exit cy_as_switch_cleanup (void)
 {
-	uint32_t retVal = 0;
+	uint32_t retVal = 0 ;
 
-	switch (mode) {
-	case 10:
-		retVal =
-		    cy_as_diagnostics(CY_AS_DIAG_SD_UNMOUNT,
-				      cyasswitch_buf);
-		if (retVal)
-			cy_as_hal_print_message
-			    ("<1>CyAsSwitch: CY_AS_DIAG_SD_UNMOUNT failed.\n");
-		else
-			cy_as_hal_print_message
-			    ("<1>CyAsSwitch: CY_AS_DIAG_SD_UNMOUNT - %s\n",
-			     cyasswitch_buf);
+		switch (mode) {
+		case 10:
+			retVal = cy_as_diagnostics(CY_AS_DIAG_SD_UNMOUNT, cyasswitch_buf);
+			if( retVal )
+				cy_as_hal_print_message("<1>CyAsSwitch: CY_AS_DIAG_SD_UNMOUNT failed.\n") ;
+			else
+				cy_as_hal_print_message("<1>CyAsSwitch: CY_AS_DIAG_SD_UNMOUNT - %s\n", cyasswitch_buf) ;
 		break;
 
-	case 20:
+	    case 20:
 
-		retVal =
-		    cy_as_diagnostics(CY_AS_DIAG_DISCONNECT_UMS,
-				      cyasswitch_buf);
-		if (retVal)
-			cy_as_hal_print_message
-			    ("<1>CyAsSwitch: CY_AS_DIAG_DISCONNECT_UMS failed.\n");
-		else
-			cy_as_hal_print_message
-			    ("<1>CyAsSwitch: CY_AS_DIAG_DISCONNECT_UMS - %s\n",
-			     cyasswitch_buf);
+			retVal = cy_as_diagnostics(CY_AS_DIAG_DISCONNECT_UMS, cyasswitch_buf);
+			if( retVal )
+				cy_as_hal_print_message("<1>CyAsSwitch: CY_AS_DIAG_DISCONNECT_UMS failed.\n") ;
+			else
+				cy_as_hal_print_message("<1>CyAsSwitch: CY_AS_DIAG_DISCONNECT_UMS - %s\n", cyasswitch_buf) ;
+		break;
+		
+	    case 30:
+			retVal = cy_as_diagnostics(CY_AS_DIAG_DISCONNECT_MTP, cyasswitch_buf);
+			if( retVal )
+				cy_as_hal_print_message("<1>CyAsSwitch: CY_AS_DIAG_DISCONNECT_MTP failed.\n") ;
+			else
+				cy_as_hal_print_message("<1>CyAsSwitch: CY_AS_DIAG_DISCONNECT_MTP - %s\n", cyasswitch_buf) ;
 		break;
 
-	case 30:
-		retVal =
-		    cy_as_diagnostics(CY_AS_DIAG_DISCONNECT_MTP,
-				      cyasswitch_buf);
-		if (retVal)
-			cy_as_hal_print_message
-			    ("<1>CyAsSwitch: CY_AS_DIAG_DISCONNECT_MTP failed.\n");
-		else
-			cy_as_hal_print_message
-			    ("<1>CyAsSwitch: CY_AS_DIAG_DISCONNECT_MTP - %s\n",
-			     cyasswitch_buf);
+		case 40:
+			retVal = cy_as_diagnostics(CY_AS_DIAG_DESTROY_BLKDEV, cyasswitch_buf);
+			if( retVal )
+				cy_as_hal_print_message("<1>CyAsSwitch: CY_AS_DIAG_DESTROY_BLKDEV failed.\n") ;
+			else
+				cy_as_hal_print_message("<1>CyAsSwitch: CY_AS_DIAG_DESTROY_BLKDEV - %s\n", cyasswitch_buf) ;
+			
+			cy_as_diagnostics(CY_AS_DIAG_ENTER_STANDBY, cyasswitch_buf);
+
+			cy_as_diagnostics(CY_AS_DIAG_ENABLE_MSM_SDIO, cyasswitch_buf);
 		break;
 
-	case 40:
-		retVal =
-		    cy_as_diagnostics(CY_AS_DIAG_DESTROY_BLKDEV,
-				      cyasswitch_buf);
-		if (retVal)
-			cy_as_hal_print_message
-			    ("<1>CyAsSwitch: CY_AS_DIAG_DESTROY_BLKDEV failed.\n");
-		else
-			cy_as_hal_print_message
-			    ("<1>CyAsSwitch: CY_AS_DIAG_DESTROY_BLKDEV - %s\n",
-			     cyasswitch_buf);
-
-		cy_as_diagnostics(CY_AS_DIAG_ENTER_STANDBY,
-				  cyasswitch_buf);
-
-		cy_as_diagnostics(CY_AS_DIAG_ENABLE_MSM_SDIO,
-				  cyasswitch_buf);
-		break;
-
-	default:
+		default:
 		break;
 	}
 
-	cy_as_hal_print_message("<1>CyAsSwitch: exit \n");
+	cy_as_hal_print_message("<1>CyAsSwitch: exit \n") ;
 
 	cy_as_hal_free(cyasswitch_buf);
 
 	return;
 }
-
-module_exit(cy_as_switch_cleanup);
+module_exit (cy_as_switch_cleanup);
 
 
 MODULE_LICENSE("GPL");

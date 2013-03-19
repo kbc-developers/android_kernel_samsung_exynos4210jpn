@@ -299,6 +299,13 @@ static int sysfs_set_testmode_status(int val)
 #endif
 #endif
 
+enum tmu_status_t {
+	TMU_STATUS_NORMAL = 0,
+	TMU_STATUS_TRIPPED,
+	TMU_STATUS_THROTTLED,
+	TMU_STATUS_WARNING,
+};
+
 enum cable_type_t {
 	CABLE_TYPE_NONE = 0,
 	CABLE_TYPE_USB,

@@ -44,7 +44,7 @@ typedef struct cy_as_hal_sleep_channel_t {
 
 /* moved to staging location, eventual location
  * considered is here
-#include <mach/westbridge/cyashaldef.h>
+#include <mach/westbridge/cyashaldef.h> 
 #include <linux/westbridge/cyastypes.h>
 #include <linux/westbridge/cyas_cplus_start.h>
 */
@@ -271,7 +271,7 @@ void cy_as_hal_read_regs_before_standby(cy_as_hal_device_tag tag);
  /* Debug printing enabled */
 
  #define DBGPRN(...) printk(__VA_ARGS__)
- #define DBGPRN_FUNC_NAME
+ #define DBGPRN_FUNC_NAME	
 			/*printk("<1> %x:_func: %s\n", current->pid, __func__) */
 
 #else

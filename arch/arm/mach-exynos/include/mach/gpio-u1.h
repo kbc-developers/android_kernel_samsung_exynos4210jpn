@@ -239,7 +239,7 @@
 #endif /* CONFIG_USBHUB_USB3803 */
 
 /* GPIOs for IDPRAM driver of U1_NA_SPR(Gaudi) */
-#if defined(CONFIG_MACH_U1_NA_SPR)
+#if defined(CONFIG_MACH_U1_NA_SPR) || defined(CONFIG_MACH_C1_KDDI_REV00)
 #define S5PV310_GPE0_0_MDM_WEn          EXYNOS4210_GPE0(0)
 #define S5PV310_GPE0_1_MDM_CSn          EXYNOS4210_GPE0(1)
 #define S5PV310_GPE0_2_MDM_Rn           EXYNOS4210_GPE0(2)

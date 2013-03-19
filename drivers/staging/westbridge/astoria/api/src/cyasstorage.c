@@ -175,6 +175,18 @@ my_storage_request_callback(cy_as_device *dev_p,
 	(void)context;
 	(void)ret;
 
+	if (req_p == NULL) {
+		cy_as_hal_print_message(KERN_ERR
+			"my_storage_request_callback : req_p is NULL\n");
+		if (dev_p != NULL) {
+			val = CY_RQT_SCSI_UNKNOWN_COMMAND;
+			cy_as_ll_send_data_response(dev_p,
+						CY_RQT_STORAGE_RQT_CONTEXT,
+						CY_RESP_INVALID_REQUEST,
+						sizeof(val), &val);
+		}
+		return ;
+	}
 	switch (cy_as_ll_request_response__get_code(req_p)) {
 	case CY_RQT_MEDIA_CHANGED:
 		cy_as_ll_send_status_response(dev_p,
@@ -1383,17 +1395,15 @@ my_storage_query_unit(cy_as_device *dev_p,
 	if (req_p == 0)
 		return CY_AS_ERROR_OUT_OF_MEMORY;
 
-	if (device > 255) {
-#if defined(CONFIG_MACH_U1_NA_SPR) || defined(CONFIG_MACH_U1_NA_USCC)
+	if (device > 255)
+	{
 		cy_as_ll_destroy_request(dev_p, req_p) ;
-#endif
 		return CY_AS_ERROR_NO_SUCH_DEVICE;
 	}
 
-	if (unit > 255) {
-#if defined(CONFIG_MACH_U1_NA_SPR) || defined(CONFIG_MACH_U1_NA_USCC)
+	if (unit > 255)
+	{
 		cy_as_ll_destroy_request(dev_p, req_p) ;
-#endif
 		return CY_AS_ERROR_NO_SUCH_UNIT;
 	}
 
@@ -2049,12 +2059,14 @@ cy_as_storage_sync_oper(cy_as_device *dev_p,
 		/* Setup the DMA request */
 		ctxt_p = dev_p->context[CY_RQT_STORAGE_RQT_CONTEXT];
 		ret = cy_as_dma_drain_queue(dev_p, ep, cy_false);
-		if (ret == CY_AS_ERROR_SUCCESS) {
-		while (loopcount-- > 0) {
-			if (dev_p->storage_wait == cy_false)
-				break;
-			cy_as_hal_sleep_on(&ctxt_p->channel, 10);
-		}
+
+		if(ret == CY_AS_ERROR_SUCCESS)
+		{
+			while (loopcount-- > 0) {
+				if (dev_p->storage_wait == cy_false)
+					break;
+				cy_as_hal_sleep_on(&ctxt_p->channel, 10);
+			}
 		}
 		if (dev_p->storage_wait == cy_true) {
 			dev_p->storage_wait = cy_false;
@@ -2837,9 +2849,9 @@ cy_as_storage_func_callback(cy_as_device *dev_p,
 			ret = CY_AS_ERROR_NOT_SUPPORTED;
 
 		break;
-	case CY_RQT_CHANGE_SD_FREQ:
-		  ret = my_handle_response_no_data(dev_p, rqt, resp) ;
-		  break ;
+        case CY_RQT_CHANGE_SD_FREQ:
+                ret = my_handle_response_no_data(dev_p, rqt, resp) ;
+                break ;
 
 	default:
 		ret = CY_AS_ERROR_INVALID_RESPONSE;
@@ -4136,10 +4148,10 @@ cy_as_return_status_t
 cy_as_storage_change_sd_frequency(
 		cy_as_device_handle     handle,
 		cy_as_bus_number_t      bus,
-		uint8_t		   clk_source,
-		uint8_t		   clk_divider,
+		uint8_t                 clk_source,
+		uint8_t                 clk_divider,
 		cy_as_function_callback cb,
-		uint32_t		  client)
+		uint32_t                client)
 {
 	cy_as_ll_request_response *req_p, *reply_p ;
 	cy_as_return_status_t ret = CY_AS_ERROR_SUCCESS ;
@@ -4196,8 +4208,7 @@ cy_as_storage_change_sd_frequency(
 		if (ret != CY_AS_ERROR_SUCCESS)
 			goto destroy ;
 
-		/* The request and response
-		are freed as part of the FuncCallback */
+		/* The request and response are freed as part of the FuncCallback */
 		return ret ;
 	}
 

@@ -48,6 +48,7 @@ typedef struct cy_as_c110_dev_kernel {
 
 	/* Address base of Antioch Device */
 	void *m_phy_addr_base;
+	
 	void *m_vma_addr_base;
 	/* This is a pointer to the next Antioch device in the system */
 	struct cy_as_c110_dev_kernel *m_next_p;
@@ -65,7 +66,8 @@ typedef struct cy_as_c110_dev_kernel {
 
 	/* This is for dma sync */
 	struct completion dma_complete;
-	void *regulator;
+	
+	void * regulator;
 } cy_as_c110_dev_kernel;
 
 #endif

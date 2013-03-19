@@ -90,6 +90,7 @@ cy_as_device_find_from_tag(cy_as_hal_device_tag tag)
 }
 
 /* Map a pre-V1.2 media type to the V1.2+ bus number */
+#if 0
 static void
 cy_as_bus_from_media_type(cy_as_media_type type,
 						cy_as_bus_number_t *bus)
@@ -99,6 +100,7 @@ cy_as_bus_from_media_type(cy_as_media_type type,
 	else
 		*bus = 1;
 }
+#endif
 static cy_as_return_status_t
 my_handle_response_no_data(cy_as_device *dev_p,
 			cy_as_ll_request_response *req_p,
@@ -1231,9 +1233,7 @@ my_handle_response_reset(cy_as_device *dev_p,
 		cy_as_device_set_low_level_stopped(dev_p);
 		cy_as_device_set_intr_stopped(dev_p);
 		cy_as_device_clear_suspend_mode(dev_p);
-#if !defined(CONFIG_MACH_U1_NA_SPR) && !defined(CONFIG_MACH_U1_NA_USCC)
-		cy_as_usb_cleanup(dev_p);
-#endif
+		/* cy_as_usb_cleanup(dev_p) ; */
 		cy_as_storage_cleanup(dev_p);
 
 		/*
@@ -1265,9 +1265,8 @@ cy_as_misc_reset(cy_as_device_handle handle,
 
 	/* Make sure the device is ready for the command. */
 	dev_p = (cy_as_device *)handle;
-#if !defined(CONFIG_MACH_U1_NA_SPR) && !defined(CONFIG_MACH_U1_NA_USCC)
-	cy_as_check_device_ready(dev_p) ;
-#endif
+	/* cy_as_check_device_ready(dev_p) ; */
+
 	/*
 	 * soft reset is not supported until we close on the issues
 	 * in the firmware with what needs to happen.

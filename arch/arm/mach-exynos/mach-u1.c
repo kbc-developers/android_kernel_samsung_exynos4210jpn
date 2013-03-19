@@ -3817,10 +3817,11 @@ static struct max8997_muic_data max8997_muic = {
 #else
 	.host_notify_cb = NULL,
 #endif
-#if !defined(CONFIG_MACH_U1_NA_USCC)
+#if defined(CONFIG_TARGET_LOCALE_NA)
 	.gpio_uart_sel =  GPIO_UART_SEL,
-#endif
+#else
 	.gpio_usb_sel = GPIO_USB_SEL,
+#endif
 };
 
 static struct max8997_buck1_dvs_funcs *buck1_dvs_funcs;
@@ -6852,7 +6853,13 @@ static struct gp2a_platform_data gp2a_pdata = {
 #endif
 
 static struct i2c_board_info i2c_devs11_emul[] __initdata = {
-#ifdef CONFIG_MACH_U1_BD
+#if defined(CONFIG_OPTICAL_GP2AP020)
+        {
+                I2C_BOARD_INFO("gp2a", (0x72 >> 1)),
+                .platform_data = &gp2a_pdata,
+        },
+#endif
+#if defined (CONFIG_MACH_U1_BD) && defined (CONFIG_SENSORS_CM3663)
 	{
 		I2C_BOARD_INFO("cm3663", 0x20),
 		.irq = GPIO_PS_ALS_INT,
@@ -7005,6 +7012,38 @@ struct platform_device s3c_device_i2c17 = {
 #endif /* CONFIG_S3C_DEV_I2C17_EMUL */
 
 #ifdef CONFIG_USBHUB_USB3803
+
+int usb3803_hw_config(void)
+{
+	int i;
+	int usb_gpio[] = {GPIO_USB_RESET_N, GPIO_USB_BYPASS_N, GPIO_USB_CLOCK_EN};
+
+	for (i = 0; i < 3; i++) {
+		s3c_gpio_cfgpin(usb_gpio[i], S3C_GPIO_OUTPUT);
+		s3c_gpio_setpull(usb_gpio[i], S3C_GPIO_PULL_NONE);
+		gpio_set_value(usb_gpio[i], S3C_GPIO_SETPIN_ZERO);
+		s5p_gpio_set_drvstr(usb_gpio[i], S5P_GPIO_DRVSTR_LV1); /* need to check drvstr 1 or 2 */
+	}
+	return 0;
+}
+
+int usb3803_reset_n(int val)
+{
+	gpio_set_value(GPIO_USB_RESET_N, !!val);
+	return 0;
+}
+
+int usb3803_bypass_n(int val)
+{
+	gpio_set_value(GPIO_USB_BYPASS_N, !!val);
+	return 0;
+}
+
+int usb3803_clock_en(int val)
+{
+	gpio_set_value(GPIO_USB_CLOCK_EN, !!val);
+	return 0;
+}
 struct usb3803_platform_data usb3803_pdata = {
 	.init_needed    =  1,
 	.es_ver         = 1,
