@@ -1630,6 +1630,31 @@ static struct s3c_platform_fimc fimc_plat = {
 };
 #endif				/* CONFIG_VIDEO_FIMC */
 
+#ifdef CONFIG_TOUCHSCREEN_MELFAS
+extern void melfas_power_on(void)
+{
+	s3c_gpio_cfgpin(GPIO_TSP_LDO_ON, S3C_GPIO_OUTPUT);
+	s3c_gpio_setpull(GPIO_TSP_LDO_ON, S3C_GPIO_PULL_NONE);
+	gpio_set_value(GPIO_TSP_LDO_ON, GPIO_LEVEL_HIGH);
+	mdelay(40);
+	s3c_gpio_setpull(GPIO_TSP_INT, S3C_GPIO_PULL_NONE);
+	s3c_gpio_cfgpin(GPIO_TSP_INT, S3C_GPIO_SFN(0xf));
+	//mdelay(40);
+	printk(KERN_ERR"[SSONG] melfas_power_on() is called\n");
+}
+
+extern void melfas_power_off(void)
+{
+	s3c_gpio_cfgpin(GPIO_TSP_INT, S3C_GPIO_INPUT);
+	s3c_gpio_setpull(GPIO_TSP_INT, S3C_GPIO_PULL_DOWN);
+
+	s3c_gpio_cfgpin(GPIO_TSP_LDO_ON, S3C_GPIO_OUTPUT);
+	s3c_gpio_setpull(GPIO_TSP_LDO_ON, S3C_GPIO_PULL_NONE);
+	gpio_set_value(GPIO_TSP_LDO_ON, GPIO_LEVEL_LOW);
+	printk(KERN_ERR"[SSONG] melfas_power_off() is called\n");
+}
+#endif
+
 static DEFINE_MUTEX(notify_lock);
 
 #define DEFINE_MMC_CARD_NOTIFIER(num) \

@@ -1,3 +1,18 @@
+/* 
+ *
+ * Copyright (C) 2010 Melfas, Inc.
+ *
+ * This software is licensed under the terms of the GNU General Public
+ * License version 2, as published by the Free Software Foundation, and
+ * may be copied, distributed, and modified under those terms.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ */
+
 //--------------------------------------------------------
 //
 //
@@ -9,7 +24,7 @@
 
 #ifndef __MELFAS_FIRMWARE_DOWNLOAD_H__
 #define __MELFAS_FIRMWARE_DOWNLOAD_H__
-#include <linux/melfas_ts.h>
+
 
 
 //=====================================================================
@@ -56,7 +71,7 @@
 //	Then Melfas Chip can prepare chip reset.
 //----------------------------------------------------
 
-#define MELFAS_USE_PROTOCOL_COMMAND_FOR_DOWNLOAD	0							// If 'enable download command' is needed ( Pinmap dependent option ).
+#define MELFAS_USE_PROTOCOL_COMMAND_FOR_DOWNLOAD 	0							// If 'enable download command' is needed ( Pinmap dependent option ).
 
 //============================================================
 //
@@ -102,7 +117,6 @@ void mcsdl_vdd_off(void);
 //
 //============================================================
 
-
 #include "mcs8000_download_porting.h"
 
 
@@ -110,12 +124,12 @@ void mcsdl_vdd_off(void);
 //	Functions
 //----------------------------------------------------
 
-int mcsdl_download_binary_data(struct melfas_tsi_platform_data *ts_data); // with binary type .c   file.
-int mcsdl_download_binary_file(struct melfas_tsi_platform_data *ts_data); // with binary type .bin file.
+int mcsdl_download_binary_data(void);			// with binary type .c   file.
+int mcsdl_download_binary_file(void);			// with binary type .bin file.
 
 #if MELFAS_ENABLE_DELAY_TEST					// For initial porting test.
 void mcsdl_delay_test(INT32 nCount);
 #endif
 
-
 #endif		//#ifndef __MELFAS_FIRMWARE_DOWNLOAD_H__
+

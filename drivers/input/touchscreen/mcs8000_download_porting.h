@@ -2,7 +2,7 @@
 //--------------------------------------------------------
 //
 //
-//	Melfas MCS7000 Series Download base v1.0 2010.04.05
+//	Melfas MCS8000 Series Download base v1.0 2010.04.05
 //
 //
 //--------------------------------------------------------
@@ -28,7 +28,7 @@
       Modify delay parameter constant ( ex. MCSDL_DELAY_5MS ) to make it fit to your delay function.
 
    - Rename 'uart_printf()' to your console print function for debugging. [melfas_download_porting.h]
-   or, define uart_printf() as different function properly.
+   	  or, define uart_printf() as different function properly.
 
    - Check Watchdog timer, Interrupt factor
 
@@ -59,15 +59,15 @@ typedef unsigned char		BOOLEAN;
 
 
 #ifndef TRUE
-#define TRUE				(1==1)
+#define TRUE 				(1==1)
 #endif
 
 #ifndef FALSE
-#define FALSE				(1==0)
+#define FALSE 				(1==0)
 #endif
 
 #ifndef NULL
-#define NULL				0
+#define NULL 				0
 #endif
 
 #ifndef GPIO_TOUCH_I2C_SDA
@@ -94,7 +94,7 @@ typedef unsigned char		BOOLEAN;
 //	IO Control poting.
 //
 //	Fill 'Using signal' up only.
-//	See MCSDL_USE_VDD_CONTROL,
+// 	See MCSDL_USE_VDD_CONTROL,
 //		MCSDL_USE_CE_CONTROL,
 //
 //============================================================
@@ -103,20 +103,25 @@ typedef unsigned char		BOOLEAN;
 // VDD
 //----------------
 #if MCSDL_USE_VDD_CONTROL
-#define MCSDL_VDD_SET_HIGH()			//	ts_data->power(1);//gpio_set_value(GPIO_TOUCH_EN, 1)
-#define MCSDL_VDD_SET_LOW()				//	ts_data->power(0);//gpio_set_value(GPIO_TOUCH_EN, 0)
+
+//Sajith
+#define MCSDL_VDD_SET_HIGH()             				gpio_set_value(GPIO_TSP_LDO_ON, GPIO_LEVEL_HIGH)
+#define MCSDL_VDD_SET_LOW()              				gpio_set_value(GPIO_TSP_LDO_ON, GPIO_LEVEL_LOW)
+//
+
 #else
-#define MCSDL_VDD_SET_HIGH()					// Nothing
-#define MCSDL_VDD_SET_LOW()					// Nothing
+#define MCSDL_VDD_SET_HIGH()             			// Nothing
+#define MCSDL_VDD_SET_LOW()              			// Nothing
 #endif
 
+//ssong110603. CE is not needed.
 //----------------
 // CE
 //----------------
 #if MCSDL_USE_CE_CONTROL
-#define MCSDL_CE_SET_HIGH()				//	ts_data->power(1);//gpio_set_value(GPIO_TOUCH_EN, 1)
-#define MCSDL_CE_SET_LOW()				//	ts_data->power(0);//gpio_set_value(GPIO_TOUCH_EN, 0)
-#define MCSDL_CE_SET_OUTPUT()					gpio_tlmm_config(GPIO_CFG(TOUCH_EN, 0, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_16MA),GPIO_CFG_ENABLE)
+#define MCSDL_CE_SET_HIGH()   	          			gpio_set_value(GPIO_TOUCH_EN, 1)
+#define MCSDL_CE_SET_LOW()      	        		gpio_set_value(GPIO_TOUCH_EN, 0)
+#define MCSDL_CE_SET_OUTPUT()   	        		gpio_tlmm_config(GPIO_CFG(TOUCH_EN, 0, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_16MA),GPIO_CFG_ENABLE)
 #else
 #define MCSDL_CE_SET_HIGH()							// Nothing
 #define MCSDL_CE_SET_LOW()							// Nothing
@@ -128,10 +133,10 @@ typedef unsigned char		BOOLEAN;
 // RESETB
 //----------------
 #if MCSDL_USE_RESETB_CONTROL
-#define MCSDL_RESETB_SET_HIGH()				gpio_set_value(GPIO_TSP_INT, 1)
-#define MCSDL_RESETB_SET_LOW()				gpio_set_value(GPIO_TSP_INT, 0)
-#define MCSDL_RESETB_SET_OUTPUT(n)		gpio_direction_output(GPIO_TSP_INT, n)
-#define MCSDL_RESETB_SET_INPUT()			gpio_direction_input(GPIO_TSP_INT)
+#define MCSDL_RESETB_SET_HIGH()             		gpio_set_value(GPIO_TSP_INT, GPIO_LEVEL_HIGH)
+#define MCSDL_RESETB_SET_LOW()              		gpio_set_value(GPIO_TSP_INT, GPIO_LEVEL_LOW)
+#define MCSDL_RESETB_SET_OUTPUT(n)     			s3c_gpio_cfgpin(GPIO_TSP_INT, S3C_GPIO_OUTPUT)
+#define MCSDL_RESETB_SET_INPUT()            		s3c_gpio_cfgpin(GPIO_TSP_INT, S3C_GPIO_INPUT)
 #else
 #define MCSDL_RESETB_SET_HIGH()
 #define MCSDL_RESETB_SET_LOW()
@@ -144,20 +149,20 @@ typedef unsigned char		BOOLEAN;
 // I2C SCL & SDA
 //------------------
 
-#define MCSDL_GPIO_SCL_SET_HIGH()					gpio_set_value(GPIO_TSP_SCL_18V, 1)
-#define MCSDL_GPIO_SCL_SET_LOW()					gpio_set_value(GPIO_TSP_SCL_18V, 0)
+#define MCSDL_GPIO_SCL_SET_HIGH()					gpio_set_value(GPIO_TSP_SCL, GPIO_LEVEL_HIGH)
+#define MCSDL_GPIO_SCL_SET_LOW()					gpio_set_value(GPIO_TSP_SCL, GPIO_LEVEL_LOW)
 
+#define MCSDL_GPIO_SDA_SET_HIGH()					gpio_set_value(GPIO_TSP_SDA, GPIO_LEVEL_HIGH)
+#define MCSDL_GPIO_SDA_SET_LOW()					gpio_set_value(GPIO_TSP_SDA, GPIO_LEVEL_LOW)
+//Sajith
+#define MCSDL_GPIO_SCL_SET_OUTPUT(n)				s3c_gpio_cfgpin(GPIO_TSP_SCL, S3C_GPIO_OUTPUT)
+//
+#define MCSDL_GPIO_SCL_SET_INPUT()					s3c_gpio_cfgpin(GPIO_TSP_SCL, S3C_GPIO_INPUT)
 
-#define MCSDL_GPIO_SDA_SET_HIGH()					gpio_set_value(GPIO_TSP_SDA_18V, 1)
-#define MCSDL_GPIO_SDA_SET_LOW()					gpio_set_value(GPIO_TSP_SDA_18V, 0)
+#define MCSDL_GPIO_SDA_SET_OUTPUT(n)				s3c_gpio_cfgpin(GPIO_TSP_SDA, S3C_GPIO_OUTPUT)
+#define MCSDL_GPIO_SDA_SET_INPUT()					s3c_gpio_cfgpin(GPIO_TSP_SDA, S3C_GPIO_INPUT)
 
-#define MCSDL_GPIO_SCL_SET_OUTPUT(n)					gpio_direction_output(GPIO_TSP_SCL_18V, n)
-#define MCSDL_GPIO_SCL_SET_INPUT()					gpio_direction_input(GPIO_TSP_SCL_18V)
-
-#define MCSDL_GPIO_SDA_SET_OUTPUT(n)					gpio_direction_output(GPIO_TSP_SDA_18V, n)
-#define MCSDL_GPIO_SDA_SET_INPUT()					gpio_direction_input(GPIO_TSP_SDA_18V)
-
-#define MCSDL_GPIO_SDA_IS_HIGH()					((gpio_get_value(GPIO_TSP_SDA_18V) > 0) ? 1 : 0)
+#define MCSDL_GPIO_SDA_IS_HIGH()					((gpio_get_value(GPIO_TSP_SDA) > 0) ? 1 : 0)
 
 #define MCSDL_SET_GPIO_I2C()						// Nothing
 #define MCSDL_SET_HW_I2C()							// Nothing
@@ -176,14 +181,14 @@ typedef unsigned char		BOOLEAN;
 #define MCSDL_DELAY_2US								    2
 #define MCSDL_DELAY_3US								    3
 #define MCSDL_DELAY_5US								    5
-#define MCSDL_DELAY_7US									7
-#define MCSDL_DELAY_10US							   10
+#define MCSDL_DELAY_7US 								7
+#define MCSDL_DELAY_10US 							   10
 #define MCSDL_DELAY_15US							   15
 #define MCSDL_DELAY_20US							   20
 
 #define MCSDL_DELAY_100US							  100
 #define MCSDL_DELAY_150US							  150
-#define MCSDL_DELAY_500US					  500
+#define MCSDL_DELAY_500US             				  500
 #define MCSDL_DELAY_800US							  800
 
 
@@ -195,7 +200,7 @@ typedef unsigned char		BOOLEAN;
 #define MCSDL_DELAY_40MS							40000
 #define MCSDL_DELAY_45MS							45000
 
-//start ADD DELAY
+//start ADD DELAY   
 #define MCSDL_DELAY_60MS                            60000
 #define MCSDL_DELAY_40US                               40
 #define MCSDL_DELAY_300US                             300
@@ -227,3 +232,4 @@ typedef unsigned char		BOOLEAN;
 
 
 #endif
+
